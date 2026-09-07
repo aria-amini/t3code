@@ -1,42 +1,42 @@
 import type {
-  EnvironmentId,
-  OrchestrationMessage,
-  OrchestrationProjectShell,
-  OrchestrationThread,
-  OrchestrationThreadShell,
+	EnvironmentId,
+	OrchestrationMessage,
+	OrchestrationProjectShell,
+	OrchestrationThread,
+	OrchestrationThreadShell,
 } from "@t3tools/contracts";
 
 export interface EnvironmentProject extends OrchestrationProjectShell {
-  readonly environmentId: EnvironmentId;
+	readonly environmentId: EnvironmentId;
 }
 
 export interface EnvironmentThreadShell extends OrchestrationThreadShell {
-  readonly environmentId: EnvironmentId;
+	readonly environmentId: EnvironmentId;
 }
 
 export type EnvironmentMessage = OrchestrationMessage;
 
 export interface EnvironmentThread extends OrchestrationThread {
-  readonly environmentId: EnvironmentId;
+	readonly environmentId: EnvironmentId;
 }
 
 export function scopeProject(
-  environmentId: EnvironmentId,
-  project: OrchestrationProjectShell,
+	environmentId: EnvironmentId,
+	project: OrchestrationProjectShell,
 ): EnvironmentProject {
-  return { ...project, environmentId };
+	return { ...project, environmentId };
 }
 
 export function scopeThreadShell(
-  environmentId: EnvironmentId,
-  thread: OrchestrationThreadShell,
+	environmentId: EnvironmentId,
+	thread: OrchestrationThreadShell,
 ): EnvironmentThreadShell {
-  return { ...thread, environmentId };
+	return { ...thread, environmentId };
 }
 
 export function scopeThread(
-  environmentId: EnvironmentId,
-  thread: OrchestrationThread,
+	environmentId: EnvironmentId,
+	thread: OrchestrationThread,
 ): EnvironmentThread {
-  return { ...thread, environmentId };
+	return { ...thread, environmentId };
 }

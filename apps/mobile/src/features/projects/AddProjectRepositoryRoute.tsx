@@ -5,27 +5,29 @@ import { addProjectRemoteSourceLabel } from "@t3tools/client-runtime/operations/
 import { AddProjectRepositoryScreen } from "./AddProjectScreen";
 
 type AddProjectRepositoryRouteParams = {
-  readonly environmentId?: string | string[];
-  readonly source?: string | string[];
+	readonly environmentId?: string | string[];
+	readonly source?: string | string[];
 };
 
 export function AddProjectRepositoryRoute({
-  route,
+	route,
 }: StaticScreenProps<AddProjectRepositoryRouteParams>) {
-  const params = route.params ?? {};
-  const source = Array.isArray(params.source) ? params.source[0] : params.source;
-  const title =
-    source === "github" ||
-    source === "gitlab" ||
-    source === "bitbucket" ||
-    source === "azure-devops"
-      ? addProjectRemoteSourceLabel(source)
-      : "Git URL";
+	const params = route.params ?? {};
+	const source = Array.isArray(params.source)
+		? params.source[0]
+		: params.source;
+	const title =
+		source === "github" ||
+		source === "gitlab" ||
+		source === "bitbucket" ||
+		source === "azure-devops"
+			? addProjectRemoteSourceLabel(source)
+			: "Git URL";
 
-  return (
-    <>
-      <NativeStackScreenOptions options={{ title }} />
-      <AddProjectRepositoryScreen {...params} />
-    </>
-  );
+	return (
+		<>
+			<NativeStackScreenOptions options={{ title }} />
+			<AddProjectRepositoryScreen {...params} />
+		</>
+	);
 }

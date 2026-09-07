@@ -10,16 +10,19 @@
  */
 import type { BrowserLinkTarget } from "@t3tools/contracts";
 
-import { ensureClientSettingsHydrated, getClientSettings } from "~/hooks/useSettings";
+import {
+	ensureClientSettingsHydrated,
+	getClientSettings,
+} from "~/hooks/useSettings";
 import { isPreviewSupportedInRuntime } from "~/previewStateStore";
 
 export interface ResolveLinkTargetInput {
-  readonly url: string;
-  /** Cmd/Ctrl-click always goes to the system browser, whatever the default. */
-  readonly event: { readonly metaKey: boolean; readonly ctrlKey: boolean };
-  readonly preference: BrowserLinkTarget;
-  /** Whether this client has an in-app browser and a thread to open it beside. */
-  readonly canOpenInApp: boolean;
+	readonly url: string;
+	/** Cmd/Ctrl-click always goes to the system browser, whatever the default. */
+	readonly event: { readonly metaKey: boolean; readonly ctrlKey: boolean };
+	readonly preference: BrowserLinkTarget;
+	/** Whether this client has an in-app browser and a thread to open it beside. */
+	readonly canOpenInApp: boolean;
 }
 
 /**
@@ -29,12 +32,14 @@ export interface ResolveLinkTargetInput {
  * way out when the default is in-app, mirroring how change-request links
  * already treat it.
  */
-export function resolveLinkTarget(input: ResolveLinkTargetInput): BrowserLinkTarget {
-  if (input.event.metaKey || input.event.ctrlKey) return "system";
-  if (input.preference !== "app") return "system";
-  if (!input.canOpenInApp) return "system";
-  if (!isWebUrl(input.url)) return "system";
-  return "app";
+export function resolveLinkTarget(
+	input: ResolveLinkTargetInput,
+): BrowserLinkTarget {
+	if (input.event.metaKey || input.event.ctrlKey) return "system";
+	if (input.preference !== "app") return "system";
+	if (!input.canOpenInApp) return "system";
+	if (!isWebUrl(input.url)) return "system";
+	return "app";
 }
 
 /**
@@ -42,12 +47,12 @@ export function resolveLinkTarget(input: ResolveLinkTargetInput): BrowserLinkTar
  * vscode://, a bare fragment — belongs to the shell whatever the preference.
  */
 export function isWebUrl(url: string): boolean {
-  try {
-    const { protocol } = new URL(url);
-    return protocol === "http:" || protocol === "https:";
-  } catch {
-    return false;
-  }
+	try {
+		const { protocol } = new URL(url);
+		return protocol === "http:" || protocol === "https:";
+	} catch {
+		return false;
+	}
 }
 
 /**
@@ -58,11 +63,11 @@ export function isWebUrl(url: string): boolean {
  * Read failures reject rather than choosing a browser without the saved preference.
  */
 export async function resolveBrowserLinkTargetPreference(): Promise<BrowserLinkTarget> {
-  await ensureClientSettingsHydrated();
-  return getClientSettings().browserLinkTarget;
+	await ensureClientSettingsHydrated();
+	return getClientSettings().browserLinkTarget;
 }
 
 /** Whether the in-app target is available at all in this client. */
 export function canOpenLinksInApp(hasThread: boolean): boolean {
-  return hasThread && isPreviewSupportedInRuntime();
+	return hasThread && isPreviewSupportedInRuntime();
 }

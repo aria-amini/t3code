@@ -15,8 +15,8 @@ export const PIERRE_TREE_UNSAFE_CSS = `
 
 /** Host styles that keep a Pierre tree on the active color scheme and foreground. */
 export function pierreTreeStyle(colorScheme: "light" | "dark"): CSSProperties {
-  return {
-    colorScheme,
-    ["--trees-fg-override" as string]: "var(--contrast-foreground)",
-  };
+	return {
+		colorScheme,
+		["--trees-fg-override" as string]: "var(--contrast-foreground)",
+	};
 }

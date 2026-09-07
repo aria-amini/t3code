@@ -26,65 +26,75 @@
  */
 
 export type MarkdownNode = {
-  type: string;
-  value?: string;
-  children?: MarkdownNode[];
-  url?: string;
-  data?: unknown;
+	type: string;
+	value?: string;
+	children?: MarkdownNode[];
+	url?: string;
+	data?: unknown;
 };
 
 export type TextMatch = {
-  index: number;
-  input: string;
+	index: number;
+	input: string;
 };
 
 /** The dependency-free subset of mdast-util-find-and-replace used by PR autolinks. */
 export function findAndReplaceText(
-  tree: MarkdownNode,
-  find: RegExp,
-  replace: (matched: string, match: TextMatch) => MarkdownNode | false,
-  ignoredTypes: ReadonlySet<string>,
+	tree: MarkdownNode,
+	find: RegExp,
+	replace: (matched: string, match: TextMatch) => MarkdownNode | false,
+	ignoredTypes: ReadonlySet<string>,
 ): void {
-  visit(tree);
+	visit(tree);
 
-  function visit(node: MarkdownNode): void {
-    if (node.children === undefined) return;
-    for (let childIndex = 0; childIndex < node.children.length; childIndex += 1) {
-      const child = node.children[childIndex]!;
-      if (ignoredTypes.has(child.type)) continue;
-      if (child.type !== "text" || child.value === undefined) {
-        visit(child);
-        continue;
-      }
+	function visit(node: MarkdownNode): void {
+		if (node.children === undefined) return;
+		for (
+			let childIndex = 0;
+			childIndex < node.children.length;
+			childIndex += 1
+		) {
+			const child = node.children[childIndex]!;
+			if (ignoredTypes.has(child.type)) continue;
+			if (child.type !== "text" || child.value === undefined) {
+				visit(child);
+				continue;
+			}
 
-      const replacements: MarkdownNode[] = [];
-      let start = 0;
-      let changed = false;
-      find.lastIndex = 0;
-      let match = find.exec(child.value);
-      while (match !== null) {
-        const position = match.index;
-        const replacement = replace(match[0], { index: position, input: match.input });
-        if (replacement === false) {
-          find.lastIndex = position + 1;
-        } else {
-          if (start < position) {
-            replacements.push({ type: "text", value: child.value.slice(start, position) });
-          }
-          replacements.push(replacement);
-          start = position + match[0].length;
-          changed = true;
-        }
-        if (!find.global) break;
-        match = find.exec(child.value);
-      }
+			const replacements: MarkdownNode[] = [];
+			let start = 0;
+			let changed = false;
+			find.lastIndex = 0;
+			let match = find.exec(child.value);
+			while (match !== null) {
+				const position = match.index;
+				const replacement = replace(match[0], {
+					index: position,
+					input: match.input,
+				});
+				if (replacement === false) {
+					find.lastIndex = position + 1;
+				} else {
+					if (start < position) {
+						replacements.push({
+							type: "text",
+							value: child.value.slice(start, position),
+						});
+					}
+					replacements.push(replacement);
+					start = position + match[0].length;
+					changed = true;
+				}
+				if (!find.global) break;
+				match = find.exec(child.value);
+			}
 
-      if (!changed) continue;
-      if (start < child.value.length) {
-        replacements.push({ type: "text", value: child.value.slice(start) });
-      }
-      node.children.splice(childIndex, 1, ...replacements);
-      childIndex += replacements.length - 1;
-    }
-  }
+			if (!changed) continue;
+			if (start < child.value.length) {
+				replacements.push({ type: "text", value: child.value.slice(start) });
+			}
+			node.children.splice(childIndex, 1, ...replacements);
+			childIndex += replacements.length - 1;
+		}
+	}
 }

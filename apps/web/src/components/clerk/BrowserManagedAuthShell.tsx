@@ -11,15 +11,15 @@ import { clerkAppearance } from "./clerkAppearance";
  * it.
  */
 export default function BrowserManagedAuthShell({
-  publishableKey,
-  children,
+	publishableKey,
+	children,
 }: {
-  readonly publishableKey: string;
-  readonly children: ReactNode;
+	readonly publishableKey: string;
+	readonly children: ReactNode;
 }) {
-  return (
-    <ClerkProvider appearance={clerkAppearance} publishableKey={publishableKey}>
-      <ManagedRelayAuthProvider>{children}</ManagedRelayAuthProvider>
-    </ClerkProvider>
-  );
+	return (
+		<ClerkProvider appearance={clerkAppearance} publishableKey={publishableKey}>
+			<ManagedRelayAuthProvider>{children}</ManagedRelayAuthProvider>
+		</ClerkProvider>
+	);
 }

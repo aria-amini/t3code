@@ -14,9 +14,13 @@ import type { TextGenerationPolicy } from "./TextGenerationPolicy.ts";
 
 const EARLIER_CONTENT_TRUNCATION_MARKER = "[Earlier content truncated]\n\n";
 
-function policyInstruction(instruction: string | undefined): ReadonlyArray<string> {
-  const trimmed = instruction?.trim();
-  return trimmed ? ["", "Additional instructions:", limitSection(trimmed, 20_000)] : [];
+function policyInstruction(
+	instruction: string | undefined,
+): ReadonlyArray<string> {
+	const trimmed = instruction?.trim();
+	return trimmed
+		? ["", "Additional instructions:", limitSection(trimmed, 20_000)]
+		: [];
 }
 
 // ---------------------------------------------------------------------------
@@ -24,57 +28,59 @@ function policyInstruction(instruction: string | undefined): ReadonlyArray<strin
 // ---------------------------------------------------------------------------
 
 export interface CommitMessagePromptInput {
-  branch: string | null;
-  stagedSummary: string;
-  stagedPatch: string;
-  includeBranch?: boolean;
-  policy?: TextGenerationPolicy | undefined;
+	branch: string | null;
+	stagedSummary: string;
+	stagedPatch: string;
+	includeBranch?: boolean;
+	policy?: TextGenerationPolicy | undefined;
 }
 
 export function buildCommitMessagePrompt(input: CommitMessagePromptInput) {
-  const wantsBranch = input.includeBranch === true;
+	const wantsBranch = input.includeBranch === true;
 
-  const prompt = [
-    "You write concise git commit messages.",
-    wantsBranch
-      ? "Return a JSON object with keys: subject, body, branch."
-      : "Return a JSON object with keys: subject, body.",
-    "Rules:",
-    "- subject must be imperative, <= 72 chars, and no trailing period",
-    "- body can be empty string or short bullet points",
-    ...(wantsBranch
-      ? ["- branch must be a short semantic git branch fragment for this change"]
-      : []),
-    "- capture the primary user-visible or developer-visible change",
-    ...policyInstruction(input.policy?.commitInstructions),
-    "",
-    `Branch: ${input.branch ?? "(detached)"}`,
-    "",
-    "Staged files:",
-    limitSection(input.stagedSummary, 6_000),
-    "",
-    "Staged patch:",
-    limitSection(input.stagedPatch, 40_000),
-  ].join("\n");
+	const prompt = [
+		"You write concise git commit messages.",
+		wantsBranch
+			? "Return a JSON object with keys: subject, body, branch."
+			: "Return a JSON object with keys: subject, body.",
+		"Rules:",
+		"- subject must be imperative, <= 72 chars, and no trailing period",
+		"- body can be empty string or short bullet points",
+		...(wantsBranch
+			? [
+					"- branch must be a short semantic git branch fragment for this change",
+				]
+			: []),
+		"- capture the primary user-visible or developer-visible change",
+		...policyInstruction(input.policy?.commitInstructions),
+		"",
+		`Branch: ${input.branch ?? "(detached)"}`,
+		"",
+		"Staged files:",
+		limitSection(input.stagedSummary, 6_000),
+		"",
+		"Staged patch:",
+		limitSection(input.stagedPatch, 40_000),
+	].join("\n");
 
-  if (wantsBranch) {
-    return {
-      prompt,
-      outputSchema: Schema.Struct({
-        subject: Schema.String,
-        body: Schema.String,
-        branch: Schema.String,
-      }),
-    };
-  }
+	if (wantsBranch) {
+		return {
+			prompt,
+			outputSchema: Schema.Struct({
+				subject: Schema.String,
+				body: Schema.String,
+				branch: Schema.String,
+			}),
+		};
+	}
 
-  return {
-    prompt,
-    outputSchema: Schema.Struct({
-      subject: Schema.String,
-      body: Schema.String,
-    }),
-  };
+	return {
+		prompt,
+		outputSchema: Schema.Struct({
+			subject: Schema.String,
+			body: Schema.String,
+		}),
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -82,59 +88,63 @@ export function buildCommitMessagePrompt(input: CommitMessagePromptInput) {
 // ---------------------------------------------------------------------------
 
 export interface PrContentPromptInput {
-  baseBranch: string;
-  headBranch: string;
-  commitSummary: string;
-  diffSummary: string;
-  diffPatch: string;
-  changeRequestTemplate?: string | undefined;
-  policy?: TextGenerationPolicy | undefined;
+	baseBranch: string;
+	headBranch: string;
+	commitSummary: string;
+	diffSummary: string;
+	diffPatch: string;
+	changeRequestTemplate?: string | undefined;
+	policy?: TextGenerationPolicy | undefined;
 }
 
 export function buildPrContentPrompt(input: PrContentPromptInput) {
-  const changeRequestTemplate = input.changeRequestTemplate?.trim();
-  const bodyRules = changeRequestTemplate
-    ? [
-        "- body must be markdown and follow the repository change request template structure",
-        "- fill in the template sections appropriately for this change",
-        "- drop HTML comments from the template in the generated body",
-        "- keep the template's markdown structure",
-      ]
-    : [
-        "- body must be markdown and include headings '## Summary' and '## Testing'",
-        "- under Summary, provide short bullet points",
-        "- under Testing, include bullet points with concrete checks or 'Not run' where appropriate",
-      ];
-  const prompt = [
-    "You write source control change request content.",
-    "Return a JSON object with keys: title, body.",
-    "Rules:",
-    "- title should be concise and specific",
-    ...bodyRules,
-    ...policyInstruction(input.policy?.changeRequestInstructions),
-    ...(changeRequestTemplate
-      ? ["", "Repository change request template:", limitSection(changeRequestTemplate, 8_000)]
-      : []),
-    "",
-    `Base branch: ${input.baseBranch}`,
-    `Head branch: ${input.headBranch}`,
-    "",
-    "Commits:",
-    limitSection(input.commitSummary, 12_000),
-    "",
-    "Diff stat:",
-    limitSection(input.diffSummary, 12_000),
-    "",
-    "Diff patch:",
-    limitSection(input.diffPatch, 40_000),
-  ].join("\n");
+	const changeRequestTemplate = input.changeRequestTemplate?.trim();
+	const bodyRules = changeRequestTemplate
+		? [
+				"- body must be markdown and follow the repository change request template structure",
+				"- fill in the template sections appropriately for this change",
+				"- drop HTML comments from the template in the generated body",
+				"- keep the template's markdown structure",
+			]
+		: [
+				"- body must be markdown and include headings '## Summary' and '## Testing'",
+				"- under Summary, provide short bullet points",
+				"- under Testing, include bullet points with concrete checks or 'Not run' where appropriate",
+			];
+	const prompt = [
+		"You write source control change request content.",
+		"Return a JSON object with keys: title, body.",
+		"Rules:",
+		"- title should be concise and specific",
+		...bodyRules,
+		...policyInstruction(input.policy?.changeRequestInstructions),
+		...(changeRequestTemplate
+			? [
+					"",
+					"Repository change request template:",
+					limitSection(changeRequestTemplate, 8_000),
+				]
+			: []),
+		"",
+		`Base branch: ${input.baseBranch}`,
+		`Head branch: ${input.headBranch}`,
+		"",
+		"Commits:",
+		limitSection(input.commitSummary, 12_000),
+		"",
+		"Diff stat:",
+		limitSection(input.diffSummary, 12_000),
+		"",
+		"Diff patch:",
+		limitSection(input.diffPatch, 40_000),
+	].join("\n");
 
-  const outputSchema = Schema.Struct({
-    title: Schema.String,
-    body: Schema.String,
-  });
+	const outputSchema = Schema.Struct({
+		title: Schema.String,
+		body: Schema.String,
+	});
 
-  return { prompt, outputSchema };
+	return { prompt, outputSchema };
 }
 
 // ---------------------------------------------------------------------------
@@ -142,65 +152,66 @@ export function buildPrContentPrompt(input: PrContentPromptInput) {
 // ---------------------------------------------------------------------------
 
 export interface BranchNamePromptInput {
-  message: string;
-  attachments?: ReadonlyArray<ChatAttachment> | undefined;
-  policy?: TextGenerationPolicy | undefined;
+	message: string;
+	attachments?: ReadonlyArray<ChatAttachment> | undefined;
+	policy?: TextGenerationPolicy | undefined;
 }
 
 interface PromptFromMessageInput {
-  instruction: string;
-  responseShape: string;
-  rules: ReadonlyArray<string>;
-  message: string;
-  attachments?: ReadonlyArray<ChatAttachment> | undefined;
-  additionalInstructions?: string | undefined;
+	instruction: string;
+	responseShape: string;
+	rules: ReadonlyArray<string>;
+	message: string;
+	attachments?: ReadonlyArray<ChatAttachment> | undefined;
+	additionalInstructions?: string | undefined;
 }
 
 function buildPromptFromMessage(input: PromptFromMessageInput): string {
-  const attachmentLines = (input.attachments ?? []).map(
-    (attachment) => `- ${attachment.name} (${attachment.mimeType}, ${attachment.sizeBytes} bytes)`,
-  );
+	const attachmentLines = (input.attachments ?? []).map(
+		(attachment) =>
+			`- ${attachment.name} (${attachment.mimeType}, ${attachment.sizeBytes} bytes)`,
+	);
 
-  const promptSections = [
-    input.instruction,
-    input.responseShape,
-    "Rules:",
-    ...input.rules.map((rule) => `- ${rule}`),
-    "",
-    "User message:",
-    limitSection(input.message, 8_000),
-    ...policyInstruction(input.additionalInstructions),
-  ];
-  if (attachmentLines.length > 0) {
-    promptSections.push(
-      "",
-      "Attachment metadata:",
-      limitSection(attachmentLines.join("\n"), 4_000),
-    );
-  }
+	const promptSections = [
+		input.instruction,
+		input.responseShape,
+		"Rules:",
+		...input.rules.map((rule) => `- ${rule}`),
+		"",
+		"User message:",
+		limitSection(input.message, 8_000),
+		...policyInstruction(input.additionalInstructions),
+	];
+	if (attachmentLines.length > 0) {
+		promptSections.push(
+			"",
+			"Attachment metadata:",
+			limitSection(attachmentLines.join("\n"), 4_000),
+		);
+	}
 
-  return promptSections.join("\n");
+	return promptSections.join("\n");
 }
 
 export function buildBranchNamePrompt(input: BranchNamePromptInput) {
-  const prompt = buildPromptFromMessage({
-    instruction: "You generate concise git branch names.",
-    responseShape: "Return a JSON object with key: branch.",
-    rules: [
-      "Branch should describe the requested work from the user message.",
-      "Keep it short and specific (2-6 words).",
-      "Use plain words only, no issue prefixes and no punctuation-heavy text.",
-      "If images are attached, use them as primary context for visual/UI issues.",
-    ],
-    message: input.message,
-    attachments: input.attachments,
-    additionalInstructions: input.policy?.branchInstructions,
-  });
-  const outputSchema = Schema.Struct({
-    branch: Schema.String,
-  });
+	const prompt = buildPromptFromMessage({
+		instruction: "You generate concise git branch names.",
+		responseShape: "Return a JSON object with key: branch.",
+		rules: [
+			"Branch should describe the requested work from the user message.",
+			"Keep it short and specific (2-6 words).",
+			"Use plain words only, no issue prefixes and no punctuation-heavy text.",
+			"If images are attached, use them as primary context for visual/UI issues.",
+		],
+		message: input.message,
+		attachments: input.attachments,
+		additionalInstructions: input.policy?.branchInstructions,
+	});
+	const outputSchema = Schema.Struct({
+		branch: Schema.String,
+	});
 
-  return { prompt, outputSchema };
+	return { prompt, outputSchema };
 }
 
 // ---------------------------------------------------------------------------
@@ -208,10 +219,10 @@ export function buildBranchNamePrompt(input: BranchNamePromptInput) {
 // ---------------------------------------------------------------------------
 
 export interface ThreadTitlePromptInput {
-  message: string;
-  previousTitle?: string | undefined;
-  attachments?: ReadonlyArray<ChatAttachment> | undefined;
-  policy?: TextGenerationPolicy | undefined;
+	message: string;
+	previousTitle?: string | undefined;
+	attachments?: ReadonlyArray<ChatAttachment> | undefined;
+	policy?: TextGenerationPolicy | undefined;
 }
 
 // Keep shared editorial rules in these two prompts in sync. Regeneration
@@ -243,7 +254,7 @@ Editorial rules:
 - If a linked PR or issue cannot be read, fall back to the user's stated action plus its number, such as "Take Over PR 8588". This is the one case where a PR or issue number belongs in the title.`;
 
 function regenerateThreadTitlePrompt(previousTitle: string): string {
-  return `Regenerate the title for an existing T3 Code thread so the user can recognize it weeks later.
+	return `Regenerate the title for an existing T3 Code thread so the user can recognize it weeks later.
 The previous title was ${JSON.stringify(previousTitle)}.
 Return JSON with exactly one key: title.
 
@@ -279,44 +290,49 @@ Examples of the distinction:
 }
 
 function preserveMessageEnd(message: string): string {
-  const alreadyTruncated = message.startsWith(EARLIER_CONTENT_TRUNCATION_MARKER);
-  const contents = alreadyTruncated
-    ? message.slice(EARLIER_CONTENT_TRUNCATION_MARKER.length)
-    : message;
-  if (!alreadyTruncated && contents.length <= 8_000) {
-    return contents;
-  }
-  return `${EARLIER_CONTENT_TRUNCATION_MARKER}${contents.slice(-8_000)}`;
+	const alreadyTruncated = message.startsWith(
+		EARLIER_CONTENT_TRUNCATION_MARKER,
+	);
+	const contents = alreadyTruncated
+		? message.slice(EARLIER_CONTENT_TRUNCATION_MARKER.length)
+		: message;
+	if (!alreadyTruncated && contents.length <= 8_000) {
+		return contents;
+	}
+	return `${EARLIER_CONTENT_TRUNCATION_MARKER}${contents.slice(-8_000)}`;
 }
 
 function threadTitlePromptSuffix(input: ThreadTitlePromptInput): string {
-  const additionalInstructions = policyInstruction(input.policy?.threadTitleInstructions);
-  const attachmentLines = (input.attachments ?? []).map(
-    (attachment) => `- ${attachment.name} (${attachment.mimeType}, ${attachment.sizeBytes} bytes)`,
-  );
+	const additionalInstructions = policyInstruction(
+		input.policy?.threadTitleInstructions,
+	);
+	const attachmentLines = (input.attachments ?? []).map(
+		(attachment) =>
+			`- ${attachment.name} (${attachment.mimeType}, ${attachment.sizeBytes} bytes)`,
+	);
 
-  let suffix = "";
-  if (additionalInstructions.length > 0) {
-    suffix = `\n${additionalInstructions.join("\n")}`;
-  }
-  if (attachmentLines.length > 0) {
-    suffix += `\n\nAttachment metadata:\n${limitSection(attachmentLines.join("\n"), 4_000)}`;
-  }
-  return suffix;
+	let suffix = "";
+	if (additionalInstructions.length > 0) {
+		suffix = `\n${additionalInstructions.join("\n")}`;
+	}
+	if (attachmentLines.length > 0) {
+		suffix += `\n\nAttachment metadata:\n${limitSection(attachmentLines.join("\n"), 4_000)}`;
+	}
+	return suffix;
 }
 
 export function buildThreadTitlePrompt(input: ThreadTitlePromptInput) {
-  let prompt: string;
-  if (input.previousTitle === undefined) {
-    const message = limitSection(input.message, 8_000);
-    prompt = `${INITIAL_THREAD_TITLE_PROMPT}\n\nUser message:\n${message}${threadTitlePromptSuffix(input)}`;
-  } else {
-    const message = preserveMessageEnd(input.message);
-    prompt = `${regenerateThreadTitlePrompt(input.previousTitle)}\n\nThread contents:\n${message}${threadTitlePromptSuffix(input)}`;
-  }
-  const outputSchema = Schema.Struct({
-    title: Schema.String,
-  });
+	let prompt: string;
+	if (input.previousTitle === undefined) {
+		const message = limitSection(input.message, 8_000);
+		prompt = `${INITIAL_THREAD_TITLE_PROMPT}\n\nUser message:\n${message}${threadTitlePromptSuffix(input)}`;
+	} else {
+		const message = preserveMessageEnd(input.message);
+		prompt = `${regenerateThreadTitlePrompt(input.previousTitle)}\n\nThread contents:\n${message}${threadTitlePromptSuffix(input)}`;
+	}
+	const outputSchema = Schema.Struct({
+		title: Schema.String,
+	});
 
-  return { prompt, outputSchema };
+	return { prompt, outputSchema };
 }

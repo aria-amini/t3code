@@ -12,13 +12,13 @@
 import * as NodeFS from "node:fs";
 
 const backups = NodeFS.globSync(
-  "node_modules/.pnpm/@typescript+native-preview-*/node_modules/@typescript/native-preview-*/lib/tsgo{,.exe}.original*",
+	"node_modules/.pnpm/@typescript+native-preview-*/node_modules/@typescript/native-preview-*/lib/tsgo{,.exe}.original*",
 );
 
 for (const backup of backups) {
-  NodeFS.rmSync(backup, { force: true });
+	NodeFS.rmSync(backup, { force: true });
 }
 
 if (backups.length > 0) {
-  console.log(`Removed ${backups.length} stale tsgo backup(s)`);
+	console.log(`Removed ${backups.length} stale tsgo backup(s)`);
 }

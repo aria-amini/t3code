@@ -19,21 +19,21 @@ export type CliRunner = "npx" | "pnpm dlx" | "bunx";
  * Detection is best-effort; callers must fail closed to a plain `t3` command.
  */
 function detectCliRunner(entryPath: string): CliRunner | null {
-  const path = entryPath.replaceAll("\\", "/");
-  if (path.includes("/_npx/")) {
-    return "npx";
-  }
-  if (
-    path.includes("/pnpm/dlx/") ||
-    path.includes("/.pnpm/dlx/") ||
-    path.includes("/pnpm-cache/dlx/")
-  ) {
-    return "pnpm dlx";
-  }
-  if (path.includes("/.bun/install/cache/") || path.includes("/bunx-")) {
-    return "bunx";
-  }
-  return null;
+	const path = entryPath.replaceAll("\\", "/");
+	if (path.includes("/_npx/")) {
+		return "npx";
+	}
+	if (
+		path.includes("/pnpm/dlx/") ||
+		path.includes("/.pnpm/dlx/") ||
+		path.includes("/pnpm-cache/dlx/")
+	) {
+		return "pnpm dlx";
+	}
+	if (path.includes("/.bun/install/cache/") || path.includes("/bunx-")) {
+		return "bunx";
+	}
+	return null;
 }
 
 /**
@@ -43,7 +43,7 @@ function detectCliRunner(entryPath: string): CliRunner | null {
  * anything else suggests the bare package.
  */
 function suggestedPackageSpec(version: string): string {
-  return version.includes("-nightly.") ? "t3@nightly" : "t3";
+	return version.includes("-nightly.") ? "t3@nightly" : "t3";
 }
 
 /**
@@ -53,23 +53,23 @@ function suggestedPackageSpec(version: string): string {
  * keeps the `@nightly` tag.
  */
 export function formatCliCommand(input: {
-  readonly subcommand: string;
-  readonly entryPath: string;
-  readonly version: string;
+	readonly subcommand: string;
+	readonly entryPath: string;
+	readonly version: string;
 }): string {
-  const runner = detectCliRunner(input.entryPath);
-  if (runner === null) {
-    return `t3 ${input.subcommand}`;
-  }
-  return `${runner} ${suggestedPackageSpec(input.version)} ${input.subcommand}`;
+	const runner = detectCliRunner(input.entryPath);
+	if (runner === null) {
+		return `t3 ${input.subcommand}`;
+	}
+	return `${runner} ${suggestedPackageSpec(input.version)} ${input.subcommand}`;
 }
 
 /** `formatCliCommand` against this process's real entry path and version. */
 export const resolveCliCommand = (subcommand: string) =>
-  Effect.map(HostProcessArguments, (processArguments) =>
-    formatCliCommand({
-      subcommand,
-      entryPath: processArguments[1] ?? "",
-      version: packageJson.version,
-    }),
-  );
+	Effect.map(HostProcessArguments, (processArguments) =>
+		formatCliCommand({
+			subcommand,
+			entryPath: processArguments[1] ?? "",
+			version: packageJson.version,
+		}),
+	);

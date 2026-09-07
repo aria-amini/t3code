@@ -45,60 +45,62 @@ const INVOKE_DEFAULT_WRAPPER = `override fun invokeDefaultOnBackPressed() {
   private fun invokeDefaultOnBackPressedLegacy() {`;
 
 function insertAfter(contents, anchor, insertion, description) {
-  const index = contents.indexOf(anchor);
-  if (index === -1) {
-    throw new Error(
-      `withAndroidPredictiveBackCompat: could not find ${description} in MainActivity — the Expo template changed; update the plugin anchors.`,
-    );
-  }
-  const end = index + anchor.length;
-  return contents.slice(0, end) + insertion + contents.slice(end);
+	const index = contents.indexOf(anchor);
+	if (index === -1) {
+		throw new Error(
+			`withAndroidPredictiveBackCompat: could not find ${description} in MainActivity — the Expo template changed; update the plugin anchors.`,
+		);
+	}
+	const end = index + anchor.length;
+	return contents.slice(0, end) + insertion + contents.slice(end);
 }
 
 module.exports = function withAndroidPredictiveBackCompat(config) {
-  if (config.android?.predictiveBackGestureEnabled !== true) {
-    return config;
-  }
+	if (config.android?.predictiveBackGestureEnabled !== true) {
+		return config;
+	}
 
-  return withMainActivity(config, (nextConfig) => {
-    let contents = nextConfig.modResults.contents;
-    if (nextConfig.modResults.language !== "kt") {
-      throw new Error("withAndroidPredictiveBackCompat: MainActivity must be Kotlin.");
-    }
-    if (contents.includes("predictiveBackCompatCallback")) {
-      return nextConfig;
-    }
+	return withMainActivity(config, (nextConfig) => {
+		let contents = nextConfig.modResults.contents;
+		if (nextConfig.modResults.language !== "kt") {
+			throw new Error(
+				"withAndroidPredictiveBackCompat: MainActivity must be Kotlin.",
+			);
+		}
+		if (contents.includes("predictiveBackCompatCallback")) {
+			return nextConfig;
+		}
 
-    contents = insertAfter(
-      contents,
-      "import android.os.Bundle",
-      "\nimport androidx.activity.OnBackPressedCallback",
-      "the android.os.Bundle import",
-    );
-    contents = insertAfter(
-      contents,
-      "class MainActivity : ReactActivity() {",
-      CALLBACK_PROPERTY,
-      "the MainActivity class declaration",
-    );
-    contents = insertAfter(
-      contents,
-      "super.onCreate(null)",
-      CALLBACK_REGISTRATION,
-      "the super.onCreate call",
-    );
+		contents = insertAfter(
+			contents,
+			"import android.os.Bundle",
+			"\nimport androidx.activity.OnBackPressedCallback",
+			"the android.os.Bundle import",
+		);
+		contents = insertAfter(
+			contents,
+			"class MainActivity : ReactActivity() {",
+			CALLBACK_PROPERTY,
+			"the MainActivity class declaration",
+		);
+		contents = insertAfter(
+			contents,
+			"super.onCreate(null)",
+			CALLBACK_REGISTRATION,
+			"the super.onCreate call",
+		);
 
-    if (!contents.includes("override fun invokeDefaultOnBackPressed() {")) {
-      throw new Error(
-        "withAndroidPredictiveBackCompat: could not find invokeDefaultOnBackPressed in MainActivity — the Expo template changed; update the plugin anchors.",
-      );
-    }
-    contents = contents.replace(
-      "override fun invokeDefaultOnBackPressed() {",
-      INVOKE_DEFAULT_WRAPPER,
-    );
+		if (!contents.includes("override fun invokeDefaultOnBackPressed() {")) {
+			throw new Error(
+				"withAndroidPredictiveBackCompat: could not find invokeDefaultOnBackPressed in MainActivity — the Expo template changed; update the plugin anchors.",
+			);
+		}
+		contents = contents.replace(
+			"override fun invokeDefaultOnBackPressed() {",
+			INVOKE_DEFAULT_WRAPPER,
+		);
 
-    nextConfig.modResults.contents = contents;
-    return nextConfig;
-  });
+		nextConfig.modResults.contents = contents;
+		return nextConfig;
+	});
 };

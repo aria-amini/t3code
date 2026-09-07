@@ -9,13 +9,19 @@ import { useCallback } from "react";
  *
  * Used by both the thread composer and the new-task draft screen.
  */
-export function useNativePaste(onImages: (uris: ReadonlyArray<string>) => void) {
-  return useCallback(
-    (payload: PasteEventPayload) => {
-      if (payload.type === "images" && payload.uris && payload.uris.length > 0) {
-        onImages(payload.uris);
-      }
-    },
-    [onImages],
-  );
+export function useNativePaste(
+	onImages: (uris: ReadonlyArray<string>) => void,
+) {
+	return useCallback(
+		(payload: PasteEventPayload) => {
+			if (
+				payload.type === "images" &&
+				payload.uris &&
+				payload.uris.length > 0
+			) {
+				onImages(payload.uris);
+			}
+		},
+		[onImages],
+	);
 }

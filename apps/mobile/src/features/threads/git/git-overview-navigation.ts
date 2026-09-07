@@ -1,5 +1,5 @@
 export function resolveGitOverviewReviewNavigationAction(
-  presentation: "sheet" | "inspector",
+	presentation: "sheet" | "inspector",
 ): "replace" | "navigate" {
-  return presentation === "sheet" ? "replace" : "navigate";
+	return presentation === "sheet" ? "replace" : "navigate";
 }

@@ -2,4 +2,6 @@ import { createEnvironmentCatalogAtoms } from "@t3tools/client-runtime/state/con
 
 import { connectionAtomRuntime } from "./runtime";
 
-export const environmentCatalog = createEnvironmentCatalogAtoms(connectionAtomRuntime);
+export const environmentCatalog = createEnvironmentCatalogAtoms(
+	connectionAtomRuntime,
+);

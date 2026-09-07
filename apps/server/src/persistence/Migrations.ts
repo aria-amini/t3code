@@ -73,67 +73,69 @@ import Migration0049 from "./Migrations/049_ProjectionThreadsActiveOrderKey.ts";
  * returns migrations sorted by ID.
  */
 export const migrationEntries = [
-  [1, "OrchestrationEvents", Migration0001],
-  [2, "OrchestrationCommandReceipts", Migration0002],
-  [3, "CheckpointDiffBlobs", Migration0003],
-  [4, "ProviderSessionRuntime", Migration0004],
-  [5, "Projections", Migration0005],
-  [6, "ProjectionThreadSessionRuntimeModeColumns", Migration0006],
-  [7, "ProjectionThreadMessageAttachments", Migration0007],
-  [8, "ProjectionThreadActivitySequence", Migration0008],
-  [9, "ProviderSessionRuntimeMode", Migration0009],
-  [10, "ProjectionThreadsRuntimeMode", Migration0010],
-  [11, "OrchestrationThreadCreatedRuntimeMode", Migration0011],
-  [12, "ProjectionThreadsInteractionMode", Migration0012],
-  [13, "ProjectionThreadProposedPlans", Migration0013],
-  [14, "ProjectionThreadProposedPlanImplementation", Migration0014],
-  [15, "ProjectionTurnsSourceProposedPlan", Migration0015],
-  [16, "CanonicalizeModelSelections", Migration0016],
-  [17, "ProjectionThreadsArchivedAt", Migration0017],
-  [18, "ProjectionThreadsArchivedAtIndex", Migration0018],
-  [19, "ProjectionSnapshotLookupIndexes", Migration0019],
-  [20, "AuthAccessManagement", Migration0020],
-  [21, "AuthSessionClientMetadata", Migration0021],
-  [22, "AuthSessionLastConnectedAt", Migration0022],
-  [23, "ProjectionThreadShellSummary", Migration0023],
-  [24, "BackfillProjectionThreadShellSummary", Migration0024],
-  [25, "CleanupInvalidProjectionPendingApprovals", Migration0025],
-  [26, "CanonicalizeModelSelectionOptions", Migration0026],
-  [27, "ProviderSessionRuntimeInstanceId", Migration0027],
-  [28, "ProjectionThreadSessionInstanceId", Migration0028],
-  [29, "ProjectionThreadDetailOrderingIndexes", Migration0029],
-  [30, "ProjectionThreadShellArchiveIndexes", Migration0030],
-  [31, "AuthAuthorizationScopes", Migration0031],
-  [32, "AuthPairingProofKeyThumbprint", Migration0032],
-  [33, "ProjectionThreadsSettled", Migration0033],
-  [34, "ProjectionThreadsSnoozed", Migration0034],
-  [35, "ProjectionThreadTitleRegeneration", Migration0035],
-  [36, "ProjectionThreadsPinned", Migration0036],
-  [37, "ProjectionTurnsKeysetIndex", Migration0037],
-  [38, "ProjectionThreadsPinOrderKey", Migration0038],
-  [39, "ProjectionProjectsDefaultThreadEnvMode", Migration0039],
-  [40, "ProjectionProjectFaviconPath", Migration0040],
-  [41, "AuthSessionClientConnection", Migration0041],
-  [42, "ProjectionThreadLinkedPullRequest", Migration0042],
-  [43, "ProjectionThreadsUnsettledAt", Migration0043],
-  [44, "ClearAutomaticProjectModelDefaults", Migration0044],
-  [45, "ProjectionProjectsAutoPull", Migration0045],
-  [46, "RepairAutomaticSettlementTimestamps", Migration0046],
-  [47, "ProjectionProjectIcon", Migration0047],
-  [48, "ProjectionThreadBranchPullRequest", Migration0048],
-  [49, "ProjectionThreadsActiveOrderKey", Migration0049],
+	[1, "OrchestrationEvents", Migration0001],
+	[2, "OrchestrationCommandReceipts", Migration0002],
+	[3, "CheckpointDiffBlobs", Migration0003],
+	[4, "ProviderSessionRuntime", Migration0004],
+	[5, "Projections", Migration0005],
+	[6, "ProjectionThreadSessionRuntimeModeColumns", Migration0006],
+	[7, "ProjectionThreadMessageAttachments", Migration0007],
+	[8, "ProjectionThreadActivitySequence", Migration0008],
+	[9, "ProviderSessionRuntimeMode", Migration0009],
+	[10, "ProjectionThreadsRuntimeMode", Migration0010],
+	[11, "OrchestrationThreadCreatedRuntimeMode", Migration0011],
+	[12, "ProjectionThreadsInteractionMode", Migration0012],
+	[13, "ProjectionThreadProposedPlans", Migration0013],
+	[14, "ProjectionThreadProposedPlanImplementation", Migration0014],
+	[15, "ProjectionTurnsSourceProposedPlan", Migration0015],
+	[16, "CanonicalizeModelSelections", Migration0016],
+	[17, "ProjectionThreadsArchivedAt", Migration0017],
+	[18, "ProjectionThreadsArchivedAtIndex", Migration0018],
+	[19, "ProjectionSnapshotLookupIndexes", Migration0019],
+	[20, "AuthAccessManagement", Migration0020],
+	[21, "AuthSessionClientMetadata", Migration0021],
+	[22, "AuthSessionLastConnectedAt", Migration0022],
+	[23, "ProjectionThreadShellSummary", Migration0023],
+	[24, "BackfillProjectionThreadShellSummary", Migration0024],
+	[25, "CleanupInvalidProjectionPendingApprovals", Migration0025],
+	[26, "CanonicalizeModelSelectionOptions", Migration0026],
+	[27, "ProviderSessionRuntimeInstanceId", Migration0027],
+	[28, "ProjectionThreadSessionInstanceId", Migration0028],
+	[29, "ProjectionThreadDetailOrderingIndexes", Migration0029],
+	[30, "ProjectionThreadShellArchiveIndexes", Migration0030],
+	[31, "AuthAuthorizationScopes", Migration0031],
+	[32, "AuthPairingProofKeyThumbprint", Migration0032],
+	[33, "ProjectionThreadsSettled", Migration0033],
+	[34, "ProjectionThreadsSnoozed", Migration0034],
+	[35, "ProjectionThreadTitleRegeneration", Migration0035],
+	[36, "ProjectionThreadsPinned", Migration0036],
+	[37, "ProjectionTurnsKeysetIndex", Migration0037],
+	[38, "ProjectionThreadsPinOrderKey", Migration0038],
+	[39, "ProjectionProjectsDefaultThreadEnvMode", Migration0039],
+	[40, "ProjectionProjectFaviconPath", Migration0040],
+	[41, "AuthSessionClientConnection", Migration0041],
+	[42, "ProjectionThreadLinkedPullRequest", Migration0042],
+	[43, "ProjectionThreadsUnsettledAt", Migration0043],
+	[44, "ClearAutomaticProjectModelDefaults", Migration0044],
+	[45, "ProjectionProjectsAutoPull", Migration0045],
+	[46, "RepairAutomaticSettlementTimestamps", Migration0046],
+	[47, "ProjectionProjectIcon", Migration0047],
+	[48, "ProjectionThreadBranchPullRequest", Migration0048],
+	[49, "ProjectionThreadsActiveOrderKey", Migration0049],
 ] as const;
 
-export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
+export const migrationManifest = migrationEntries.map(
+	([id, name]) => [id, name] as const,
+);
 
 export const makeMigrationLoader = (throughId?: number) =>
-  Migrator.fromRecord(
-    Object.fromEntries(
-      migrationEntries
-        .filter(([id]) => throughId === undefined || id <= throughId)
-        .map(([id, name, migration]) => [`${id}_${name}`, migration]),
-    ),
-  );
+	Migrator.fromRecord(
+		Object.fromEntries(
+			migrationEntries
+				.filter(([id]) => throughId === undefined || id <= throughId)
+				.map(([id, name, migration]) => [`${id}_${name}`, migration]),
+		),
+	);
 
 /**
  * Migrator run function - no schema dumping needed
@@ -142,7 +144,7 @@ export const makeMigrationLoader = (throughId?: number) =>
 const run = Migrator.make({});
 
 export interface RunMigrationsOptions {
-  readonly toMigrationInclusive?: number | undefined;
+	readonly toMigrationInclusive?: number | undefined;
 }
 
 /**
@@ -156,12 +158,16 @@ export interface RunMigrationsOptions {
  * @returns Effect containing array of executed migrations
  */
 export const runMigrations = Effect.fn("runMigrations")(function* ({
-  toMigrationInclusive,
+	toMigrationInclusive,
 }: RunMigrationsOptions = {}) {
-  const executedMigrations = yield* run({ loader: makeMigrationLoader(toMigrationInclusive) });
-  const migrations = executedMigrations.map(([id, name]) => `${id}_${name}`);
-  yield* migrations.length === 0
-    ? Effect.logDebug("Database schema is current")
-    : Effect.log("Migrations ran successfully").pipe(Effect.annotateLogs({ migrations }));
-  return executedMigrations;
+	const executedMigrations = yield* run({
+		loader: makeMigrationLoader(toMigrationInclusive),
+	});
+	const migrations = executedMigrations.map(([id, name]) => `${id}_${name}`);
+	yield* migrations.length === 0
+		? Effect.logDebug("Database schema is current")
+		: Effect.log("Migrations ran successfully").pipe(
+				Effect.annotateLogs({ migrations }),
+			);
+	return executedMigrations;
 });

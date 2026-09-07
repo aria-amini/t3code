@@ -2,4 +2,6 @@ import { createPreviewEnvironmentAtoms } from "@t3tools/client-runtime/state/pre
 
 import { connectionAtomRuntime } from "../connection/runtime";
 
-export const previewEnvironment = createPreviewEnvironmentAtoms(connectionAtomRuntime);
+export const previewEnvironment = createPreviewEnvironmentAtoms(
+	connectionAtomRuntime,
+);

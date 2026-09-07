@@ -1,8 +1,8 @@
 import {
-  Text as RNText,
-  TextInput as RNTextInput,
-  type TextInputProps as RNTextInputProps,
-  type TextProps as RNTextProps,
+	Text as RNText,
+	TextInput as RNTextInput,
+	type TextInputProps as RNTextInputProps,
+	type TextProps as RNTextProps,
 } from "react-native";
 
 import { cn } from "../lib/cn";
@@ -14,12 +14,17 @@ export type AppTextProps = RNTextProps & { readonly className?: string };
  * Uses Uniwind className — no manual style parsing.
  */
 export function AppText({ className, ...props }: AppTextProps) {
-  return <RNText className={cn("font-sans text-foreground", className)} {...props} />;
+	return (
+		<RNText className={cn("font-sans text-foreground", className)} {...props} />
+	);
 }
 
-export type AppTextInputProps = Omit<RNTextInputProps, "placeholderTextColor"> & {
-  readonly className?: string;
-  readonly ref?: React.Ref<RNTextInput>;
+export type AppTextInputProps = Omit<
+	RNTextInputProps,
+	"placeholderTextColor"
+> & {
+	readonly className?: string;
+	readonly ref?: React.Ref<RNTextInput>;
 };
 
 /**
@@ -27,17 +32,17 @@ export type AppTextInputProps = Omit<RNTextInputProps, "placeholderTextColor"> &
  * Uses Uniwind className — no manual style parsing.
  */
 export function AppTextInput({ className, ref, ...props }: AppTextInputProps) {
-  return (
-    <RNTextInput
-      ref={ref}
-      className={cn(
-        "min-h-13.5 rounded-2xl border border-input-border bg-input px-3.5 py-3 font-sans text-base text-foreground",
-        className,
-      )}
-      placeholderTextColorClassName="accent-placeholder"
-      selectionColorClassName="accent-foreground-secondary"
-      cursorColorClassName="accent-foreground-secondary"
-      {...props}
-    />
-  );
+	return (
+		<RNTextInput
+			ref={ref}
+			className={cn(
+				"min-h-13.5 rounded-2xl border border-input-border bg-input px-3.5 py-3 font-sans text-base text-foreground",
+				className,
+			)}
+			placeholderTextColorClassName="accent-placeholder"
+			selectionColorClassName="accent-foreground-secondary"
+			cursorColorClassName="accent-foreground-secondary"
+			{...props}
+		/>
+	);
 }

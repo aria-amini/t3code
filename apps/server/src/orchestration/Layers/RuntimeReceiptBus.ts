@@ -14,26 +14,32 @@ import * as PubSub from "effect/PubSub";
 import * as Stream from "effect/Stream";
 
 import {
-  RuntimeReceiptBus,
-  type RuntimeReceiptBusShape,
-  type OrchestrationRuntimeReceipt,
+	RuntimeReceiptBus,
+	type RuntimeReceiptBusShape,
+	type OrchestrationRuntimeReceipt,
 } from "../Services/RuntimeReceiptBus.ts";
 
 const makeRuntimeReceiptBus = Effect.succeed({
-  publish: () => Effect.void,
-  streamEventsForTest: Stream.empty,
+	publish: () => Effect.void,
+	streamEventsForTest: Stream.empty,
 } satisfies RuntimeReceiptBusShape);
 
 const makeRuntimeReceiptBusTest = Effect.gen(function* () {
-  const pubSub = yield* PubSub.unbounded<OrchestrationRuntimeReceipt>();
+	const pubSub = yield* PubSub.unbounded<OrchestrationRuntimeReceipt>();
 
-  return {
-    publish: (receipt) => PubSub.publish(pubSub, receipt).pipe(Effect.asVoid),
-    get streamEventsForTest() {
-      return Stream.fromPubSub(pubSub);
-    },
-  } satisfies RuntimeReceiptBusShape;
+	return {
+		publish: (receipt) => PubSub.publish(pubSub, receipt).pipe(Effect.asVoid),
+		get streamEventsForTest() {
+			return Stream.fromPubSub(pubSub);
+		},
+	} satisfies RuntimeReceiptBusShape;
 });
 
-export const RuntimeReceiptBusLive = Layer.effect(RuntimeReceiptBus, makeRuntimeReceiptBus);
-export const RuntimeReceiptBusTest = Layer.effect(RuntimeReceiptBus, makeRuntimeReceiptBusTest);
+export const RuntimeReceiptBusLive = Layer.effect(
+	RuntimeReceiptBus,
+	makeRuntimeReceiptBus,
+);
+export const RuntimeReceiptBusTest = Layer.effect(
+	RuntimeReceiptBus,
+	makeRuntimeReceiptBusTest,
+);

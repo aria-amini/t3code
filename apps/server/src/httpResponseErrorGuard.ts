@@ -22,18 +22,18 @@ import type * as NodeHttp from "node:http";
  * failure needs no handling beyond being observed.
  */
 export function guardHttpResponseWriteErrors<T extends NodeHttp.Server>(
-  server: T,
-  onError?: (error: unknown) => void,
+	server: T,
+	onError?: (error: unknown) => void,
 ): T {
-  server.on("request", (_request, response) => {
-    response.on("error", (error) => {
-      onError?.(error);
-    });
-  });
-  server.on("upgrade", (_request, socket) => {
-    socket.on("error", (error) => {
-      onError?.(error);
-    });
-  });
-  return server;
+	server.on("request", (_request, response) => {
+		response.on("error", (error) => {
+			onError?.(error);
+		});
+	});
+	server.on("upgrade", (_request, socket) => {
+		socket.on("error", (error) => {
+			onError?.(error);
+		});
+	});
+	return server;
 }

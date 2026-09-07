@@ -2,14 +2,14 @@ import * as Effect from "effect/Effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
 export default Effect.gen(function* () {
-  const sql = yield* SqlClient.SqlClient;
+	const sql = yield* SqlClient.SqlClient;
 
-  yield* sql`
+	yield* sql`
     ALTER TABLE projection_projects
     ADD COLUMN default_model_selection_json TEXT
   `;
 
-  yield* sql`
+	yield* sql`
     UPDATE projection_projects
     SET default_model_selection_json = CASE
       WHEN default_model IS NULL THEN NULL
@@ -26,12 +26,12 @@ export default Effect.gen(function* () {
     WHERE default_model_selection_json IS NULL
   `;
 
-  yield* sql`
+	yield* sql`
     ALTER TABLE projection_threads
     ADD COLUMN model_selection_json TEXT
   `;
 
-  yield* sql`
+	yield* sql`
     UPDATE projection_threads
     SET model_selection_json = json_object(
       'provider',
@@ -53,17 +53,17 @@ export default Effect.gen(function* () {
     WHERE model_selection_json IS NULL
   `;
 
-  yield* sql`
+	yield* sql`
     ALTER TABLE projection_projects
     DROP COLUMN default_model
   `;
 
-  yield* sql`
+	yield* sql`
     ALTER TABLE projection_threads
     DROP COLUMN model
   `;
 
-  yield* sql`
+	yield* sql`
     UPDATE orchestration_events
     SET payload_json = CASE
       WHEN json_type(payload_json, '$.defaultModel') = 'null' THEN json_remove(
@@ -147,7 +147,7 @@ export default Effect.gen(function* () {
       AND json_type(payload_json, '$.defaultModel') IS NOT NULL
   `;
 
-  yield* sql`
+	yield* sql`
     UPDATE orchestration_events
     SET payload_json = json_remove(
       json_set(
@@ -220,8 +220,8 @@ export default Effect.gen(function* () {
       AND json_type(payload_json, '$.model') IS NOT NULL
   `;
 
-  // Backfill thread.created events that predate the model field entirely
-  yield* sql`
+	// Backfill thread.created events that predate the model field entirely
+	yield* sql`
     UPDATE orchestration_events
     SET payload_json = json_set(
       payload_json,

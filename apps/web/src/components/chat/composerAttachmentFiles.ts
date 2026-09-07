@@ -1,31 +1,34 @@
 import {
-  type EnvironmentId,
-  isProviderSendTurnSupportedImageMimeType,
-  PROVIDER_SEND_TURN_MAX_FILE_BYTES,
+	type EnvironmentId,
+	isProviderSendTurnSupportedImageMimeType,
+	PROVIDER_SEND_TURN_MAX_FILE_BYTES,
 } from "@t3tools/contracts";
 import {
-  clampFileAttachmentUploadBytes,
-  fileAttachmentTooLargeMessage,
+	clampFileAttachmentUploadBytes,
+	fileAttachmentTooLargeMessage,
 } from "@t3tools/client-runtime/state/attachments";
 
-import type { ComposerFileAttachment, ComposerImageAttachment } from "../../composerDraftStore";
+import type {
+	ComposerFileAttachment,
+	ComposerImageAttachment,
+} from "../../composerDraftStore";
 import { isHeicImageFile } from "../../lib/imageCompression";
 import { isVideoAttachment } from "../../types";
 
 type ComposerAttachmentFileKind = "image" | "file" | "unsupported-image";
 
 interface FileAttachmentCapabilityState {
-  readonly attachmentUploadsCapabilityKnown: boolean;
-  readonly supportsAttachmentUploads: boolean;
-  readonly maxFileAttachmentBytes: number | null;
+	readonly attachmentUploadsCapabilityKnown: boolean;
+	readonly supportsAttachmentUploads: boolean;
+	readonly maxFileAttachmentBytes: number | null;
 }
 
 const IMAGE_MIME_TYPE_BY_EXTENSION: Readonly<Record<string, string>> = {
-  gif: "image/gif",
-  jpeg: "image/jpeg",
-  jpg: "image/jpeg",
-  png: "image/png",
-  webp: "image/webp",
+	gif: "image/gif",
+	jpeg: "image/jpeg",
+	jpg: "image/jpeg",
+	png: "image/png",
+	webp: "image/webp",
 };
 
 /**
@@ -35,91 +38,111 @@ const IMAGE_MIME_TYPE_BY_EXTENSION: Readonly<Record<string, string>> = {
  * image path; anything unrecognized stays a generic file.
  */
 export function inferImageMimeTypeFromName(name: string): string | null {
-  const dotIndex = name.lastIndexOf(".");
-  if (dotIndex <= 0) {
-    return null;
-  }
-  return IMAGE_MIME_TYPE_BY_EXTENSION[name.slice(dotIndex + 1).toLowerCase()] ?? null;
+	const dotIndex = name.lastIndexOf(".");
+	if (dotIndex <= 0) {
+		return null;
+	}
+	return (
+		IMAGE_MIME_TYPE_BY_EXTENSION[name.slice(dotIndex + 1).toLowerCase()] ?? null
+	);
 }
 
-function inferImageMimeTypeForUnknownFile(file: Pick<File, "name" | "type">): string | null {
-  const mimeType = file.type.toLowerCase();
-  if (mimeType !== "" && mimeType !== "application/octet-stream") {
-    return null;
-  }
-  return inferImageMimeTypeFromName(file.name);
+function inferImageMimeTypeForUnknownFile(
+	file: Pick<File, "name" | "type">,
+): string | null {
+	const mimeType = file.type.toLowerCase();
+	if (mimeType !== "" && mimeType !== "application/octet-stream") {
+		return null;
+	}
+	return inferImageMimeTypeFromName(file.name);
 }
 
 /** Give extension-recognized images a concrete type before compression. */
 export function normalizeComposerImageFileMimeType(file: File): File {
-  const inferredMimeType = inferImageMimeTypeForUnknownFile(file);
-  if (!inferredMimeType) {
-    return file;
-  }
-  return new File([file], file.name, {
-    type: inferredMimeType,
-    lastModified: file.lastModified,
-  });
+	const inferredMimeType = inferImageMimeTypeForUnknownFile(file);
+	if (!inferredMimeType) {
+		return file;
+	}
+	return new File([file], file.name, {
+		type: inferredMimeType,
+		lastModified: file.lastModified,
+	});
 }
 
 export function classifyComposerAttachmentFile(
-  file: Pick<File, "name" | "type">,
+	file: Pick<File, "name" | "type">,
 ): ComposerAttachmentFileKind {
-  if (isHeicImageFile(file)) {
-    return "image";
-  }
-  if (inferImageMimeTypeForUnknownFile(file)) {
-    return "image";
-  }
-  if (!file.type.toLowerCase().startsWith("image/")) {
-    return "file";
-  }
-  return isProviderSendTurnSupportedImageMimeType(file.type) ? "image" : "unsupported-image";
+	if (isHeicImageFile(file)) {
+		return "image";
+	}
+	if (inferImageMimeTypeForUnknownFile(file)) {
+		return "image";
+	}
+	if (!file.type.toLowerCase().startsWith("image/")) {
+		return "file";
+	}
+	return isProviderSendTurnSupportedImageMimeType(file.type)
+		? "image"
+		: "unsupported-image";
 }
 
 export function isPreviewableComposerVideo(
-  file: ComposerFileAttachment,
-  environmentId: EnvironmentId,
+	file: ComposerFileAttachment,
+	environmentId: EnvironmentId,
 ): boolean {
-  return (
-    isVideoAttachment(file) &&
-    (file.file !== null ||
-      (file.uploadedAttachmentId !== undefined && file.uploadEnvironmentId === environmentId))
-  );
+	return (
+		isVideoAttachment(file) &&
+		(file.file !== null ||
+			(file.uploadedAttachmentId !== undefined &&
+				file.uploadEnvironmentId === environmentId))
+	);
 }
 
 /** Byte limit for adding a generic file to the local composer draft. */
-export function fileAttachmentStagingLimit(input: FileAttachmentCapabilityState): number | null {
-  if (!input.attachmentUploadsCapabilityKnown) {
-    return PROVIDER_SEND_TURN_MAX_FILE_BYTES;
-  }
-  if (!input.supportsAttachmentUploads || input.maxFileAttachmentBytes === null) {
-    return null;
-  }
-  return clampFileAttachmentUploadBytes(input.maxFileAttachmentBytes);
+export function fileAttachmentStagingLimit(
+	input: FileAttachmentCapabilityState,
+): number | null {
+	if (!input.attachmentUploadsCapabilityKnown) {
+		return PROVIDER_SEND_TURN_MAX_FILE_BYTES;
+	}
+	if (
+		!input.supportsAttachmentUploads ||
+		input.maxFileAttachmentBytes === null
+	) {
+		return null;
+	}
+	return clampFileAttachmentUploadBytes(input.maxFileAttachmentBytes);
 }
 
 /** Why retained generic files cannot send with the current server config. */
 export function fileAttachmentCapabilityBlockReason(
-  input: FileAttachmentCapabilityState & {
-    readonly files: ReadonlyArray<{ readonly name: string; readonly sizeBytes: number }>;
-  },
+	input: FileAttachmentCapabilityState & {
+		readonly files: ReadonlyArray<{
+			readonly name: string;
+			readonly sizeBytes: number;
+		}>;
+	},
 ): string | null {
-  if (input.files.length === 0) {
-    return null;
-  }
-  if (!input.attachmentUploadsCapabilityKnown) {
-    return "Waiting for the server before file attachments can send";
-  }
-  const maxFileAttachmentBytes = fileAttachmentStagingLimit(input);
-  if (maxFileAttachmentBytes === null) {
-    return "This server does not accept file attachments right now. Remove the files to send.";
-  }
-  const oversizedFile = input.files.find((file) => file.sizeBytes > maxFileAttachmentBytes);
-  if (oversizedFile) {
-    return fileAttachmentTooLargeMessage(oversizedFile.name, maxFileAttachmentBytes);
-  }
-  return null;
+	if (input.files.length === 0) {
+		return null;
+	}
+	if (!input.attachmentUploadsCapabilityKnown) {
+		return "Waiting for the server before file attachments can send";
+	}
+	const maxFileAttachmentBytes = fileAttachmentStagingLimit(input);
+	if (maxFileAttachmentBytes === null) {
+		return "This server does not accept file attachments right now. Remove the files to send.";
+	}
+	const oversizedFile = input.files.find(
+		(file) => file.sizeBytes > maxFileAttachmentBytes,
+	);
+	if (oversizedFile) {
+		return fileAttachmentTooLargeMessage(
+			oversizedFile.name,
+			maxFileAttachmentBytes,
+		);
+	}
+	return null;
 }
 
 /**
@@ -131,11 +154,15 @@ export function fileAttachmentCapabilityBlockReason(
  * `releaseDraftAttachment`.
  */
 export function attachmentsToReleaseOnUploadCapabilityLoss(
-  attachments: ReadonlyArray<ComposerImageAttachment | ComposerFileAttachment>,
+	attachments: ReadonlyArray<ComposerImageAttachment | ComposerFileAttachment>,
 ): Array<ComposerImageAttachment | ComposerFileAttachment> {
-  return attachments.filter(
-    (attachment) => !(attachment.type === "file" && attachment.uploadedAttachmentId !== undefined),
-  );
+	return attachments.filter(
+		(attachment) =>
+			!(
+				attachment.type === "file" &&
+				attachment.uploadedAttachmentId !== undefined
+			),
+	);
 }
 
 /**
@@ -146,21 +173,25 @@ export function attachmentsToReleaseOnUploadCapabilityLoss(
  * feedback.
  */
 export function shouldHandleComposerAttachmentPaste(input: {
-  readonly files: ReadonlyArray<File>;
-  readonly plainText: string;
+	readonly files: ReadonlyArray<File>;
+	readonly plainText: string;
 }): boolean {
-  if (
-    input.files.some((file) => {
-      const classification = classifyComposerAttachmentFile(file);
-      return classification === "image" || classification === "unsupported-image";
-    })
-  ) {
-    return true;
-  }
+	if (
+		input.files.some((file) => {
+			const classification = classifyComposerAttachmentFile(file);
+			return (
+				classification === "image" || classification === "unsupported-image"
+			);
+		})
+	) {
+		return true;
+	}
 
-  if (input.plainText.length > 0) {
-    return false;
-  }
+	if (input.plainText.length > 0) {
+		return false;
+	}
 
-  return input.files.some((file) => classifyComposerAttachmentFile(file) === "file");
+	return input.files.some(
+		(file) => classifyComposerAttachmentFile(file) === "file",
+	);
 }

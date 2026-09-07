@@ -423,13 +423,13 @@ For ad hoc work:
 import { Effect } from "effect";
 
 const runThing = Effect.gen(function* () {
-  yield* Effect.annotateCurrentSpan({
-    "thing.id": "abc123",
-    "thing.kind": "example",
-  });
+	yield* Effect.annotateCurrentSpan({
+		"thing.id": "abc123",
+		"thing.kind": "example",
+	});
 
-  yield* Effect.logInfo("starting thing");
-  return yield* doWork();
+	yield* Effect.logInfo("starting thing");
+	return yield* doWork();
 }).pipe(Effect.withSpan("thing.run"));
 ```
 
@@ -439,11 +439,11 @@ Use span annotations for IDs, paths, and other detailed context:
 
 ```ts
 yield *
-  Effect.annotateCurrentSpan({
-    "provider.thread_id": input.threadId,
-    "provider.request_id": input.requestId,
-    "git.cwd": input.cwd,
-  });
+	Effect.annotateCurrentSpan({
+		"provider.thread_id": input.threadId,
+		"provider.request_id": input.requestId,
+		"git.cwd": input.cwd,
+	});
 ```
 
 ### Keep Metric Labels Low Cardinality
@@ -483,16 +483,20 @@ Those messages show up as span events because `Logger.tracerLogger` is installed
 `withMetrics(...)` is the default way to attach a counter and timer to an effect:
 
 ```ts
-import { someCounter, someDuration, withMetrics } from "../observability/Metrics.ts";
+import {
+	someCounter,
+	someDuration,
+	withMetrics,
+} from "../observability/Metrics.ts";
 
 const program = doWork().pipe(
-  withMetrics({
-    counter: someCounter,
-    timer: someDuration,
-    attributes: {
-      operation: "work",
-    },
-  }),
+	withMetrics({
+		counter: someCounter,
+		timer: someDuration,
+		attributes: {
+			operation: "work",
+		},
+	}),
 );
 ```
 

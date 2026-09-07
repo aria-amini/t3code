@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import {
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+	type RefObject,
+} from "react";
 import { KeyboardController } from "react-native-keyboard-controller";
 
 import type { ComposerEditorHandle } from "../../components/ComposerEditor";
@@ -10,7 +16,10 @@ type PresentationPhase = "closed" | "opening" | "visible";
  * `@react-navigation/native-stack` patch; absent from upstream event maps.
  */
 export type NavigationWithFinishTransitioning = {
-  readonly addListener: (type: "finishTransitioning", callback: () => void) => () => void;
+	readonly addListener: (
+		type: "finishTransitioning",
+		callback: () => void,
+	) => () => void;
 };
 
 /**
@@ -45,150 +54,160 @@ const NATIVE_DISMISSAL_ECHO_WINDOW_MS = 150;
  * show as a visible collapse/re-open.
  */
 export function useThreadSettingsSheetPresentation(input: {
-  readonly editorRef: RefObject<ComposerEditorHandle | null>;
-  readonly isEditorFocused: boolean;
+	readonly editorRef: RefObject<ComposerEditorHandle | null>;
+	readonly isEditorFocused: boolean;
 }) {
-  const [phase, setPhase] = useState<PresentationPhase>("closed");
-  const isActiveRef = useRef(false);
-  const isMountedRef = useRef(true);
-  const isEditorFocusedRef = useRef(input.isEditorFocused);
-  const openingIdRef = useRef(0);
-  const focusRestoreIdRef = useRef(0);
-  const restoreFocusAfterDismissRef = useRef(false);
-  const restorePendingRef = useRef(false);
-  const lastStackTransitionFinishedAtRef = useRef(0);
-  const dismissRestoreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const clearDismissRestoreTimer = useCallback(() => {
-    if (dismissRestoreTimerRef.current !== null) {
-      clearTimeout(dismissRestoreTimerRef.current);
-      dismissRestoreTimerRef.current = null;
-    }
-  }, []);
+	const [phase, setPhase] = useState<PresentationPhase>("closed");
+	const isActiveRef = useRef(false);
+	const isMountedRef = useRef(true);
+	const isEditorFocusedRef = useRef(input.isEditorFocused);
+	const openingIdRef = useRef(0);
+	const focusRestoreIdRef = useRef(0);
+	const restoreFocusAfterDismissRef = useRef(false);
+	const restorePendingRef = useRef(false);
+	const lastStackTransitionFinishedAtRef = useRef(0);
+	const dismissRestoreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
+	const clearDismissRestoreTimer = useCallback(() => {
+		if (dismissRestoreTimerRef.current !== null) {
+			clearTimeout(dismissRestoreTimerRef.current);
+			dismissRestoreTimerRef.current = null;
+		}
+	}, []);
 
-  useEffect(() => {
-    isEditorFocusedRef.current = input.isEditorFocused;
-  }, [input.isEditorFocused]);
+	useEffect(() => {
+		isEditorFocusedRef.current = input.isEditorFocused;
+	}, [input.isEditorFocused]);
 
-  useEffect(() => {
-    // React Strict Mode and Fast Refresh both run an effect cleanup/setup
-    // cycle without recreating refs. Re-arm the mounted guard on every setup.
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-      isActiveRef.current = false;
-      openingIdRef.current += 1;
-      focusRestoreIdRef.current += 1;
-      clearDismissRestoreTimer();
-    };
-  }, [clearDismissRestoreTimer]);
+	useEffect(() => {
+		// React Strict Mode and Fast Refresh both run an effect cleanup/setup
+		// cycle without recreating refs. Re-arm the mounted guard on every setup.
+		isMountedRef.current = true;
+		return () => {
+			isMountedRef.current = false;
+			isActiveRef.current = false;
+			openingIdRef.current += 1;
+			focusRestoreIdRef.current += 1;
+			clearDismissRestoreTimer();
+		};
+	}, [clearDismissRestoreTimer]);
 
-  const open = useCallback(() => {
-    if (isActiveRef.current) {
-      return;
-    }
+	const open = useCallback(() => {
+		if (isActiveRef.current) {
+			return;
+		}
 
-    isActiveRef.current = true;
-    focusRestoreIdRef.current += 1;
-    clearDismissRestoreTimer();
-    restorePendingRef.current = false;
-    restoreFocusAfterDismissRef.current = input.isEditorFocused || KeyboardController.isVisible();
-    setPhase("opening");
+		isActiveRef.current = true;
+		focusRestoreIdRef.current += 1;
+		clearDismissRestoreTimer();
+		restorePendingRef.current = false;
+		restoreFocusAfterDismissRef.current =
+			input.isEditorFocused || KeyboardController.isVisible();
+		setPhase("opening");
 
-    const openingId = openingIdRef.current + 1;
-    openingIdRef.current = openingId;
+		const openingId = openingIdRef.current + 1;
+		openingIdRef.current = openingId;
 
-    // Start the keyboard transition before the custom native editor resigns
-    // first responder, then present the sheet on the next frame. The sheet and
-    // keyboard animate together instead of serializing two native transitions.
-    void KeyboardController.dismiss({ animated: true });
-    input.editorRef.current?.blur();
+		// Start the keyboard transition before the custom native editor resigns
+		// first responder, then present the sheet on the next frame. The sheet and
+		// keyboard animate together instead of serializing two native transitions.
+		void KeyboardController.dismiss({ animated: true });
+		input.editorRef.current?.blur();
 
-    requestAnimationFrame(() => {
-      if (!isMountedRef.current || !isActiveRef.current || openingIdRef.current !== openingId) {
-        return;
-      }
-      setPhase("visible");
-    });
-  }, [clearDismissRestoreTimer, input.editorRef, input.isEditorFocused]);
+		requestAnimationFrame(() => {
+			if (
+				!isMountedRef.current ||
+				!isActiveRef.current ||
+				openingIdRef.current !== openingId
+			) {
+				return;
+			}
+			setPhase("visible");
+		});
+	}, [clearDismissRestoreTimer, input.editorRef, input.isEditorFocused]);
 
-  const restoreEditorFocus = useCallback(() => {
-    const focusRestoreId = focusRestoreIdRef.current + 1;
-    focusRestoreIdRef.current = focusRestoreId;
-    let attemptsRemaining = 20;
+	const restoreEditorFocus = useCallback(() => {
+		const focusRestoreId = focusRestoreIdRef.current + 1;
+		focusRestoreIdRef.current = focusRestoreId;
+		let attemptsRemaining = 20;
 
-    // Restoration runs after the dismissal transition, so the first attempt
-    // normally succeeds; the retries are insurance against UIKit briefly
-    // refusing first-responder status right at the transition boundary.
-    const restoreFocus = () => {
-      if (
-        !isMountedRef.current ||
-        focusRestoreIdRef.current !== focusRestoreId ||
-        isEditorFocusedRef.current ||
-        attemptsRemaining <= 0
-      ) {
-        return;
-      }
+		// Restoration runs after the dismissal transition, so the first attempt
+		// normally succeeds; the retries are insurance against UIKit briefly
+		// refusing first-responder status right at the transition boundary.
+		const restoreFocus = () => {
+			if (
+				!isMountedRef.current ||
+				focusRestoreIdRef.current !== focusRestoreId ||
+				isEditorFocusedRef.current ||
+				attemptsRemaining <= 0
+			) {
+				return;
+			}
 
-      attemptsRemaining -= 1;
-      input.editorRef.current?.focus();
-      setTimeout(restoreFocus, 50);
-    };
-    requestAnimationFrame(restoreFocus);
-  }, [input.editorRef]);
+			attemptsRemaining -= 1;
+			input.editorRef.current?.focus();
+			setTimeout(restoreFocus, 50);
+		};
+		requestAnimationFrame(restoreFocus);
+	}, [input.editorRef]);
 
-  /** Runs the queued restore once — whichever completion signal arrives first. */
-  const runPendingDismissalRestore = useCallback(() => {
-    if (!restorePendingRef.current) {
-      return;
-    }
-    restorePendingRef.current = false;
-    clearDismissRestoreTimer();
-    // A reopened sheet owns focus again; drop the stale restore request.
-    if (!isMountedRef.current || isActiveRef.current) {
-      return;
-    }
-    restoreEditorFocus();
-  }, [clearDismissRestoreTimer, restoreEditorFocus]);
+	/** Runs the queued restore once — whichever completion signal arrives first. */
+	const runPendingDismissalRestore = useCallback(() => {
+		if (!restorePendingRef.current) {
+			return;
+		}
+		restorePendingRef.current = false;
+		clearDismissRestoreTimer();
+		// A reopened sheet owns focus again; drop the stale restore request.
+		if (!isMountedRef.current || isActiveRef.current) {
+			return;
+		}
+		restoreEditorFocus();
+	}, [clearDismissRestoreTimer, restoreEditorFocus]);
 
-  /**
-   * Marks the sheet closed and queues the keyboard's return for the moment
-   * the dismissal transition actually completes: the sheet slides away over a
-   * resting composer, then the keyboard lifts it in one continuous motion.
-   */
-  const onDismissed = useCallback(() => {
-    isActiveRef.current = false;
-    setPhase("closed");
+	/**
+	 * Marks the sheet closed and queues the keyboard's return for the moment
+	 * the dismissal transition actually completes: the sheet slides away over a
+	 * resting composer, then the keyboard lifts it in one continuous motion.
+	 */
+	const onDismissed = useCallback(() => {
+		isActiveRef.current = false;
+		setPhase("closed");
 
-    if (!restoreFocusAfterDismissRef.current) {
-      return;
-    }
-    restoreFocusAfterDismissRef.current = false;
-    restorePendingRef.current = true;
-    clearDismissRestoreTimer();
-    if (Date.now() - lastStackTransitionFinishedAtRef.current <= NATIVE_DISMISSAL_ECHO_WINDOW_MS) {
-      // A stack transition finished just before this pop reached JS: the pop
-      // is the state echo of a gesture-driven dismissal whose animation has
-      // already completed. The sheet is gone — bring the keyboard back now.
-      runPendingDismissalRestore();
-      return;
-    }
-    dismissRestoreTimerRef.current = setTimeout(() => {
-      dismissRestoreTimerRef.current = null;
-      runPendingDismissalRestore();
-    }, SHEET_DISMISSAL_KEYBOARD_OVERLAP_MS);
-  }, [clearDismissRestoreTimer, runPendingDismissalRestore]);
+		if (!restoreFocusAfterDismissRef.current) {
+			return;
+		}
+		restoreFocusAfterDismissRef.current = false;
+		restorePendingRef.current = true;
+		clearDismissRestoreTimer();
+		if (
+			Date.now() - lastStackTransitionFinishedAtRef.current <=
+			NATIVE_DISMISSAL_ECHO_WINDOW_MS
+		) {
+			// A stack transition finished just before this pop reached JS: the pop
+			// is the state echo of a gesture-driven dismissal whose animation has
+			// already completed. The sheet is gone — bring the keyboard back now.
+			runPendingDismissalRestore();
+			return;
+		}
+		dismissRestoreTimerRef.current = setTimeout(() => {
+			dismissRestoreTimerRef.current = null;
+			runPendingDismissalRestore();
+		}, SHEET_DISMISSAL_KEYBOARD_OVERLAP_MS);
+	}, [clearDismissRestoreTimer, runPendingDismissalRestore]);
 
-  /** Wire to the navigator's `finishTransitioning` event. */
-  const onStackTransitionsFinished = useCallback(() => {
-    lastStackTransitionFinishedAtRef.current = Date.now();
-    runPendingDismissalRestore();
-  }, [runPendingDismissalRestore]);
+	/** Wire to the navigator's `finishTransitioning` event. */
+	const onStackTransitionsFinished = useCallback(() => {
+		lastStackTransitionFinishedAtRef.current = Date.now();
+		runPendingDismissalRestore();
+	}, [runPendingDismissalRestore]);
 
-  return {
-    isActive: phase !== "closed",
-    isVisible: phase === "visible",
-    open,
-    onDismissed,
-    onStackTransitionsFinished,
-  } as const;
+	return {
+		isActive: phase !== "closed",
+		isVisible: phase === "visible",
+		open,
+		onDismissed,
+		onStackTransitionsFinished,
+	} as const;
 }

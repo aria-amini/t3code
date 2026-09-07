@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 
 import {
-  useClientSettingsHydrated,
-  usePrimarySettings,
-  useUpdatePrimarySettings,
+	useClientSettingsHydrated,
+	usePrimarySettings,
+	useUpdatePrimarySettings,
 } from "./hooks/useSettings";
 import { resolvePlanAgentHealPatch } from "./modelSelection";
 
@@ -15,38 +15,40 @@ import { resolvePlanAgentHealPatch } from "./modelSelection";
  * whenever the settings load.
  */
 export function PlanAgentSelectionHeal() {
-  const planModeEnabled = usePrimarySettings((settings) => settings.planModeEnabled);
-  const textGenerationModelSelection = usePrimarySettings(
-    (settings) => settings.textGenerationModelSelection,
-  );
-  const sourceControlWriterModelSelection = usePrimarySettings(
-    (settings) => settings.sourceControlWriterModelSelection,
-  );
-  const settingsHydrated = useClientSettingsHydrated();
-  const updateSettings = useUpdatePrimarySettings();
+	const planModeEnabled = usePrimarySettings(
+		(settings) => settings.planModeEnabled,
+	);
+	const textGenerationModelSelection = usePrimarySettings(
+		(settings) => settings.textGenerationModelSelection,
+	);
+	const sourceControlWriterModelSelection = usePrimarySettings(
+		(settings) => settings.sourceControlWriterModelSelection,
+	);
+	const settingsHydrated = useClientSettingsHydrated();
+	const updateSettings = useUpdatePrimarySettings();
 
-  useEffect(() => {
-    // planModeEnabled reads as false until client settings hydrate, so never
-    // heal before then: we would strip a stored plan selection from a user
-    // whose plan mode is actually on.
-    if (!settingsHydrated) {
-      return;
-    }
-    const patch = resolvePlanAgentHealPatch({
-      planModeEnabled,
-      textGenerationModelSelection,
-      sourceControlWriterModelSelection,
-    });
-    if (patch) {
-      updateSettings(patch);
-    }
-  }, [
-    planModeEnabled,
-    settingsHydrated,
-    textGenerationModelSelection,
-    sourceControlWriterModelSelection,
-    updateSettings,
-  ]);
+	useEffect(() => {
+		// planModeEnabled reads as false until client settings hydrate, so never
+		// heal before then: we would strip a stored plan selection from a user
+		// whose plan mode is actually on.
+		if (!settingsHydrated) {
+			return;
+		}
+		const patch = resolvePlanAgentHealPatch({
+			planModeEnabled,
+			textGenerationModelSelection,
+			sourceControlWriterModelSelection,
+		});
+		if (patch) {
+			updateSettings(patch);
+		}
+	}, [
+		planModeEnabled,
+		settingsHydrated,
+		textGenerationModelSelection,
+		sourceControlWriterModelSelection,
+		updateSettings,
+	]);
 
-  return null;
+	return null;
 }

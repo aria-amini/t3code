@@ -1,188 +1,202 @@
 import type {
-  OrchestrationEvent,
-  OrchestrationThreadActivity,
-  OrchestrationThreadDetailSnapshot,
+	OrchestrationEvent,
+	OrchestrationThreadActivity,
+	OrchestrationThreadDetailSnapshot,
 } from "@t3tools/contracts";
 import { isWorkspaceImagePreviewPath } from "@t3tools/shared/filePreview";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
+	return value !== null && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: null;
 }
 
 function asTrimmedString(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
+	if (typeof value !== "string") {
+		return null;
+	}
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : null;
 }
 
-function pushChangedFile(target: string[], seen: Set<string>, value: unknown): void {
-  const normalized = asTrimmedString(value);
-  if (!normalized || seen.has(normalized)) {
-    return;
-  }
-  seen.add(normalized);
-  target.push(normalized);
+function pushChangedFile(
+	target: string[],
+	seen: Set<string>,
+	value: unknown,
+): void {
+	const normalized = asTrimmedString(value);
+	if (!normalized || seen.has(normalized)) {
+		return;
+	}
+	seen.add(normalized);
+	target.push(normalized);
 }
 
 function collectChangedFiles(
-  value: unknown,
-  target: string[],
-  seen: Set<string>,
-  depth: number,
+	value: unknown,
+	target: string[],
+	seen: Set<string>,
+	depth: number,
 ): void {
-  if (depth > 4 || target.length >= 12) {
-    return;
-  }
-  if (Array.isArray(value)) {
-    for (const entry of value) {
-      collectChangedFiles(entry, target, seen, depth + 1);
-      if (target.length >= 12) {
-        return;
-      }
-    }
-    return;
-  }
+	if (depth > 4 || target.length >= 12) {
+		return;
+	}
+	if (Array.isArray(value)) {
+		for (const entry of value) {
+			collectChangedFiles(entry, target, seen, depth + 1);
+			if (target.length >= 12) {
+				return;
+			}
+		}
+		return;
+	}
 
-  const record = asRecord(value);
-  if (!record) {
-    return;
-  }
+	const record = asRecord(value);
+	if (!record) {
+		return;
+	}
 
-  pushChangedFile(target, seen, record.path);
-  pushChangedFile(target, seen, record.filePath);
-  pushChangedFile(target, seen, record.relativePath);
-  pushChangedFile(target, seen, record.filename);
-  pushChangedFile(target, seen, record.newPath);
-  pushChangedFile(target, seen, record.oldPath);
+	pushChangedFile(target, seen, record.path);
+	pushChangedFile(target, seen, record.filePath);
+	pushChangedFile(target, seen, record.relativePath);
+	pushChangedFile(target, seen, record.filename);
+	pushChangedFile(target, seen, record.newPath);
+	pushChangedFile(target, seen, record.oldPath);
 
-  for (const nestedKey of [
-    "item",
-    "result",
-    "input",
-    "data",
-    "changes",
-    "files",
-    "edits",
-    "patch",
-    "patches",
-    "operations",
-  ]) {
-    if (!(nestedKey in record)) {
-      continue;
-    }
-    collectChangedFiles(record[nestedKey], target, seen, depth + 1);
-    if (target.length >= 12) {
-      return;
-    }
-  }
+	for (const nestedKey of [
+		"item",
+		"result",
+		"input",
+		"data",
+		"changes",
+		"files",
+		"edits",
+		"patch",
+		"patches",
+		"operations",
+	]) {
+		if (!(nestedKey in record)) {
+			continue;
+		}
+		collectChangedFiles(record[nestedKey], target, seen, depth + 1);
+		if (target.length >= 12) {
+			return;
+		}
+	}
 }
 
-function projectCommandData(data: Record<string, unknown>): Record<string, unknown> | undefined {
-  const item = asRecord(data.item);
-  if (!item) {
-    return undefined;
-  }
+function projectCommandData(
+	data: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+	const item = asRecord(data.item);
+	if (!item) {
+		return undefined;
+	}
 
-  const projectedItem: Record<string, unknown> = {};
-  if ("command" in item) {
-    projectedItem.command = item.command;
-  }
+	const projectedItem: Record<string, unknown> = {};
+	if ("command" in item) {
+		projectedItem.command = item.command;
+	}
 
-  const aggregatedOutput = asTrimmedString(item.aggregatedOutput);
-  if (aggregatedOutput) {
-    const summary = summarizeToolTextOutput(aggregatedOutput);
-    if (summary) {
-      projectedItem.aggregatedOutput = summary;
-    }
-  }
+	const aggregatedOutput = asTrimmedString(item.aggregatedOutput);
+	if (aggregatedOutput) {
+		const summary = summarizeToolTextOutput(aggregatedOutput);
+		if (summary) {
+			projectedItem.aggregatedOutput = summary;
+		}
+	}
 
-  const input = asRecord(item.input);
-  if (input && "command" in input) {
-    projectedItem.input = { command: input.command };
-  }
+	const input = asRecord(item.input);
+	if (input && "command" in input) {
+		projectedItem.input = { command: input.command };
+	}
 
-  const result = asRecord(item.result);
-  if (result) {
-    const projectedResult: Record<string, unknown> = {};
-    if ("command" in result) {
-      projectedResult.command = result.command;
-    }
-    const content = asTrimmedString(result.content);
-    if (content) {
-      const summary = summarizeToolTextOutput(content);
-      if (summary) {
-        projectedResult.content = summary;
-      }
-    }
-    if (Object.keys(projectedResult).length > 0) {
-      projectedItem.result = projectedResult;
-    }
-  }
+	const result = asRecord(item.result);
+	if (result) {
+		const projectedResult: Record<string, unknown> = {};
+		if ("command" in result) {
+			projectedResult.command = result.command;
+		}
+		const content = asTrimmedString(result.content);
+		if (content) {
+			const summary = summarizeToolTextOutput(content);
+			if (summary) {
+				projectedResult.content = summary;
+			}
+		}
+		if (Object.keys(projectedResult).length > 0) {
+			projectedItem.result = projectedResult;
+		}
+	}
 
-  return Object.keys(projectedItem).length > 0 ? projectedItem : undefined;
+	return Object.keys(projectedItem).length > 0 ? projectedItem : undefined;
 }
 
 function projectCommandValue(data: Record<string, unknown>): unknown {
-  if (data.command !== undefined) {
-    return data.command;
-  }
+	if (data.command !== undefined) {
+		return data.command;
+	}
 
-  const input = asRecord(data.input);
-  if (input?.command !== undefined) {
-    return input.command;
-  }
+	const input = asRecord(data.input);
+	if (input?.command !== undefined) {
+		return input.command;
+	}
 
-  const stateInput = asRecord(asRecord(data.state)?.input);
-  if (stateInput?.command !== undefined) {
-    return stateInput.command;
-  }
+	const stateInput = asRecord(asRecord(data.state)?.input);
+	if (stateInput?.command !== undefined) {
+		return stateInput.command;
+	}
 
-  return undefined;
+	return undefined;
 }
 
-function projectViewedImagePath(data: Record<string, unknown>): string | undefined {
-  const directPath = asTrimmedString(data.imagePath);
-  if (directPath && isWorkspaceImagePreviewPath(directPath)) {
-    return directPath;
-  }
+function projectViewedImagePath(
+	data: Record<string, unknown>,
+): string | undefined {
+	const directPath = asTrimmedString(data.imagePath);
+	if (directPath && isWorkspaceImagePreviewPath(directPath)) {
+		return directPath;
+	}
 
-  const toolName = asTrimmedString(data.toolName)?.toLowerCase();
-  if (toolName !== "read" && toolName !== "read file") {
-    return undefined;
-  }
-  const input = asRecord(data.input);
-  const inputPath = asTrimmedString(input?.file_path) ?? asTrimmedString(input?.path);
-  return inputPath && isWorkspaceImagePreviewPath(inputPath) ? inputPath : undefined;
+	const toolName = asTrimmedString(data.toolName)?.toLowerCase();
+	if (toolName !== "read" && toolName !== "read file") {
+		return undefined;
+	}
+	const input = asRecord(data.input);
+	const inputPath =
+		asTrimmedString(input?.file_path) ?? asTrimmedString(input?.path);
+	return inputPath && isWorkspaceImagePreviewPath(inputPath)
+		? inputPath
+		: undefined;
 }
 
 function summarizeToolTextOutput(value: string): string | null {
-  let meaningfulLineCount = 0;
-  let offset = 0;
+	let meaningfulLineCount = 0;
+	let offset = 0;
 
-  while (offset <= value.length) {
-    const newlineIndex = value.indexOf("\n", offset);
-    const lineEnd = newlineIndex === -1 ? value.length : newlineIndex;
-    const line = value.slice(offset, lineEnd).replace(/\s+/g, " ").trim();
-    if (line.length > 0) {
-      meaningfulLineCount += 1;
-      if (line !== "```") {
-        const summary = line.length <= 84 ? line : `${line.slice(0, 83).trimEnd()}…`;
-        // V8 can retain the full tool output behind a short sliced string.
-        // Join a tiny character array so the returned preview owns its bytes.
-        return Array.from(summary).join("");
-      }
-    }
-    if (newlineIndex === -1) {
-      break;
-    }
-    offset = newlineIndex + 1;
-  }
+	while (offset <= value.length) {
+		const newlineIndex = value.indexOf("\n", offset);
+		const lineEnd = newlineIndex === -1 ? value.length : newlineIndex;
+		const line = value.slice(offset, lineEnd).replace(/\s+/g, " ").trim();
+		if (line.length > 0) {
+			meaningfulLineCount += 1;
+			if (line !== "```") {
+				const summary =
+					line.length <= 84 ? line : `${line.slice(0, 83).trimEnd()}…`;
+				// V8 can retain the full tool output behind a short sliced string.
+				// Join a tiny character array so the returned preview owns its bytes.
+				return Array.from(summary).join("");
+			}
+		}
+		if (newlineIndex === -1) {
+			break;
+		}
+		offset = newlineIndex + 1;
+	}
 
-  return meaningfulLineCount > 1 ? `${meaningfulLineCount.toLocaleString()} lines` : null;
+	return meaningfulLineCount > 1
+		? `${meaningfulLineCount.toLocaleString()} lines`
+		: null;
 }
 
 /**
@@ -192,15 +206,15 @@ function summarizeToolTextOutput(value: string): string | null {
  * or dropped. Full payloads remain in persistence.
  */
 const MCP_ITEM_KEPT_FIELDS = [
-  "type",
-  "id",
-  "tool",
-  "server",
-  "status",
-  "arguments",
-  "appContext",
-  "error",
-  "durationMs",
+	"type",
+	"id",
+	"tool",
+	"server",
+	"status",
+	"arguments",
+	"appContext",
+	"error",
+	"durationMs",
 ] as const;
 
 /**
@@ -209,35 +223,37 @@ const MCP_ITEM_KEPT_FIELDS = [
  * `tool_result` block whose `content` is a string or block array.
  */
 function extractMcpResultText(result: unknown): string | null {
-  const record = asRecord(result);
-  if (!record) {
-    return typeof result === "string" ? result : null;
-  }
-  if (typeof record.content === "string") {
-    return record.content;
-  }
-  if (Array.isArray(record.content)) {
-    const texts: string[] = [];
-    for (const entry of record.content) {
-      const text = asRecord(entry)?.text;
-      if (typeof text === "string" && text.trim().length > 0) {
-        texts.push(text);
-      }
-    }
-    if (texts.length > 0) {
-      return texts.join("\n");
-    }
-  }
-  return null;
+	const record = asRecord(result);
+	if (!record) {
+		return typeof result === "string" ? result : null;
+	}
+	if (typeof record.content === "string") {
+		return record.content;
+	}
+	if (Array.isArray(record.content)) {
+		const texts: string[] = [];
+		for (const entry of record.content) {
+			const text = asRecord(entry)?.text;
+			if (typeof text === "string" && text.trim().length > 0) {
+				texts.push(text);
+			}
+		}
+		if (texts.length > 0) {
+			return texts.join("\n");
+		}
+	}
+	return null;
 }
 
-function summarizeMcpResult(result: unknown): Record<string, unknown> | undefined {
-  if (result === undefined || result === null) {
-    return undefined;
-  }
-  const text = extractMcpResultText(result);
-  const summary = text ? summarizeToolTextOutput(text) : null;
-  return summary ? { content: summary } : undefined;
+function summarizeMcpResult(
+	result: unknown,
+): Record<string, unknown> | undefined {
+	if (result === undefined || result === null) {
+		return undefined;
+	}
+	const text = extractMcpResultText(result);
+	const summary = text ? summarizeToolTextOutput(text) : null;
+	return summary ? { content: summary } : undefined;
 }
 
 /**
@@ -246,110 +262,117 @@ function summarizeMcpResult(result: unknown): Record<string, unknown> | undefine
  * keep the expanded-row UI working. Keep the fields the UI actually renders
  * and summarize the result like regular tool output.
  */
-function projectMcpToolCallData(data: Record<string, unknown>): Record<string, unknown> {
-  const projectedData: Record<string, unknown> = {};
+function projectMcpToolCallData(
+	data: Record<string, unknown>,
+): Record<string, unknown> {
+	const projectedData: Record<string, unknown> = {};
 
-  const item = asRecord(data.item);
-  if (item) {
-    const projectedItem: Record<string, unknown> = {};
-    for (const key of MCP_ITEM_KEPT_FIELDS) {
-      if (key in item) {
-        projectedItem[key] = item[key];
-      }
-    }
-    const result = summarizeMcpResult(item.result);
-    if (result) {
-      projectedItem.result = result;
-    }
-    projectedData.item = projectedItem;
-  }
+	const item = asRecord(data.item);
+	if (item) {
+		const projectedItem: Record<string, unknown> = {};
+		for (const key of MCP_ITEM_KEPT_FIELDS) {
+			if (key in item) {
+				projectedItem[key] = item[key];
+			}
+		}
+		const result = summarizeMcpResult(item.result);
+		if (result) {
+			projectedItem.result = result;
+		}
+		projectedData.item = projectedItem;
+	}
 
-  if ("toolName" in data) {
-    projectedData.toolName = data.toolName;
-  }
-  if ("input" in data) {
-    projectedData.input = data.input;
-  }
-  if (!item) {
-    const result = summarizeMcpResult(data.result);
-    if (result) {
-      projectedData.result = result;
-    }
-  }
+	if ("toolName" in data) {
+		projectedData.toolName = data.toolName;
+	}
+	if ("input" in data) {
+		projectedData.input = data.input;
+	}
+	if (!item) {
+		const result = summarizeMcpResult(data.result);
+		if (result) {
+			projectedData.result = result;
+		}
+	}
 
-  if ("toolCallId" in data) {
-    projectedData.toolCallId = data.toolCallId;
-  }
-  if ("kind" in data) {
-    projectedData.kind = data.kind;
-  }
+	if ("toolCallId" in data) {
+		projectedData.toolCallId = data.toolCallId;
+	}
+	if ("kind" in data) {
+		projectedData.kind = data.kind;
+	}
 
-  const changedFiles: string[] = [];
-  collectChangedFiles(data, changedFiles, new Set<string>(), 0);
-  if (changedFiles.length > 0) {
-    projectedData.files = changedFiles.map((path) => ({ path }));
-  }
+	const changedFiles: string[] = [];
+	collectChangedFiles(data, changedFiles, new Set<string>(), 0);
+	if (changedFiles.length > 0) {
+		projectedData.files = changedFiles.map((path) => ({ path }));
+	}
 
-  return projectedData;
+	return projectedData;
 }
 
 function projectRawOutput(value: unknown): Record<string, unknown> | undefined {
-  const direct = asTrimmedString(value);
-  if (direct) {
-    const summary = summarizeToolTextOutput(direct);
-    return summary ? { content: summary } : undefined;
-  }
+	const direct = asTrimmedString(value);
+	if (direct) {
+		const summary = summarizeToolTextOutput(direct);
+		return summary ? { content: summary } : undefined;
+	}
 
-  const rawOutput = asRecord(value);
-  if (!rawOutput) {
-    return undefined;
-  }
+	const rawOutput = asRecord(value);
+	if (!rawOutput) {
+		return undefined;
+	}
 
-  if (typeof rawOutput.totalFiles === "number" && Number.isFinite(rawOutput.totalFiles)) {
-    return {
-      totalFiles: rawOutput.totalFiles,
-      ...(rawOutput.truncated === true ? { truncated: true } : {}),
-    };
-  }
+	if (
+		typeof rawOutput.totalFiles === "number" &&
+		Number.isFinite(rawOutput.totalFiles)
+	) {
+		return {
+			totalFiles: rawOutput.totalFiles,
+			...(rawOutput.truncated === true ? { truncated: true } : {}),
+		};
+	}
 
-  const content = asTrimmedString(rawOutput.content);
-  if (content) {
-    const summary = summarizeToolTextOutput(content);
-    return summary ? { content: summary } : undefined;
-  }
+	const content = asTrimmedString(rawOutput.content);
+	if (content) {
+		const summary = summarizeToolTextOutput(content);
+		return summary ? { content: summary } : undefined;
+	}
 
-  const stdout = asTrimmedString(rawOutput.stdout);
-  if (stdout) {
-    const summary = summarizeToolTextOutput(stdout);
-    return summary ? { content: summary } : undefined;
-  }
+	const stdout = asTrimmedString(rawOutput.stdout);
+	if (stdout) {
+		const summary = summarizeToolTextOutput(stdout);
+		return summary ? { content: summary } : undefined;
+	}
 
-  const stderr = asTrimmedString(rawOutput.stderr);
-  if (stderr) {
-    const summary = summarizeToolTextOutput(stderr);
-    return summary ? { content: summary } : undefined;
-  }
+	const stderr = asTrimmedString(rawOutput.stderr);
+	if (stderr) {
+		const summary = summarizeToolTextOutput(stderr);
+		return summary ? { content: summary } : undefined;
+	}
 
-  return undefined;
+	return undefined;
 }
 
-function projectAcpContent(value: unknown): Record<string, unknown> | undefined {
-  if (!Array.isArray(value)) {
-    return undefined;
-  }
+function projectAcpContent(
+	value: unknown,
+): Record<string, unknown> | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
 
-  const text = value
-    .map((entryValue) => {
-      const entry = asRecord(entryValue);
-      const content = asRecord(entry?.content);
-      return entry?.type === "content" && content?.type === "text"
-        ? asTrimmedString(content.text)
-        : null;
-    })
-    .filter((entry): entry is string => entry !== null)
-    .join("\n");
-  const summary = summarizeToolTextOutput(text);
-  return summary ? { content: summary } : undefined;
+	const text = value
+		.map((entryValue) => {
+			const entry = asRecord(entryValue);
+			const content = asRecord(entry?.content);
+			return entry?.type === "content" && content?.type === "text"
+				? asTrimmedString(content.text)
+				: null;
+		})
+		.filter((entry): entry is string => entry !== null)
+		.join("\n");
+	const summary = summarizeToolTextOutput(text);
+	return summary ? { content: summary } : undefined;
 }
 
 /**
@@ -357,76 +380,79 @@ function projectAcpContent(value: unknown): Record<string, unknown> | undefined 
  * the full payload in persistence and the event store.
  */
 export function projectActivityPayload(
-  activity: OrchestrationThreadActivity,
+	activity: OrchestrationThreadActivity,
 ): OrchestrationThreadActivity {
-  const payload = asRecord(activity.payload);
-  const data = asRecord(payload?.data);
-  if (!payload || !data) {
-    return activity;
-  }
+	const payload = asRecord(activity.payload);
+	const data = asRecord(payload?.data);
+	if (!payload || !data) {
+		return activity;
+	}
 
-  const itemStatus = asRecord(data.item)?.status;
-  const projectedPayload =
-    payload.status === "completed" && (itemStatus === "failed" || itemStatus === "declined")
-      ? { ...payload, status: itemStatus }
-      : payload;
+	const itemStatus = asRecord(data.item)?.status;
+	const projectedPayload =
+		payload.status === "completed" &&
+		(itemStatus === "failed" || itemStatus === "declined")
+			? { ...payload, status: itemStatus }
+			: payload;
 
-  if (payload.itemType === "mcp_tool_call") {
-    return {
-      ...activity,
-      payload: {
-        ...projectedPayload,
-        data: projectMcpToolCallData(data),
-      },
-    };
-  }
+	if (payload.itemType === "mcp_tool_call") {
+		return {
+			...activity,
+			payload: {
+				...projectedPayload,
+				data: projectMcpToolCallData(data),
+			},
+		};
+	}
 
-  const projectedData: Record<string, unknown> = {};
-  const item = projectCommandData(data);
-  if (item) {
-    projectedData.item = item;
-  }
-  const command = projectCommandValue(data);
-  if (command !== undefined) {
-    projectedData.command = command;
-  }
-  const imagePath = projectViewedImagePath(data);
-  if (imagePath) {
-    projectedData.imagePath = imagePath;
-  }
+	const projectedData: Record<string, unknown> = {};
+	const item = projectCommandData(data);
+	if (item) {
+		projectedData.item = item;
+	}
+	const command = projectCommandValue(data);
+	if (command !== undefined) {
+		projectedData.command = command;
+	}
+	const imagePath = projectViewedImagePath(data);
+	if (imagePath) {
+		projectedData.imagePath = imagePath;
+	}
 
-  const changedFiles: string[] = [];
-  collectChangedFiles(data, changedFiles, new Set<string>(), 0);
-  if (changedFiles.length > 0) {
-    // Both clients discover file names by walking objects with path-like keys.
-    projectedData.files = changedFiles.map((path) => ({ path }));
-  }
+	const changedFiles: string[] = [];
+	collectChangedFiles(data, changedFiles, new Set<string>(), 0);
+	if (changedFiles.length > 0) {
+		// Both clients discover file names by walking objects with path-like keys.
+		projectedData.files = changedFiles.map((path) => ({ path }));
+	}
 
-  if ("toolCallId" in data) {
-    projectedData.toolCallId = data.toolCallId;
-  }
-  if ("kind" in data) {
-    projectedData.kind = data.kind;
-  }
-  if ("toolName" in data) {
-    projectedData.toolName = data.toolName;
-  }
+	if ("toolCallId" in data) {
+		projectedData.toolCallId = data.toolCallId;
+	}
+	if ("kind" in data) {
+		projectedData.kind = data.kind;
+	}
+	if ("toolName" in data) {
+		projectedData.toolName = data.toolName;
+	}
 
-  const rawOutput =
-    projectRawOutput(data.rawOutput) ??
-    projectAcpContent(data.content) ??
-    (payload.itemType === "command_execution" ? summarizeMcpResult(data.result) : undefined);
-  if (rawOutput) {
-    projectedData.rawOutput = rawOutput;
-  }
+	const rawOutput =
+		projectRawOutput(data.rawOutput) ??
+		projectAcpContent(data.content) ??
+		(payload.itemType === "command_execution"
+			? summarizeMcpResult(data.result)
+			: undefined);
+	if (rawOutput) {
+		projectedData.rawOutput = rawOutput;
+	}
 
-  return {
-    ...activity,
-    payload: {
-      ...projectedPayload,
-      data: projectedData,
-    },
-  };
+	return {
+		...activity,
+		payload: {
+			...projectedPayload,
+			data: projectedData,
+		},
+	};
 }
 
 /**
@@ -435,13 +461,19 @@ export function projectActivityPayload(
  * `usedTokens` are skipped during its backward walk, so they must not shadow
  * an earlier resolvable row here.
  */
-function isResolvableContextWindowActivity(activity: OrchestrationThreadActivity): boolean {
-  if (activity.kind !== "context-window.updated") {
-    return false;
-  }
-  const payload = asRecord(activity.payload);
-  const usedTokens = payload?.usedTokens;
-  return typeof usedTokens === "number" && Number.isFinite(usedTokens) && usedTokens >= 0;
+function isResolvableContextWindowActivity(
+	activity: OrchestrationThreadActivity,
+): boolean {
+	if (activity.kind !== "context-window.updated") {
+		return false;
+	}
+	const payload = asRecord(activity.payload);
+	const usedTokens = payload?.usedTokens;
+	return (
+		typeof usedTokens === "number" &&
+		Number.isFinite(usedTokens) &&
+		usedTokens >= 0
+	);
 }
 
 /**
@@ -457,22 +489,22 @@ function isResolvableContextWindowActivity(activity: OrchestrationThreadActivity
  * client.
  */
 function dropStaleContextWindowActivities(
-  activities: ReadonlyArray<OrchestrationThreadActivity>,
+	activities: ReadonlyArray<OrchestrationThreadActivity>,
 ): ReadonlyArray<OrchestrationThreadActivity> {
-  const latestIndexByTurn = new Map<string | null, number>();
-  for (let index = 0; index < activities.length; index += 1) {
-    if (isResolvableContextWindowActivity(activities[index]!)) {
-      latestIndexByTurn.set(activities[index]!.turnId, index);
-    }
-  }
-  if (latestIndexByTurn.size === 0) {
-    return activities;
-  }
-  return activities.filter(
-    (activity, index) =>
-      !isResolvableContextWindowActivity(activity) ||
-      latestIndexByTurn.get(activity.turnId) === index,
-  );
+	const latestIndexByTurn = new Map<string | null, number>();
+	for (let index = 0; index < activities.length; index += 1) {
+		if (isResolvableContextWindowActivity(activities[index]!)) {
+			latestIndexByTurn.set(activities[index]!.turnId, index);
+		}
+	}
+	if (latestIndexByTurn.size === 0) {
+		return activities;
+	}
+	return activities.filter(
+		(activity, index) =>
+			!isResolvableContextWindowActivity(activity) ||
+			latestIndexByTurn.get(activity.turnId) === index,
+	);
 }
 
 /**
@@ -481,29 +513,32 @@ function dropStaleContextWindowActivities(
  * finally the itemType/title/detail triple. Rows without any identity remain
  * untouched.
  */
-function toolLifecycleIdentity(activity: OrchestrationThreadActivity): string | null {
-  const payload = asRecord(activity.payload);
-  if (!payload) {
-    return null;
-  }
+function toolLifecycleIdentity(
+	activity: OrchestrationThreadActivity,
+): string | null {
+	const payload = asRecord(activity.payload);
+	if (!payload) {
+		return null;
+	}
 
-  const toolCallId =
-    asTrimmedString(payload.toolCallId) ?? asTrimmedString(asRecord(payload.data)?.toolCallId);
-  if (toolCallId) {
-    return `id:${toolCallId}`;
-  }
+	const toolCallId =
+		asTrimmedString(payload.toolCallId) ??
+		asTrimmedString(asRecord(payload.data)?.toolCallId);
+	if (toolCallId) {
+		return `id:${toolCallId}`;
+	}
 
-  const itemType = asTrimmedString(payload.itemType) ?? "";
-  // Mirrors the clients' `normalizeCompactToolLabel`: a completion's title may
-  // gain a trailing "complete"/"completed" the in-flight updates lack.
-  const label = (asTrimmedString(payload.title) ?? activity.summary)
-    .replace(/\s+(?:complete|completed)\s*$/iu, "")
-    .trim();
-  const detail = asTrimmedString(payload.detail) ?? "";
-  if (itemType.length === 0 && label.length === 0 && detail.length === 0) {
-    return null;
-  }
-  return [itemType, label, detail].join("");
+	const itemType = asTrimmedString(payload.itemType) ?? "";
+	// Mirrors the clients' `normalizeCompactToolLabel`: a completion's title may
+	// gain a trailing "complete"/"completed" the in-flight updates lack.
+	const label = (asTrimmedString(payload.title) ?? activity.summary)
+		.replace(/\s+(?:complete|completed)\s*$/iu, "")
+		.trim();
+	const detail = asTrimmedString(payload.detail) ?? "";
+	if (itemType.length === 0 && label.length === 0 && detail.length === 0) {
+		return null;
+	}
+	return [itemType, label, detail].join("");
 }
 
 /**
@@ -535,66 +570,70 @@ function toolLifecycleIdentity(activity: OrchestrationThreadActivity): string | 
  * content is lost.
  */
 function dropSupersededToolUpdatedActivities(
-  activities: ReadonlyArray<OrchestrationThreadActivity>,
+	activities: ReadonlyArray<OrchestrationThreadActivity>,
 ): ReadonlyArray<OrchestrationThreadActivity> {
-  const completionIndicesByKey = new Map<string, number[]>();
-  for (let index = 0; index < activities.length; index += 1) {
-    const activity = activities[index]!;
-    if (activity.kind !== "tool.completed") {
-      continue;
-    }
-    const identity = toolLifecycleIdentity(activity);
-    if (!identity) {
-      continue;
-    }
-    const key = `${activity.turnId ?? ""}\u0000${identity}`;
-    const indices = completionIndicesByKey.get(key);
-    if (indices) {
-      indices.push(index);
-    } else {
-      completionIndicesByKey.set(key, [index]);
-    }
-  }
-  if (completionIndicesByKey.size === 0) {
-    return activities;
-  }
+	const completionIndicesByKey = new Map<string, number[]>();
+	for (let index = 0; index < activities.length; index += 1) {
+		const activity = activities[index]!;
+		if (activity.kind !== "tool.completed") {
+			continue;
+		}
+		const identity = toolLifecycleIdentity(activity);
+		if (!identity) {
+			continue;
+		}
+		const key = `${activity.turnId ?? ""}\u0000${identity}`;
+		const indices = completionIndicesByKey.get(key);
+		if (indices) {
+			indices.push(index);
+		} else {
+			completionIndicesByKey.set(key, [index]);
+		}
+	}
+	if (completionIndicesByKey.size === 0) {
+		return activities;
+	}
 
-  return activities.filter((activity, index) => {
-    if (activity.kind !== "tool.updated") {
-      return true;
-    }
-    const identity = toolLifecycleIdentity(activity);
-    if (!identity) {
-      return true;
-    }
-    const indices = completionIndicesByKey.get(`${activity.turnId ?? ""}\u0000${identity}`);
-    return !indices?.some((completionIndex) => completionIndex > index);
-  });
+	return activities.filter((activity, index) => {
+		if (activity.kind !== "tool.updated") {
+			return true;
+		}
+		const identity = toolLifecycleIdentity(activity);
+		if (!identity) {
+			return true;
+		}
+		const indices = completionIndicesByKey.get(
+			`${activity.turnId ?? ""}\u0000${identity}`,
+		);
+		return !indices?.some((completionIndex) => completionIndex > index);
+	});
 }
 
 export function projectThreadDetailSnapshot(
-  snapshot: OrchestrationThreadDetailSnapshot,
+	snapshot: OrchestrationThreadDetailSnapshot,
 ): OrchestrationThreadDetailSnapshot {
-  return {
-    ...snapshot,
-    thread: {
-      ...snapshot.thread,
-      activities: dropSupersededToolUpdatedActivities(
-        dropStaleContextWindowActivities(snapshot.thread.activities),
-      ).map(projectActivityPayload),
-    },
-  };
+	return {
+		...snapshot,
+		thread: {
+			...snapshot.thread,
+			activities: dropSupersededToolUpdatedActivities(
+				dropStaleContextWindowActivities(snapshot.thread.activities),
+			).map(projectActivityPayload),
+		},
+	};
 }
 
-export function projectActivityEvent(event: OrchestrationEvent): OrchestrationEvent {
-  if (event.type !== "thread.activity-appended") {
-    return event;
-  }
-  return {
-    ...event,
-    payload: {
-      ...event.payload,
-      activity: projectActivityPayload(event.payload.activity),
-    },
-  };
+export function projectActivityEvent(
+	event: OrchestrationEvent,
+): OrchestrationEvent {
+	if (event.type !== "thread.activity-appended") {
+		return event;
+	}
+	return {
+		...event,
+		payload: {
+			...event.payload,
+			activity: projectActivityPayload(event.payload.activity),
+		},
+	};
 }

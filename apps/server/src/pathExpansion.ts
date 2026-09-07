@@ -17,12 +17,12 @@ import type * as Path from "effect/Path";
  * expansion.
  */
 export function expandHomePath(value: string): string {
-  if (!value) return value;
-  if (value === "~") return NodeOS.homedir();
-  if (value.startsWith("~/") || value.startsWith("~\\")) {
-    return NodePath.join(NodeOS.homedir(), value.slice(2));
-  }
-  return value;
+	if (!value) return value;
+	if (value === "~") return NodeOS.homedir();
+	if (value.startsWith("~/") || value.startsWith("~\\")) {
+		return NodePath.join(NodeOS.homedir(), value.slice(2));
+	}
+	return value;
 }
 
 /**
@@ -32,11 +32,11 @@ export function expandHomePath(value: string): string {
  * separator handling.
  */
 export function expandHomePathWith(value: string, path: Path.Path): string {
-  if (value === "~") {
-    return NodeOS.homedir();
-  }
-  if (value.startsWith("~/") || value.startsWith("~\\")) {
-    return path.join(NodeOS.homedir(), value.slice(2));
-  }
-  return value;
+	if (value === "~") {
+		return NodeOS.homedir();
+	}
+	if (value.startsWith("~/") || value.startsWith("~\\")) {
+		return path.join(NodeOS.homedir(), value.slice(2));
+	}
+	return value;
 }

@@ -9,17 +9,19 @@ import { ProjectionThreadActivityRepositoryLive } from "./ProjectionThreadActivi
 import { SqlitePersistenceMemory } from "./Sqlite.ts";
 
 const layer = it.layer(
-  ProjectionThreadActivityRepositoryLive.pipe(Layer.provideMerge(SqlitePersistenceMemory)),
+	ProjectionThreadActivityRepositoryLive.pipe(
+		Layer.provideMerge(SqlitePersistenceMemory),
+	),
 );
 
 layer("ProjectionThreadActivityRepository", (it) => {
-  it.effect("reads only the latest matching task activity", () =>
-    Effect.gen(function* () {
-      const repository = yield* ProjectionThreadActivityRepository;
-      const sql = yield* SqlClient.SqlClient;
-      const threadId = ThreadId.make("thread-latest-task-activity");
+	it.effect("reads only the latest matching task activity", () =>
+		Effect.gen(function* () {
+			const repository = yield* ProjectionThreadActivityRepository;
+			const sql = yield* SqlClient.SqlClient;
+			const threadId = ThreadId.make("thread-latest-task-activity");
 
-      yield* sql`
+			yield* sql`
         INSERT INTO projection_thread_activities (
           activity_id, thread_id, turn_id, tone, kind, summary, payload_json, sequence, created_at
         )
@@ -45,56 +47,62 @@ layer("ProjectionThreadActivityRepository", (it) => {
           )
       `;
 
-      yield* repository.upsert({
-        activityId: EventId.make("activity-task-untitled"),
-        threadId,
-        turnId: null,
-        tone: "info",
-        kind: "task.progress",
-        summary: "Still running",
-        payload: { taskId: "task-1" },
-        sequence: 5,
-        createdAt: "2026-03-01T00:00:04.000Z",
-      });
-      yield* repository.upsert({
-        activityId: EventId.make("activity-task-blank-title"),
-        threadId,
-        turnId: null,
-        tone: "info",
-        kind: "task.progress",
-        summary: "Still running",
-        payload: { taskId: "task-1", title: " \t\n\u00a0" },
-        sequence: 6,
-        createdAt: "2026-03-01T00:00:05.000Z",
-      });
+			yield* repository.upsert({
+				activityId: EventId.make("activity-task-untitled"),
+				threadId,
+				turnId: null,
+				tone: "info",
+				kind: "task.progress",
+				summary: "Still running",
+				payload: { taskId: "task-1" },
+				sequence: 5,
+				createdAt: "2026-03-01T00:00:04.000Z",
+			});
+			yield* repository.upsert({
+				activityId: EventId.make("activity-task-blank-title"),
+				threadId,
+				turnId: null,
+				tone: "info",
+				kind: "task.progress",
+				summary: "Still running",
+				payload: { taskId: "task-1", title: " \t\n\u00a0" },
+				sequence: 6,
+				createdAt: "2026-03-01T00:00:05.000Z",
+			});
 
-      const recent = yield* repository.listByThreadId({
-        threadId,
-        activityKinds: ["task.progress"],
-        limit: 2,
-      });
-      assert.deepEqual(
-        recent.map((entry) => entry.activityId),
-        ["activity-task-untitled", "activity-task-blank-title"],
-      );
+			const recent = yield* repository.listByThreadId({
+				threadId,
+				activityKinds: ["task.progress"],
+				limit: 2,
+			});
+			assert.deepEqual(
+				recent.map((entry) => entry.activityId),
+				["activity-task-untitled", "activity-task-blank-title"],
+			);
 
-      const activity = yield* repository.getLatestTaskActivity({
-        threadId,
-        taskId: "task-1",
-      });
-      assert.equal(activity._tag, "Some");
-      if (activity._tag === "Some") {
-        assert.equal(activity.value.activityId, EventId.make("activity-task-progress"));
-        assert.deepEqual(activity.value.payload, {
-          taskId: "task-1",
-          title: "Updated title",
-        });
-      }
+			const activity = yield* repository.getLatestTaskActivity({
+				threadId,
+				taskId: "task-1",
+			});
+			assert.equal(activity._tag, "Some");
+			if (activity._tag === "Some") {
+				assert.equal(
+					activity.value.activityId,
+					EventId.make("activity-task-progress"),
+				);
+				assert.deepEqual(activity.value.payload, {
+					taskId: "task-1",
+					title: "Updated title",
+				});
+			}
 
-      assert.equal(
-        (yield* repository.getLatestTaskActivity({ threadId, taskId: "missing" }))._tag,
-        "None",
-      );
-    }),
-  );
+			assert.equal(
+				(yield* repository.getLatestTaskActivity({
+					threadId,
+					taskId: "missing",
+				}))._tag,
+				"None",
+			);
+		}),
+	);
 });

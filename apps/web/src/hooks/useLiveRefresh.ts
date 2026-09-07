@@ -37,11 +37,14 @@ export const LIVE_REFRESH_IDLE_AFTER_MS = 6 * 60_000;
  * read, not one per thing that happened while they were away.
  */
 export function shouldLiveRefresh(input: {
-  readonly visible: boolean;
-  readonly now: number;
-  readonly lastRefreshedAt: number;
+	readonly visible: boolean;
+	readonly now: number;
+	readonly lastRefreshedAt: number;
 }): boolean {
-  return input.visible && input.now - input.lastRefreshedAt >= LIVE_REFRESH_MIN_INTERVAL_MS;
+	return (
+		input.visible &&
+		input.now - input.lastRefreshedAt >= LIVE_REFRESH_MIN_INTERVAL_MS
+	);
 }
 
 /**
@@ -50,14 +53,14 @@ export function shouldLiveRefresh(input: {
  * and pays for the same answer twice. Every later arrival is an ordinary refresh.
  */
 export function shouldRefreshOnArrival(input: {
-  readonly visible: boolean;
-  readonly now: number;
-  readonly lastRefreshedAt: number | undefined;
+	readonly visible: boolean;
+	readonly now: number;
+	readonly lastRefreshedAt: number | undefined;
 }): boolean {
-  return (
-    input.lastRefreshedAt !== undefined &&
-    shouldLiveRefresh({ ...input, lastRefreshedAt: input.lastRefreshedAt })
-  );
+	return (
+		input.lastRefreshedAt !== undefined &&
+		shouldLiveRefresh({ ...input, lastRefreshedAt: input.lastRefreshedAt })
+	);
 }
 
 /**
@@ -65,14 +68,15 @@ export function shouldRefreshOnArrival(input: {
  * been here recently enough for the answer to be for somebody.
  */
 export function shouldRefreshOnInterval(input: {
-  readonly visible: boolean;
-  readonly now: number;
-  readonly lastRefreshedAt: number;
-  readonly lastInteractedAt: number;
+	readonly visible: boolean;
+	readonly now: number;
+	readonly lastRefreshedAt: number;
+	readonly lastInteractedAt: number;
 }): boolean {
-  return (
-    input.now - input.lastInteractedAt < LIVE_REFRESH_IDLE_AFTER_MS && shouldLiveRefresh(input)
-  );
+	return (
+		input.now - input.lastInteractedAt < LIVE_REFRESH_IDLE_AFTER_MS &&
+		shouldLiveRefresh(input)
+	);
 }
 
 /**
@@ -91,93 +95,108 @@ const lastRefreshedAtByView = new Map<string, number>();
  */
 let lastInteractedAt = 0;
 let interactionWatchers = 0;
-const INTERACTION_EVENTS = ["pointerdown", "pointermove", "keydown", "wheel"] as const;
+const INTERACTION_EVENTS = [
+	"pointerdown",
+	"pointermove",
+	"keydown",
+	"wheel",
+] as const;
 const noteInteraction = () => {
-  lastInteractedAt = Date.now();
+	lastInteractedAt = Date.now();
 };
 
 function watchInteraction(): () => void {
-  if (interactionWatchers === 0) {
-    // Arriving is itself the reader doing something, and it is what makes the first interval tick
-    // after a mount count.
-    lastInteractedAt = Date.now();
-    for (const event of INTERACTION_EVENTS) {
-      document.addEventListener(event, noteInteraction, { passive: true });
-    }
-  }
-  interactionWatchers += 1;
-  return () => {
-    interactionWatchers -= 1;
-    if (interactionWatchers > 0) return;
-    for (const event of INTERACTION_EVENTS) {
-      document.removeEventListener(event, noteInteraction);
-    }
-  };
+	if (interactionWatchers === 0) {
+		// Arriving is itself the reader doing something, and it is what makes the first interval tick
+		// after a mount count.
+		lastInteractedAt = Date.now();
+		for (const event of INTERACTION_EVENTS) {
+			document.addEventListener(event, noteInteraction, { passive: true });
+		}
+	}
+	interactionWatchers += 1;
+	return () => {
+		interactionWatchers -= 1;
+		if (interactionWatchers > 0) return;
+		for (const event of INTERACTION_EVENTS) {
+			document.removeEventListener(event, noteInteraction);
+		}
+	};
 }
 
 export function useLiveRefresh(
-  refresh: (() => void) | null,
-  options: { readonly enabled?: boolean; readonly key?: string } = {},
+	refresh: (() => void) | null,
+	options: { readonly enabled?: boolean; readonly key?: string } = {},
 ): void {
-  const { enabled = true, key } = options;
-  // Held in a ref so a caller can pass a fresh closure every render without re-arming the
-  // listeners, which would otherwise refresh on every render that changed anything at all.
-  const latest = useRef(refresh);
-  latest.current = refresh;
-  // A caller that shows a different thing in the same place — one panel, a pull request at a time —
-  // says which thing it is showing, so the reads it owes follow the thing rather than the slot.
-  // Anything else is one view per place it appears, which is what the tree position already means.
-  const fallbackViewId = useId();
-  const viewId = key ?? fallbackViewId;
+	const { enabled = true, key } = options;
+	// Held in a ref so a caller can pass a fresh closure every render without re-arming the
+	// listeners, which would otherwise refresh on every render that changed anything at all.
+	const latest = useRef(refresh);
+	latest.current = refresh;
+	// A caller that shows a different thing in the same place — one panel, a pull request at a time —
+	// says which thing it is showing, so the reads it owes follow the thing rather than the slot.
+	// Anything else is one view per place it appears, which is what the tree position already means.
+	const fallbackViewId = useId();
+	const viewId = key ?? fallbackViewId;
 
-  useEffect(() => {
-    if (!enabled) return;
-    const read = (now: number) => {
-      lastRefreshedAtByView.set(viewId, now);
-      latest.current?.();
-    };
-    const visible = () => document.visibilityState === "visible";
-    const onArrival = () => {
-      const now = Date.now();
-      const lastRefreshedAt = lastRefreshedAtByView.get(viewId);
-      if (lastRefreshedAt === undefined) {
-        // Nothing read yet, so nothing to refresh: the mount's own read is what fills this in.
-        lastRefreshedAtByView.set(viewId, now);
-        return;
-      }
-      if (shouldRefreshOnArrival({ visible: visible(), now, lastRefreshedAt })) read(now);
-    };
-    const onInterval = () => {
-      const now = Date.now();
-      const lastRefreshedAt = lastRefreshedAtByView.get(viewId) ?? now;
-      if (shouldRefreshOnInterval({ visible: visible(), now, lastRefreshedAt, lastInteractedAt })) {
-        read(now);
-      }
-    };
+	useEffect(() => {
+		if (!enabled) return;
+		const read = (now: number) => {
+			lastRefreshedAtByView.set(viewId, now);
+			latest.current?.();
+		};
+		const visible = () => document.visibilityState === "visible";
+		const onArrival = () => {
+			const now = Date.now();
+			const lastRefreshedAt = lastRefreshedAtByView.get(viewId);
+			if (lastRefreshedAt === undefined) {
+				// Nothing read yet, so nothing to refresh: the mount's own read is what fills this in.
+				lastRefreshedAtByView.set(viewId, now);
+				return;
+			}
+			if (shouldRefreshOnArrival({ visible: visible(), now, lastRefreshedAt }))
+				read(now);
+		};
+		const onInterval = () => {
+			const now = Date.now();
+			const lastRefreshedAt = lastRefreshedAtByView.get(viewId) ?? now;
+			if (
+				shouldRefreshOnInterval({
+					visible: visible(),
+					now,
+					lastRefreshedAt,
+					lastInteractedAt,
+				})
+			) {
+				read(now);
+			}
+		};
 
-    let timer: ReturnType<typeof setInterval> | undefined;
-    // The timer exists only while the window is showing: a tab sitting behind another one should
-    // cost the host nothing, and the reads it missed collapse into the single one it makes on the
-    // way back. Nothing else moves the window between showing and hidden, so nothing else re-arms.
-    const syncTimer = () => {
-      clearInterval(timer);
-      timer = visible() ? setInterval(onInterval, LIVE_REFRESH_INTERVAL_MS) : undefined;
-    };
-    const onVisibilityChange = () => {
-      onArrival();
-      syncTimer();
-    };
+		let timer: ReturnType<typeof setInterval> | undefined;
+		// The timer exists only while the window is showing: a tab sitting behind another one should
+		// cost the host nothing, and the reads it missed collapse into the single one it makes on the
+		// way back. Nothing else moves the window between showing and hidden, so nothing else re-arms.
+		const syncTimer = () => {
+			clearInterval(timer);
+			timer = visible()
+				? setInterval(onInterval, LIVE_REFRESH_INTERVAL_MS)
+				: undefined;
+		};
+		const onVisibilityChange = () => {
+			onArrival();
+			syncTimer();
+		};
 
-    const stopWatchingInteraction = watchInteraction();
-    onArrival();
-    syncTimer();
-    window.addEventListener("focus", onArrival);
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener("focus", onArrival);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-      stopWatchingInteraction();
-    };
-  }, [enabled, viewId]);
+		const stopWatchingInteraction = watchInteraction();
+		onArrival();
+		syncTimer();
+		window.addEventListener("focus", onArrival);
+		document.addEventListener("visibilitychange", onVisibilityChange);
+		return () => {
+			clearInterval(timer);
+			window.removeEventListener("focus", onArrival);
+			document.removeEventListener("visibilitychange", onVisibilityChange);
+			stopWatchingInteraction();
+		};
+	}, [enabled, viewId]);
 }

@@ -1,6 +1,9 @@
 // @effect-diagnostics globalDate:off globalTimers:off -- Synchronous before-input-event handler; key events must be timed and the watchdog scheduled outside any Effect runtime.
 
-import type { QuitConfirmationMode, QuitShortcutHintEvent } from "@t3tools/contracts";
+import type {
+	QuitConfirmationMode,
+	QuitShortcutHintEvent,
+} from "@t3tools/contracts";
 
 // The quit accelerator is intercepted in before-input-event, which runs
 // before the native menu accelerator. Quitting from the application menu is
@@ -20,206 +23,214 @@ export const QUIT_HOLD_RELEASE_GRACE_MS = 600;
 const QUIT_HOLD_REPEAT_CADENCE_MULTIPLIER = 2;
 
 export interface QuitHoldKeyInput {
-  readonly type: string;
-  readonly key: string;
-  readonly meta: boolean;
-  readonly control: boolean;
-  readonly alt: boolean;
-  readonly shift: boolean;
-  readonly isAutoRepeat: boolean;
+	readonly type: string;
+	readonly key: string;
+	readonly meta: boolean;
+	readonly control: boolean;
+	readonly alt: boolean;
+	readonly shift: boolean;
+	readonly isAutoRepeat: boolean;
 }
 
 export interface QuitShortcutOptions {
-  readonly platform: NodeJS.Platform;
-  readonly getMode: () => Promise<QuitConfirmationMode>;
-  readonly notify: (event: QuitShortcutHintEvent) => void;
-  readonly concealWindow: () => void;
-  readonly quit: () => void;
+	readonly platform: NodeJS.Platform;
+	readonly getMode: () => Promise<QuitConfirmationMode>;
+	readonly notify: (event: QuitShortcutHintEvent) => void;
+	readonly concealWindow: () => void;
+	readonly quit: () => void;
 }
 
 export function makeQuitShortcutHandler(
-  options: QuitShortcutOptions,
+	options: QuitShortcutOptions,
 ): (event: { preventDefault: () => void }, input: QuitHoldKeyInput) => void {
-  const modifierKey = options.platform === "darwin" ? "meta" : "control";
-  let watchdog: NodeJS.Timeout | undefined;
-  let holding = false;
-  let mode: QuitConfirmationMode | undefined;
-  let notified = false;
-  // Set once getMode resolves to hold; auto-repeats may only complete the hold when armed.
-  let armed = false;
-  let quitOnRelease = false;
-  let heldSince = 0;
-  let lastPressAt = 0;
-  let lastRepeatAt = 0;
-  let repeatCadenceMs = 0;
-  // Incremented when a press is superseded or explicitly cancelled. A plain
-  // key release does not invalidate its pending mode read: a direct-mode
-  // press must still quit after that read settles.
-  let generation = 0;
+	const modifierKey = options.platform === "darwin" ? "meta" : "control";
+	let watchdog: NodeJS.Timeout | undefined;
+	let holding = false;
+	let mode: QuitConfirmationMode | undefined;
+	let notified = false;
+	// Set once getMode resolves to hold; auto-repeats may only complete the hold when armed.
+	let armed = false;
+	let quitOnRelease = false;
+	let heldSince = 0;
+	let lastPressAt = 0;
+	let lastRepeatAt = 0;
+	let repeatCadenceMs = 0;
+	// Incremented when a press is superseded or explicitly cancelled. A plain
+	// key release does not invalidate its pending mode read: a direct-mode
+	// press must still quit after that read settles.
+	let generation = 0;
 
-  const clearWatchdog = () => {
-    if (watchdog !== undefined) {
-      clearTimeout(watchdog);
-      watchdog = undefined;
-    }
-  };
+	const clearWatchdog = () => {
+		if (watchdog !== undefined) {
+			clearTimeout(watchdog);
+			watchdog = undefined;
+		}
+	};
 
-  const release = (cancelPendingMode = true, keepDoublePressHint = false) => {
-    if (cancelPendingMode) generation += 1;
-    if (!holding && !notified) return;
-    const keepHint = keepDoublePressHint && mode === "double-click" && notified;
-    holding = false;
-    armed = false;
-    quitOnRelease = false;
-    lastRepeatAt = 0;
-    repeatCadenceMs = 0;
-    if (keepHint) return;
+	const release = (cancelPendingMode = true, keepDoublePressHint = false) => {
+		if (cancelPendingMode) generation += 1;
+		if (!holding && !notified) return;
+		const keepHint = keepDoublePressHint && mode === "double-click" && notified;
+		holding = false;
+		armed = false;
+		quitOnRelease = false;
+		lastRepeatAt = 0;
+		repeatCadenceMs = 0;
+		if (keepHint) return;
 
-    mode = undefined;
-    clearWatchdog();
-    if (notified) {
-      notified = false;
-      options.notify({ state: "up" });
-    }
-  };
+		mode = undefined;
+		clearWatchdog();
+		if (notified) {
+			notified = false;
+			options.notify({ state: "up" });
+		}
+	};
 
-  // Dismisses any overlay first so a cancelled quit cannot leave a stale hint.
-  const quitNow = () => {
-    release();
-    lastPressAt = 0;
-    options.quit();
-  };
+	// Dismisses any overlay first so a cancelled quit cannot leave a stale hint.
+	const quitNow = () => {
+		release();
+		lastPressAt = 0;
+		options.quit();
+	};
 
-  const quitAfterQuietPeriod = () => {
-    clearWatchdog();
-    const quietPeriodMs = Math.max(
-      QUIT_HOLD_RELEASE_GRACE_MS,
-      repeatCadenceMs * QUIT_HOLD_REPEAT_CADENCE_MULTIPLIER,
-    );
-    watchdog = setTimeout(quitNow, quietPeriodMs);
-  };
+	const quitAfterQuietPeriod = () => {
+		clearWatchdog();
+		const quietPeriodMs = Math.max(
+			QUIT_HOLD_RELEASE_GRACE_MS,
+			repeatCadenceMs * QUIT_HOLD_REPEAT_CADENCE_MULTIPLIER,
+		);
+		watchdog = setTimeout(quitNow, quietPeriodMs);
+	};
 
-  return (event, input) => {
-    const key = input.key.toLowerCase();
-    if (input.type === "keyUp") {
-      if (key === "q") {
-        const shouldQuit = quitOnRelease;
-        release(false, true);
-        if (shouldQuit) options.quit();
-      } else if (key === modifierKey) {
-        if (!quitOnRelease) {
-          release(false, true);
-        } else {
-          quitAfterQuietPeriod();
-        }
-      }
-      return;
-    }
-    if (input.type !== "keyDown") return;
+	return (event, input) => {
+		const key = input.key.toLowerCase();
+		if (input.type === "keyUp") {
+			if (key === "q") {
+				const shouldQuit = quitOnRelease;
+				release(false, true);
+				if (shouldQuit) options.quit();
+			} else if (key === modifierKey) {
+				if (!quitOnRelease) {
+					release(false, true);
+				} else {
+					quitAfterQuietPeriod();
+				}
+			}
+			return;
+		}
+		if (input.type !== "keyDown") return;
 
-    const modifierDown = options.platform === "darwin" ? input.meta : input.control;
-    if (input.isAutoRepeat && modifierDown && key === "q") {
-      const now = Date.now();
-      repeatCadenceMs = now - (lastRepeatAt === 0 ? heldSince : lastRepeatAt);
-      lastRepeatAt = now;
-    }
-    if (quitOnRelease) {
-      event.preventDefault();
-      if (key === "q") {
-        if (modifierDown) {
-          quitAfterQuietPeriod();
-        } else {
-          clearWatchdog();
-        }
-      }
-      return;
-    }
+		const modifierDown =
+			options.platform === "darwin" ? input.meta : input.control;
+		if (input.isAutoRepeat && modifierDown && key === "q") {
+			const now = Date.now();
+			repeatCadenceMs = now - (lastRepeatAt === 0 ? heldSince : lastRepeatAt);
+			lastRepeatAt = now;
+		}
+		if (quitOnRelease) {
+			event.preventDefault();
+			if (key === "q") {
+				if (modifierDown) {
+					quitAfterQuietPeriod();
+				} else {
+					clearWatchdog();
+				}
+			}
+			return;
+		}
 
-    if (!modifierDown || input.alt || input.shift || key !== "q") {
-      // Re-pressing the platform modifier is the first half of a second full
-      // quit shortcut, so it must not cancel an active double-press window.
-      if (key === modifierKey && !input.alt && !input.shift) return;
+		if (!modifierDown || input.alt || input.shift || key !== "q") {
+			// Re-pressing the platform modifier is the first half of a second full
+			// quit shortcut, so it must not cancel an active double-press window.
+			if (key === modifierKey && !input.alt && !input.shift) return;
 
-      // Other keys cancel the hold and the first tap, even after release.
-      // Keep this separate from release(), which also runs when a fresh Q
-      // keydown follows a keyUp that macOS did not deliver.
-      if (!input.isAutoRepeat) {
-        lastPressAt = 0;
-        release();
-      }
-      return;
-    }
+			// Other keys cancel the hold and the first tap, even after release.
+			// Keep this separate from release(), which also runs when a fresh Q
+			// keydown follows a keyUp that macOS did not deliver.
+			if (!input.isAutoRepeat) {
+				lastPressAt = 0;
+				release();
+			}
+			return;
+		}
 
-    event.preventDefault();
+		event.preventDefault();
 
-    if (input.isAutoRepeat) {
-      if (mode === "hold" && armed && Date.now() - heldSince >= QUIT_HOLD_DURATION_MS) {
-        armed = false;
-        quitOnRelease = true;
-        options.concealWindow();
-        quitAfterQuietPeriod();
-      }
-      return;
-    }
+		if (input.isAutoRepeat) {
+			if (
+				mode === "hold" &&
+				armed &&
+				Date.now() - heldSince >= QUIT_HOLD_DURATION_MS
+			) {
+				armed = false;
+				quitOnRelease = true;
+				options.concealWindow();
+				quitAfterQuietPeriod();
+			}
+			return;
+		}
 
-    const now = Date.now();
-    const previousPressAt = lastPressAt;
-    lastPressAt = now;
-    // A fresh keydown supersedes the current physical hold or the hint kept
-    // alive after a detected release.
-    if (holding || notified) release();
+		const now = Date.now();
+		const previousPressAt = lastPressAt;
+		lastPressAt = now;
+		// A fresh keydown supersedes the current physical hold or the hint kept
+		// alive after a detected release.
+		if (holding || notified) release();
 
-    generation += 1;
-    // Every mode accepts two presses. Quit before reading settings so a slow
-    // read cannot delay the second press. Repeats never reach this branch.
-    if (previousPressAt !== 0 && now - previousPressAt <= QUIT_DOUBLE_PRESS_MS) {
-      quitNow();
-      return;
-    }
+		generation += 1;
+		// Every mode accepts two presses. Quit before reading settings so a slow
+		// read cannot delay the second press. Repeats never reach this branch.
+		if (
+			previousPressAt !== 0 &&
+			now - previousPressAt <= QUIT_DOUBLE_PRESS_MS
+		) {
+			quitNow();
+			return;
+		}
 
-    const pressGeneration = generation;
-    holding = true;
-    heldSince = now;
-    void options.getMode().then(
-      (resolvedMode) => {
-        if (generation !== pressGeneration) return;
-        if (resolvedMode === "direct") {
-          quitNow();
-          return;
-        }
-        if (resolvedMode === "double-click") {
-          const remainingMs = QUIT_DOUBLE_PRESS_MS - (Date.now() - now);
-          if (remainingMs <= 0) {
-            release();
-            return;
-          }
-          mode = resolvedMode;
-          notified = true;
-          options.notify({ state: "down", mode: resolvedMode });
-          watchdog = setTimeout(release, remainingMs);
-          return;
-        }
+		const pressGeneration = generation;
+		holding = true;
+		heldSince = now;
+		void options.getMode().then(
+			(resolvedMode) => {
+				if (generation !== pressGeneration) return;
+				if (resolvedMode === "direct") {
+					quitNow();
+					return;
+				}
+				if (resolvedMode === "double-click") {
+					const remainingMs = QUIT_DOUBLE_PRESS_MS - (Date.now() - now);
+					if (remainingMs <= 0) {
+						release();
+						return;
+					}
+					mode = resolvedMode;
+					notified = true;
+					options.notify({ state: "down", mode: resolvedMode });
+					watchdog = setTimeout(release, remainingMs);
+					return;
+				}
 
-        // A hold cannot be armed after its physical press has ended.
-        if (!holding) return;
+				// A hold cannot be armed after its physical press has ended.
+				if (!holding) return;
 
-        mode = resolvedMode;
-        notified = true;
-        options.notify({ state: "down", mode: resolvedMode });
+				mode = resolvedMode;
+				notified = true;
+				options.notify({ state: "down", mode: resolvedMode });
 
-        armed = true;
-        // No auto-repeat by then means the key was released (possibly with a
-        // suppressed keyUp) or repeat is disabled; either way, don't quit.
-        watchdog = setTimeout(() => {
-          watchdog = undefined;
-          release();
-        }, QUIT_HOLD_DURATION_MS + QUIT_HOLD_RELEASE_GRACE_MS);
-      },
-      // A failed settings read must never strand the quit request.
-      () => {
-        if (generation !== pressGeneration) return;
-        quitNow();
-      },
-    );
-  };
+				armed = true;
+				// No auto-repeat by then means the key was released (possibly with a
+				// suppressed keyUp) or repeat is disabled; either way, don't quit.
+				watchdog = setTimeout(() => {
+					watchdog = undefined;
+					release();
+				}, QUIT_HOLD_DURATION_MS + QUIT_HOLD_RELEASE_GRACE_MS);
+			},
+			// A failed settings read must never strand the quit request.
+			() => {
+				if (generation !== pressGeneration) return;
+				quitNow();
+			},
+		);
+	};
 }

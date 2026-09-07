@@ -7,9 +7,13 @@ import type {
 	VcsInitInput,
 	VcsListRemotesResult,
 	VcsListWorkspaceFilesResult,
+	VcsCreateWorkspaceInput,
+	VcsListWorkspacesResult,
+	VcsRemoveWorkspaceInput,
 	ReviewDiffPreviewInput,
 	ReviewDiffPreviewResult,
 	VcsRepositoryIdentity,
+	VcsWorkspace,
 } from "@t3tools/contracts";
 import { CheckpointRef } from "@t3tools/contracts";
 import * as VcsProcess from "./VcsProcess.ts";
@@ -83,6 +87,19 @@ export class VcsDriver extends Context.Service<
 		) => Effect.Effect<ReadonlyArray<string>, VcsError>;
 		readonly initRepository: (
 			input: VcsInitInput,
+		) => Effect.Effect<void, VcsError>;
+		/**
+		 * Workspace-per-checkout drivers (e.g. jj) and the git driver's colocated
+		 * mode. Plain git repositories use worktree ops instead.
+		 */
+		readonly createWorkspace?: (
+			input: VcsCreateWorkspaceInput,
+		) => Effect.Effect<VcsWorkspace, VcsError>;
+		readonly listWorkspaces?: (
+			cwd: string,
+		) => Effect.Effect<VcsListWorkspacesResult, VcsError>;
+		readonly removeWorkspace?: (
+			input: VcsRemoveWorkspaceInput,
 		) => Effect.Effect<void, VcsError>;
 		readonly getDiffPreview?: (
 			input: ReviewDiffPreviewInput,

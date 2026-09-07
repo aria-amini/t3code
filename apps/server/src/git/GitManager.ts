@@ -2878,6 +2878,13 @@ export const make = Effect.gen(function* () {
 					phases,
 				});
 
+				if (!input.featureBranch && wantsCommit && !initialStatus.branch) {
+					return yield* new GitManagerError({
+						operation: "runStackedAction",
+						cwd: input.cwd,
+						detail: "Cannot commit from detached HEAD.",
+					});
+				}
 				if (!input.featureBranch && wantsPush && !initialStatus.branch) {
 					return yield* new GitManagerError({
 						operation: "runStackedAction",

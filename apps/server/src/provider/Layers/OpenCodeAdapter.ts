@@ -395,6 +395,12 @@ interface OpenCodeSessionContext {
 	activeVariant: string | undefined;
 	cancellation: OpenCodeCancellation | undefined;
 	interruptedTurnId: TurnId | undefined;
+	/**
+	 * callIDs of the root session's in-flight agent (subagent) tool parts.
+	 * Stops scoped to a busy subagent must not kill the root turn, which is
+	 * merely blocked on the tool call.
+	 */
+	readonly inFlightAgentToolPartIds: Set<string>;
 	reconcileIdleStatus: boolean;
 	awaitingBusyAfterInterruption: boolean;
 	pendingIdleReconciliation: OpenCodeIdleReconciliation | undefined;
@@ -608,15 +614,6 @@ function mapPermissionToRequestType(
 }
 
 function mapPermissionDecision(reply: "once" | "always" | "reject"): string {
-	switch (reply) {
-		case "once":
-			return "accept";
-		case "always":
-			return "acceptForSession";
-		case "reject":
-		default:
-			return "decline";
-	}
 }
 
 const ensureSessionContext = Effect.fn("ensureSessionContext")(function* (
@@ -2705,6 +2702,20 @@ export function makeOpenCodeAdapter(
 					const part = event.properties.part;
 					const messageRole = messageRoleForPart(context, part);
 
+					if (part.type === "tool") {
+						const itemType = toToolLifecycleItemType(part.tool);
+						if (itemType === "collab_agent_tool_call") {
+							if (
+								part.state.status === "completed" ||
+								part.state.status === "error"
+							) {
+								context.inFlightAgentToolPartIds.delete(part.callID);
+							} else {
+								context.inFlightAgentToolPartIds.add(part.callID);
+							}
+						}
+					}
+
 					if (turnId && part.type === "step-finish" && context.turnTokenUsage) {
 						const usage = context.turnTokenUsage;
 						const ownership = usage.assistantOwnershipByMessageId.get(
@@ -3351,6 +3362,7 @@ export function makeOpenCodeAdapter(
 				activeVariant: undefined,
 				cancellation: undefined,
 				interruptedTurnId: undefined,
+				inFlightAgentToolPartIds: new Set(),
 				reconcileIdleStatus: false,
 				awaitingBusyAfterInterruption: false,
 				pendingIdleReconciliation: undefined,
@@ -3522,6 +3534,9 @@ export function makeOpenCodeAdapter(
 								}
 							: undefined;
 						context.pendingIdleReconciliation = undefined;
+						// A fresh root prompt resets subagent tool tracking from any
+						// previous turn.
+						context.inFlightAgentToolPartIds.clear();
 						const promptGeneration = context.promptGeneration + 1;
 						const promptAdmission: OpenCodePromptAdmission = {
 							generation: promptGeneration,
@@ -3966,6 +3981,62 @@ export function makeOpenCodeAdapter(
 				completion: Deferred.makeUnsafe<void, ProviderAdapterRequestError>(),
 			};
 			context.cancellation = cancellation;
+			// A stop pressed while a subagent runs must not kill the main turn:
+			// the root prompt is merely blocked on its agent tool call. Abort only
+			// the descendant sessions and leave the root prompt running; the tool
+			// call returns to the root, which keeps generating and settles the
+			// turn on its own. A second press with no agent tool in flight
+			// interrupts the root turn.
+			if (context.inFlightAgentToolPartIds.size > 0) {
+				const scopedAbortOutcome = yield* Effect.raceFirst(
+					abortOpenCodeDescendants(context).pipe(
+						Effect.timeout("10 seconds"),
+						Effect.catchTags({
+							OpenCodeRuntimeError: (cause) =>
+								Effect.fail(toRequestError(cause)),
+							TimeoutError: (cause) =>
+								Effect.fail(
+									new ProviderAdapterRequestError({
+										provider: PROVIDER,
+										method: "session.abort",
+										detail:
+											"OpenCode subagent cleanup did not complete within 10 seconds.",
+										cause,
+									}),
+								),
+						}),
+						Effect.exit,
+						Effect.map((exit) => ({ source: "request" as const, exit })),
+					),
+					Deferred.await(cancellation.completion).pipe(
+						Effect.exit,
+						Effect.map((exit) => ({ source: "completion" as const, exit })),
+					),
+				);
+				if (context.cancellation === cancellation) {
+					context.cancellation = undefined;
+				}
+				yield* Deferred.succeed(cancellation.acknowledgment, undefined).pipe(
+					Effect.ignore,
+				);
+				if (scopedAbortOutcome.source === "completion") {
+					return Exit.isFailure(scopedAbortOutcome.exit)
+						? yield* Effect.failCause(scopedAbortOutcome.exit.cause)
+						: undefined;
+				}
+				if (Exit.isFailure(scopedAbortOutcome.exit)) {
+					yield* Deferred.done(
+						cancellation.completion,
+						scopedAbortOutcome.exit,
+					).pipe(Effect.ignore);
+					return yield* Effect.failCause(scopedAbortOutcome.exit.cause);
+				}
+				yield* Deferred.succeed(cancellation.completion, undefined).pipe(
+					Effect.ignore,
+				);
+				return;
+			}
+
 			const promptAdmission = context.promptAdmission;
 			if (
 				promptAdmission !== undefined &&
@@ -4082,6 +4153,9 @@ export function makeOpenCodeAdapter(
 			}
 
 			if (context.cancellation === cancellation) {
+				// The root turn was fully interrupted; no agent tool can still be
+				// in flight.
+				context.inFlightAgentToolPartIds.clear();
 				if (cancellation.turnSettled) {
 					context.cancellation = undefined;
 				} else if (cancellation.turnId !== undefined) {

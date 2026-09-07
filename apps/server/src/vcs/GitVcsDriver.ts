@@ -29,6 +29,9 @@ import {
 	type VcsRemoveWorktreeInput,
 	type VcsStatusInput,
 	type VcsStatusResult,
+	VcsUnsupportedOperationError,
+	type VcsCreateWorkspaceInput,
+	type VcsRemoveWorkspaceInput,
 } from "@t3tools/contracts";
 import {
 	makeGitVcsDriverCore,
@@ -37,6 +40,10 @@ import {
 } from "./GitVcsDriverCore.ts";
 import * as VcsDriver from "./VcsDriver.ts";
 import * as VcsProcess from "./VcsProcess.ts";
+import {
+	makeJujutsuWorkspaceOps,
+	type JujutsuWorkspaceOps,
+} from "./JujutsuWorkspaces.ts";
 
 export interface ExecuteGitInput {
 	readonly operation: string;
@@ -492,6 +499,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(
 		const fileSystem = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
 		const vcsProcess = yield* VcsProcess.VcsProcess;
+		const jjWorkspaces: JujutsuWorkspaceOps = yield* makeJujutsuWorkspaceOps();
 		const capabilities = {
 			kind: "git" as const,
 			supportsWorktrees: true,
@@ -727,6 +735,79 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(
 					maxOutputBytes: 64 * 1024,
 				},
 			).pipe(Effect.asVoid);
+
+		// Colocated repositories (.git + .jj) route thread worktrees through jj
+		// workspaces so the two VCS frontends never disagree about checkouts. Plain
+		// git repositories reject these operations and keep `git worktree` plumbing.
+		const isJjWorkspaceRepository = (operation: string, cwd: string) =>
+			vcsProcess
+				.run({
+					operation,
+					command: "jj",
+					args: ["--no-pager", "workspace", "root"],
+					cwd,
+					allowNonZeroExit: true,
+					timeoutMs: 5_000,
+					maxOutputBytes: 16_000,
+				})
+				.pipe(Effect.map((result) => result.exitCode === 0));
+
+		const requireJjWorkspaceRepository = Effect.fn(
+			"GitVcsDriver.requireJjWorkspaceRepository",
+		)(function* (operation: string, cwd: string) {
+			if (yield* isJjWorkspaceRepository(operation, cwd)) {
+				return;
+			}
+			return yield* new VcsUnsupportedOperationError({
+				operation,
+				kind: "git",
+				detail:
+					"jj workspace operations require a colocated jj repository (.git + .jj).",
+			});
+		});
+
+		const createWorkspace: VcsDriver.VcsDriver["Service"]["createWorkspace"] = (
+			input: VcsCreateWorkspaceInput,
+		) =>
+			requireJjWorkspaceRepository("GitVcsDriver.createWorkspace", input.cwd).pipe(
+				Effect.andThen(jjWorkspaces.createWorkspace(input)),
+				// The git driver only routes here so jj workspaces behave as git
+				// worktrees. A jj build without git.auto-register-worktrees still
+				// creates the workspace but leaves no .git, which would silently
+				// degrade every git command in the workspace to "not a repository".
+				Effect.andThen((workspace) =>
+					fileSystem
+						.exists(path.join(workspace.path, ".git"))
+						.pipe(
+							Effect.orElseSucceed(() => false),
+							Effect.flatMap((hasGitMetadata) =>
+								hasGitMetadata
+									? Effect.succeed(workspace)
+									: new VcsUnsupportedOperationError({
+											operation: "GitVcsDriver.createWorkspace",
+											kind: "git",
+											detail:
+												"jj workspace creation did not register a git worktree (.git is missing); the installed jj build may not support git.auto-register-worktrees.",
+										}),
+							),
+						),
+				),
+			);
+
+		const listWorkspaces: VcsDriver.VcsDriver["Service"]["listWorkspaces"] = (
+			cwd: string,
+		) =>
+			requireJjWorkspaceRepository("GitVcsDriver.listWorkspaces", cwd).pipe(
+				Effect.andThen(jjWorkspaces.listWorkspaces(cwd)),
+			);
+
+		const removeWorkspace: VcsDriver.VcsDriver["Service"]["removeWorkspace"] = (
+			input: VcsRemoveWorkspaceInput,
+		) =>
+			requireJjWorkspaceRepository("GitVcsDriver.removeWorkspace", input.cwd).pipe(
+				Effect.andThen(jjWorkspaces.removeWorkspace(input)),
+			);
+
 
 		const resolveHeadCommit = (cwd: string) =>
 			execute({
@@ -1018,6 +1099,9 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(
 			listRemotes,
 			filterIgnoredPaths,
 			initRepository,
+			createWorkspace,
+			listWorkspaces,
+			removeWorkspace,
 		};
 	},
 );

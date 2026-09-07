@@ -504,6 +504,7 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
 	readonly baseDir: string;
 	readonly logsDir: string;
 	readonly cliVersion: string;
+	readonly packageSpec?: string;
 	readonly host?: BootServiceHost;
 }) {
 	const hostExecPath = yield* HostProcessExecutablePath;
@@ -747,6 +748,9 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
 		yield* ensurePinnedRuntimeInstalled({
 			baseDir: input.baseDir,
 			version: input.cliVersion,
+			...(input.packageSpec === undefined
+				? {}
+				: { packageSpec: input.packageSpec }),
 			fs,
 			path,
 			runner,
@@ -958,5 +962,6 @@ export const layer = (input: {
 	readonly baseDir: string;
 	readonly logsDir: string;
 	readonly cliVersion: string;
+	readonly packageSpec?: string;
 	readonly host?: BootServiceHost;
 }) => Layer.effect(BootService, make(input));

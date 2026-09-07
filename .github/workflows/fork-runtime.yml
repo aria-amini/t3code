@@ -1,0 +1,76 @@
+name: Publish Fork Runtime
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-runtime
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: true
+
+      - name: Build runtime package
+        shell: bash
+        run: |
+          set -euo pipefail
+          vp run --filter t3 build:bundle
+          vp run --filter @t3tools/web build
+          rm -rf apps/server/dist/client
+          cp -a apps/web/dist apps/server/dist/client
+          runtime_dir="$RUNNER_TEMP/t3-runtime"
+          vp dlx pnpm@11.10.0 --filter t3 deploy --prod --legacy "$runtime_dir"
+          mkdir release
+          (
+            cd "$runtime_dir"
+            npm pack --pack-destination "$GITHUB_WORKSPACE/release"
+          )
+          shopt -s nullglob
+          assets=(release/t3-*.tgz)
+          if (( ${#assets[@]} != 1 )); then
+            printf 'Expected one runtime package, found %s.\n' "${#assets[@]}" >&2
+            exit 1
+          fi
+          mv "${assets[0]}" release/t3-runtime.tgz
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: fork-runtime
+          path: release/t3-runtime.tgz
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: fork-runtime
+          path: release
+
+      - name: Publish rolling runtime
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view fork-runtime >/dev/null 2>&1; then
+            gh release create fork-runtime --target "$GITHUB_SHA" --prerelease --title "Fork runtime"
+          fi
+          gh release upload fork-runtime release/t3-runtime.tgz --clobber

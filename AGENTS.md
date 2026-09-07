@@ -165,3 +165,19 @@ Full glossary with file links: `docs/internals/glossary.md`
 
 - Don't verify with browsers or computer use unless the user explicitly agrees or requests it.
 - Security is important, but should not be over-indexed on, especially for dev mode/maintainer-only features.
+
+## Fork maintenance (aria-amini fork)
+
+This tree is a jj-managed fork of [pingdotgg/t3code](https://github.com/pingdotgg/t3code). Remotes:
+
+- `origin` — https://github.com/aria-amini/t3code (the fork, where your work lands)
+- `upstream` — https://github.com/pingdotgg/t3code (read-only reference; never push)
+
+The fork exists to carry Aria's local patches and experiments on top of upstream. Anything reachable from `main@upstream` is upstream content; commits between `main@upstream` and `main` are fork-local. Use `jj log -r 'main@upstream..@'` to see what the fork adds.
+
+- Use jj, not git, for all VCS operations. `git` commands risk corrupting the jj-colocated state; exception: `gh` for GitHub operations is fine.
+- Pull requests target the **fork** (`aria-amini/t3code`) by default, with `gh --repo aria-amini/t3code` if there is any ambiguity. Only open PRs against upstream when explicitly asked to upstream a change.
+- Never run `vp fmt` inside feature commits. Upstream is not tree-formatted and has no fmt gate; the `style:` tip commit owns the tree-wide format and gets regenerated, not edited.
+- Sync flow: fetch upstream, create bookmark `aamini/sync-upstream` at `main`, and merge `main@upstream` into it in a separate `jj workspace`. Resolve real conflicts by hand; resolve format-only files to upstream. After user approval, move `main` to the merge, push, delete the bookmark, and run `vp fmt` as a fresh tip commit. The format commit must never absorb upstream content.
+- When editing an upstream file, match that file's local style (tabs in most of `apps/server/src`, 2-space in files like `GitVcsDriver.ts`), not the formatter.
+- `@effect-diagnostics-next-line` pragmas break when a formatter rewraps the flagged expression. Prefer file-level `// @effect-diagnostics <rule>:off` in test files.

@@ -84,6 +84,10 @@ const LIST_REFS_REFRESH_COALESCE_TTL = Duration.seconds(5);
 const LIST_REFS_REFRESH_FAILURE_COOLDOWN = Duration.seconds(30);
 const STATUS_DEFAULT_BRANCH_CACHE_TTL = Duration.minutes(5);
 const STATUS_ORIGIN_EXISTS_CACHE_TTL = Duration.minutes(5);
+const JJ_BOOKMARK_LABEL_TIMEOUT = Duration.seconds(5);
+const JJ_BOOKMARK_OUTPUT_MAX_BYTES = 8_000;
+const JJ_WORKING_COPY_BOOKMARK_CACHE_CAPACITY = 2_048;
+const JJ_WORKING_COPY_BOOKMARK_CACHE_TTL = Duration.seconds(5);
 const STATUS_UPSTREAM_REFRESH_ENV = Object.freeze({
 	GCM_INTERACTIVE: "never",
 	GIT_ASKPASS: "",
@@ -1267,6 +1271,95 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(
 			);
 		};
 
+		// Colocated jj leaves Git HEAD detached once the working-copy commit moves
+		// past every branch. Only jj knows the nearest bookmark. Every jj command
+		// snapshots the working copy, so cache the label to bound that cost.
+		const resolveJjWorkingCopyBookmarkUncached = Effect.fn(
+			"GitVcsDriver.resolveJjWorkingCopyBookmark",
+		)(function* (cwd: string) {
+			const args = [
+				"--no-pager",
+				"log",
+				"--no-graph",
+				"--limit",
+				"1",
+				"-r",
+				"heads(::@ & bookmarks())",
+				"-T",
+				'bookmarks.join(",")',
+			] as const;
+			const commandInput = {
+				operation: "GitVcsDriver.resolveJjWorkingCopyBookmark",
+				cwd,
+				args,
+			} as const;
+			const child = yield* commandSpawner
+				.spawn(
+					ChildProcess.make("jj", commandInput.args, {
+						cwd,
+						env: { ...process.env },
+					}),
+				)
+				.pipe(
+					Effect.mapError(
+						(cause) =>
+							new GitCommandError({
+								...gitCommandContext(commandInput),
+								detail: "Failed to spawn jj process.",
+								cause,
+							}),
+					),
+				);
+			const [stdout, , exitCode] = yield* Effect.all(
+				[
+					collectOutput(
+						commandInput,
+						child.stdout,
+						JJ_BOOKMARK_OUTPUT_MAX_BYTES,
+						false,
+						undefined,
+					),
+					collectOutput(
+						commandInput,
+						child.stderr,
+						JJ_BOOKMARK_OUTPUT_MAX_BYTES,
+						false,
+						undefined,
+					),
+					child.exitCode.pipe(
+						Effect.mapError(
+							(cause) =>
+								new GitCommandError({
+									...gitCommandContext(commandInput),
+									detail: "Failed to read jj process exit code.",
+									cause,
+								}),
+						),
+					),
+				],
+				{ concurrency: "unbounded" },
+			);
+			if (exitCode !== 0) return null;
+			const label = stdout.text.trim();
+			return label.length > 0 ? label : null;
+		});
+		const jjWorkingCopyBookmarkCache = yield* Cache.makeWith(
+			(cwd: string) =>
+				resolveJjWorkingCopyBookmarkUncached(cwd).pipe(
+					Effect.timeoutOption(JJ_BOOKMARK_LABEL_TIMEOUT),
+					Effect.map((result) => (Option.isNone(result) ? null : result.value)),
+				),
+			{
+				capacity: JJ_WORKING_COPY_BOOKMARK_CACHE_CAPACITY,
+				timeToLive: Exit.match({
+					onSuccess: () => JJ_WORKING_COPY_BOOKMARK_CACHE_TTL,
+					onFailure: () => Duration.zero,
+				}),
+			},
+		);
+		const resolveJjWorkingCopyBookmark = (cwd: string) =>
+			Cache.get(jjWorkingCopyBookmarkCache, normalizeRepositoryPathsCacheKey(cwd));
+
 		const defaultBranchCache = yield* Cache.makeWith(
 			(gitCommonDir: string) =>
 				Effect.gen(function* () {
@@ -1977,6 +2070,17 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(
 						hasWorkingTreeChanges = true;
 						const pathValue = parsePorcelainPath(line);
 						if (pathValue) changedFilesWithoutNumstat.add(pathValue);
+					}
+				}
+
+				if (refName === null && repositoryPaths?.worktreeRoot != null) {
+					const jjColocated = yield* fileSystem
+						.exists(path.join(repositoryPaths.worktreeRoot, ".jj"))
+						.pipe(Effect.orElseSucceed(() => false));
+					if (jjColocated) {
+						refName = yield* resolveJjWorkingCopyBookmark(cwd).pipe(
+							Effect.orElseSucceed(() => null),
+						);
 					}
 				}
 
@@ -3486,13 +3590,49 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(
 				const remoteRefName =
 					parsedRemoteRef?.remoteRef ??
 					`${input.fallbackRemoteName}/${input.refName}`;
-				const commitSha = yield* runGitStdout(
+				const remoteCommitSha = yield* runGitStdout(
 					"GitVcsDriver.resolveRemoteTrackingCommit",
 					input.cwd,
 					["rev-parse", "--verify", `refs/remotes/${remoteRefName}^{commit}`],
-				).pipe(Effect.map((stdout) => stdout.trim()));
+					true,
+				).pipe(
+					Effect.map((stdout) => stdout.trim()),
+					Effect.filterOrFail((stdout) => stdout.length > 0),
+					Effect.orElseSucceed(() => null),
+				);
+				if (remoteCommitSha !== null) {
+					return { commitSha: remoteCommitSha, remoteRefName };
+				}
 
-				return { commitSha, remoteRefName };
+				// Fresh local branches — common as jj bookmarks in colocated
+				// repositories — often have no remote tracking ref yet. Base the
+				// worktree on the local branch instead of failing task bootstrap.
+				const localCommitSha = yield* runGitStdout(
+					"GitVcsDriver.resolveRemoteTrackingCommit.localFallback",
+					input.cwd,
+					["rev-parse", "--verify", `${input.refName}^{commit}`],
+					true,
+				).pipe(
+					Effect.map((stdout) => stdout.trim()),
+					Effect.filterOrFail((stdout) => stdout.length > 0),
+					Effect.orElseSucceed(() => null),
+				);
+				if (localCommitSha !== null) {
+					return { commitSha: localCommitSha, remoteRefName };
+				}
+
+				return yield* new GitCommandError({
+					...gitCommandContext({
+						operation: "GitVcsDriver.resolveRemoteTrackingCommit",
+						cwd: input.cwd,
+						args: [
+							"rev-parse",
+							"--verify",
+							`refs/remotes/${remoteRefName}^{commit}`,
+						],
+					}),
+					detail: `Could not resolve ${remoteRefName} or a local ${input.refName} ref.`,
+				});
 			});
 
 		const fetchRemoteBranch: GitVcsDriver.GitVcsDriver["Service"]["fetchRemoteBranch"] =

@@ -12,6 +12,7 @@ import type {
 } from "@t3tools/contracts";
 import { VcsUnsupportedOperationError } from "@t3tools/contracts";
 import * as GitVcsDriver from "./GitVcsDriver.ts";
+import * as JujutsuVcsDriver from "./JujutsuVcsDriver.ts";
 import * as VcsProjectConfig from "./VcsProjectConfig.ts";
 import * as VcsDriver from "./VcsDriver.ts";
 
@@ -71,10 +72,12 @@ function parseDetectionCacheKey(key: string): {
 export const make = Effect.gen(function* () {
 	const projectConfig = yield* VcsProjectConfig.VcsProjectConfig;
 	const git = yield* GitVcsDriver.makeVcsDriver;
+	const jj = yield* JujutsuVcsDriver.makeVcsDriver;
 	const drivers: Partial<
 		Record<VcsDriverKind, VcsDriver.VcsDriver["Service"]>
 	> = {
 		git,
+		jj,
 	};
 
 	const get: VcsDriverRegistry["Service"]["get"] = (kind) => {

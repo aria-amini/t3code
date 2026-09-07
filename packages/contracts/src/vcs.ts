@@ -59,6 +59,34 @@ export const VcsListRemotesResult = Schema.Struct({
 });
 export type VcsListRemotesResult = typeof VcsListRemotesResult.Type;
 
+export const VcsWorkspace = Schema.Struct({
+	name: TrimmedNonEmptyString,
+	path: TrimmedNonEmptyString,
+});
+export type VcsWorkspace = typeof VcsWorkspace.Type;
+
+export const VcsCreateWorkspaceInput = Schema.Struct({
+	cwd: TrimmedNonEmptyString,
+	name: TrimmedNonEmptyString,
+	path: TrimmedNonEmptyString,
+	/** Revset the workspace's working-copy commit starts from; defaults to @. */
+	revision: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
+});
+export type VcsCreateWorkspaceInput = typeof VcsCreateWorkspaceInput.Type;
+
+export const VcsListWorkspacesResult = Schema.Struct({
+	workspaces: Schema.Array(VcsWorkspace),
+	freshness: VcsFreshness,
+});
+export type VcsListWorkspacesResult = typeof VcsListWorkspacesResult.Type;
+
+export const VcsRemoveWorkspaceInput = Schema.Struct({
+	cwd: TrimmedNonEmptyString,
+	name: TrimmedNonEmptyString,
+	deleteDirectory: Schema.optional(Schema.Boolean),
+});
+export type VcsRemoveWorkspaceInput = typeof VcsRemoveWorkspaceInput.Type;
+
 export interface VcsProcessErrorContext {
 	readonly operation: string;
 	readonly command: string;

@@ -1163,6 +1163,11 @@ export const make = Effect.gen(function* () {
 	const createJjWorkspaceWorktree: GitVcsDriver["Service"]["createWorktree"] =
 		Effect.fn("createJjWorkspaceWorktree")(function* (input) {
 			const operation = "GitVcsDriver.createJjWorkspaceWorktree";
+			// Sweep stale workspaces (registered but deleted from disk, e.g. left
+			// behind by a failed prior attempt) before creating the new one.
+			yield* pruneJjWorkspaces({ cwd: input.cwd }).pipe(
+				Effect.catch(() => Effect.void),
+			);
 			const name = (input.newRefName ?? input.refName).replace(/\//g, "-");
 			const repoName = path.basename(input.cwd);
 			const targetPath =
@@ -1326,6 +1331,19 @@ export const make = Effect.gen(function* () {
 						}),
 				),
 			);
+		// A forget can leave a stale entry behind; verify and retry once.
+		const afterForget = yield* jjWorkspaces
+			.listWorkspaces(input.cwd)
+			.pipe(Effect.orElseSucceed(() => null));
+		if (afterForget?.workspaces.some((w) => w.name === match.name)) {
+			yield* jjWorkspaces
+				.removeWorkspace({
+					cwd: input.cwd,
+					name: match.name,
+					deleteDirectory: true,
+				})
+				.pipe(Effect.catch(() => Effect.void));
+		}
 	});
 
 	const pruneJjWorkspaces: GitVcsDriver["Service"]["pruneWorktrees"] = Effect.fn(

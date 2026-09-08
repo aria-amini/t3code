@@ -48,12 +48,14 @@ jobs:
             printf 'Expected one runtime package, found %s.\n' "${#assets[@]}" >&2
             exit 1
           fi
-          mv "${assets[0]}" release/t3-runtime.tgz
+          versioned="release/$(basename "${assets[0]}")"
+          mv "${assets[0]}" "$versioned"
+          cp "$versioned" release/t3-runtime.tgz
 
       - uses: actions/upload-artifact@v7
         with:
           name: fork-runtime
-          path: release/t3-runtime.tgz
+          path: release/*.tgz
           if-no-files-found: error
 
   publish:
@@ -75,4 +77,4 @@ jobs:
           if ! gh release view fork-runtime >/dev/null 2>&1; then
             gh release create fork-runtime --target "$GITHUB_SHA" --prerelease --title "Fork runtime"
           fi
-          gh release upload fork-runtime release/t3-runtime.tgz --clobber
+          gh release upload fork-runtime release/*.tgz --clobber

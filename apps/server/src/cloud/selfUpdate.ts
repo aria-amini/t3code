@@ -12,14 +12,21 @@ import * as Context from "effect/Context";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as HashSet from "effect/HashSet";
+import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 
+import packageJson from "../../package.json" with { type: "json" };
 import * as ServerConfig from "../config.ts";
 import * as DesktopAppUpdate from "../desktopUpdate/DesktopAppUpdate.ts";
 import * as ProcessRunner from "../processRunner.ts";
+import {
+	ForkRuntimeChannel,
+	layer as forkRuntimeChannelLayer,
+	resolveForkUpdateRequest,
+} from "./forkRuntimeChannel.ts";
 import {
 	ensurePinnedRuntimeInstalled,
 	PinnedRuntimeInstallError,
@@ -220,9 +227,32 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
 			);
 		}
 
-		const targetVersion = input.targetVersion.trim();
-		if (!isExactServiceVersion(targetVersion)) {
-			return yield* failWith(`'${targetVersion}' is not an exact t3 version.`);
+		const requestedVersion = input.targetVersion.trim();
+		if (!isExactServiceVersion(requestedVersion)) {
+			return yield* failWith(
+				`'${requestedVersion}' is not an exact t3 version.`,
+			);
+		}
+		let targetVersion = requestedVersion;
+		let packageSpec: string | undefined;
+		if (packageJson.version.includes("-fork.")) {
+			// Fork builds never install vanilla upstream packages: the client
+			// names the version it knows (its own), and the fork runtime channel
+			// redirects that request onto the matching fork runtime. Tests and
+			// environments without the channel keep vanilla update behavior.
+			const forkChannel = yield* Effect.serviceOption(ForkRuntimeChannel);
+			if (Option.isSome(forkChannel)) {
+				const channel = yield* forkChannel.value.latest.pipe(Effect.option);
+				const resolution = resolveForkUpdateRequest({
+					requestedVersion,
+					channel: Option.isSome(channel) ? channel.value : null,
+				});
+				if (resolution.action === "block") {
+					return yield* failWith(resolution.reason);
+				}
+				targetVersion = resolution.targetVersion;
+				packageSpec = resolution.packageSpec;
+			}
 		}
 		if (yield* Ref.getAndSet(inFlight, true)) {
 			return yield* failWith("A server update is already in progress.");
@@ -233,6 +263,7 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
 			const paths = yield* ensurePinnedRuntimeInstalled({
 				baseDir: serverConfig.baseDir,
 				version: targetVersion,
+				...(packageSpec === undefined ? {} : { packageSpec }),
 				fs,
 				path,
 				runner,
@@ -354,4 +385,5 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
 
 export const layer = Layer.effect(ServerSelfUpdate, make()).pipe(
 	Layer.provide(ProcessRunner.layer),
+	Layer.provide(forkRuntimeChannelLayer),
 );

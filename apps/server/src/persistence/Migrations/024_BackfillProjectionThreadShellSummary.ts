@@ -2,9 +2,9 @@ import * as SqlClient from "effect/unstable/sql/SqlClient";
 import * as Effect from "effect/Effect";
 
 export default Effect.gen(function* () {
-	const sql = yield* SqlClient.SqlClient;
+  const sql = yield* SqlClient.SqlClient;
 
-	yield* sql`
+  yield* sql`
     INSERT OR IGNORE INTO projection_pending_approvals (
       request_id,
       thread_id,
@@ -39,7 +39,7 @@ export default Effect.gen(function* () {
     WHERE requested.row_number = 1
   `;
 
-	yield* sql`
+  yield* sql`
     WITH latest_resolutions AS (
       SELECT
         resolved.request_id,
@@ -89,7 +89,7 @@ export default Effect.gen(function* () {
     )
   `;
 
-	yield* sql`
+  yield* sql`
     WITH latest_response_events AS (
       SELECT
         response.request_id,
@@ -139,7 +139,7 @@ export default Effect.gen(function* () {
     )
   `;
 
-	yield* sql`
+  yield* sql`
     WITH latest_stale_failures AS (
       SELECT
         failure.request_id,
@@ -183,7 +183,7 @@ export default Effect.gen(function* () {
       )
   `;
 
-	yield* sql`
+  yield* sql`
     UPDATE projection_threads
     SET
       latest_user_message_at = (

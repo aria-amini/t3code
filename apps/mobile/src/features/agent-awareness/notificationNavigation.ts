@@ -6,31 +6,27 @@ import { routeAgentNotificationResponseOnce } from "./notificationPayload";
 import { consumeLastAgentNotificationResponse } from "./notificationResponseConsumer";
 
 export function useAgentNotificationNavigation(): void {
-	const linkTo = useLinkTo();
-	const handledResponseIds = useRef(new Set<string>());
+  const linkTo = useLinkTo();
+  const handledResponseIds = useRef(new Set<string>());
 
-	useEffect(() => {
-		const handleResponse = (
-			response: Notifications.NotificationResponse,
-		): void => {
-			routeAgentNotificationResponseOnce({
-				handledResponseIds: handledResponseIds.current,
-				response,
-				navigate: linkTo,
-			});
-		};
+  useEffect(() => {
+    const handleResponse = (response: Notifications.NotificationResponse): void => {
+      routeAgentNotificationResponseOnce({
+        handledResponseIds: handledResponseIds.current,
+        response,
+        navigate: linkTo,
+      });
+    };
 
-		const subscription =
-			Notifications.addNotificationResponseReceivedListener(handleResponse);
-		void consumeLastAgentNotificationResponse({
-			getLastResponse: () => Notifications.getLastNotificationResponseAsync(),
-			clearLastResponse: () =>
-				Notifications.clearLastNotificationResponseAsync(),
-			handleResponse,
-		});
+    const subscription = Notifications.addNotificationResponseReceivedListener(handleResponse);
+    void consumeLastAgentNotificationResponse({
+      getLastResponse: () => Notifications.getLastNotificationResponseAsync(),
+      clearLastResponse: () => Notifications.clearLastNotificationResponseAsync(),
+      handleResponse,
+    });
 
-		return () => {
-			subscription.remove();
-		};
-	}, [linkTo]);
+    return () => {
+      subscription.remove();
+    };
+  }, [linkTo]);
 }

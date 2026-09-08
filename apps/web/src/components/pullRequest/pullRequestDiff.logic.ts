@@ -10,17 +10,15 @@ import type { PullRequestDiffSide } from "@t3tools/contracts";
  * conversation, so the answer decides which of the two lists it belongs in.
  */
 export function isLineInFileDiff(
-	file: FileDiffMetadata,
-	side: PullRequestDiffSide,
-	line: number,
+  file: FileDiffMetadata,
+  side: PullRequestDiffSide,
+  line: number,
 ): boolean {
-	return file.hunks.some((hunk) =>
-		side === "left"
-			? line >= hunk.deletionStart &&
-				line < hunk.deletionStart + hunk.deletionCount
-			: line >= hunk.additionStart &&
-				line < hunk.additionStart + hunk.additionCount,
-	);
+  return file.hunks.some((hunk) =>
+    side === "left"
+      ? line >= hunk.deletionStart && line < hunk.deletionStart + hunk.deletionCount
+      : line >= hunk.additionStart && line < hunk.additionStart + hunk.additionCount,
+  );
 }
 
 /** What the toolbar last asked of every file at once, null being the reader asking nothing yet. */
@@ -36,10 +34,10 @@ export type DiffFoldOverride = "expanded" | "folded" | null;
  * reader can still fold individual files or the whole diff from the toolbar.
  */
 export function isFileDiffCollapsed(
-	fileKey: string,
-	foldOverride: DiffFoldOverride,
-	toggledFileKeys: ReadonlySet<string>,
+  fileKey: string,
+  foldOverride: DiffFoldOverride,
+  toggledFileKeys: ReadonlySet<string>,
 ): boolean {
-	const foldedByDefault = foldOverride === "folded";
-	return toggledFileKeys.has(fileKey) ? !foldedByDefault : foldedByDefault;
+  const foldedByDefault = foldOverride === "folded";
+  return toggledFileKeys.has(fileKey) ? !foldedByDefault : foldedByDefault;
 }

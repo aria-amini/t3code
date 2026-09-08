@@ -6,41 +6,38 @@ import * as Stream from "effect/Stream";
 import type * as ServerSettingsModule from "../serverSettings.ts";
 
 export interface ProviderSnapshotSettings<Settings> {
-	readonly provider: Settings;
-	readonly enableProviderUpdateChecks: boolean;
+  readonly provider: Settings;
+  readonly enableProviderUpdateChecks: boolean;
 }
 
 export function makeProviderSnapshotSettings<Settings>(
-	provider: Settings,
-	settings: ServerSettings,
+  provider: Settings,
+  settings: ServerSettings,
 ): ProviderSnapshotSettings<Settings> {
-	return {
-		provider,
-		enableProviderUpdateChecks: settings.enableProviderUpdateChecks,
-	};
+  return {
+    provider,
+    enableProviderUpdateChecks: settings.enableProviderUpdateChecks,
+  };
 }
 
 export function haveProviderSnapshotSettingsChanged<Settings>(
-	previous: ProviderSnapshotSettings<Settings>,
-	next: ProviderSnapshotSettings<Settings>,
+  previous: ProviderSnapshotSettings<Settings>,
+  next: ProviderSnapshotSettings<Settings>,
 ): boolean {
-	return !Equal.equals(previous, next);
+  return !Equal.equals(previous, next);
 }
 
 export function makeProviderSnapshotSettingsSource<Settings>(
-	provider: Settings,
-	serverSettings: ServerSettingsModule.ServerSettingsService["Service"],
+  provider: Settings,
+  serverSettings: ServerSettingsModule.ServerSettingsService["Service"],
 ): {
-	readonly getSettings: Effect.Effect<
-		ProviderSnapshotSettings<Settings>,
-		ServerSettingsError
-	>;
-	readonly streamSettings: Stream.Stream<ProviderSnapshotSettings<Settings>>;
+  readonly getSettings: Effect.Effect<ProviderSnapshotSettings<Settings>, ServerSettingsError>;
+  readonly streamSettings: Stream.Stream<ProviderSnapshotSettings<Settings>>;
 } {
-	const mapSettings = (settings: ServerSettings) =>
-		makeProviderSnapshotSettings(provider, settings);
-	return {
-		getSettings: serverSettings.getSettings.pipe(Effect.map(mapSettings)),
-		streamSettings: serverSettings.streamChanges.pipe(Stream.map(mapSettings)),
-	};
+  const mapSettings = (settings: ServerSettings) =>
+    makeProviderSnapshotSettings(provider, settings);
+  return {
+    getSettings: serverSettings.getSettings.pipe(Effect.map(mapSettings)),
+    streamSettings: serverSettings.streamChanges.pipe(Stream.map(mapSettings)),
+  };
 }

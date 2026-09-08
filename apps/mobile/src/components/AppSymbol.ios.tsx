@@ -1,7 +1,4 @@
-import {
-	SymbolView as ExpoSymbolView,
-	type SymbolViewProps,
-} from "expo-symbols";
+import { SymbolView as ExpoSymbolView, type SymbolViewProps } from "expo-symbols";
 import { withUniwind } from "uniwind";
 
 export type { SFSymbol } from "expo-symbols";
@@ -12,7 +9,7 @@ export type AppSymbolName = SymbolViewProps["name"];
  * Metro does not initialize the icon package when iOS renders SF Symbols.
  */
 function AppSymbolView(props: SymbolViewProps) {
-	return <ExpoSymbolView {...props} />;
+  return <ExpoSymbolView {...props} />;
 }
 
 export const SymbolView = withUniwind(AppSymbolView);

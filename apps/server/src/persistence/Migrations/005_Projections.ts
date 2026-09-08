@@ -2,9 +2,9 @@ import * as SqlClient from "effect/unstable/sql/SqlClient";
 import * as Effect from "effect/Effect";
 
 export default Effect.gen(function* () {
-	const sql = yield* SqlClient.SqlClient;
+  const sql = yield* SqlClient.SqlClient;
 
-	yield* sql`
+  yield* sql`
     CREATE TABLE IF NOT EXISTS projection_projects (
       project_id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -17,7 +17,7 @@ export default Effect.gen(function* () {
     )
   `;
 
-	yield* sql`
+  yield* sql`
     CREATE TABLE IF NOT EXISTS projection_threads (
       thread_id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
@@ -32,7 +32,7 @@ export default Effect.gen(function* () {
     )
   `;
 
-	yield* sql`
+  yield* sql`
     CREATE TABLE IF NOT EXISTS projection_thread_messages (
       message_id TEXT PRIMARY KEY,
       thread_id TEXT NOT NULL,
@@ -45,7 +45,7 @@ export default Effect.gen(function* () {
     )
   `;
 
-	yield* sql`
+  yield* sql`
     CREATE TABLE IF NOT EXISTS projection_thread_activities (
       activity_id TEXT PRIMARY KEY,
       thread_id TEXT NOT NULL,
@@ -58,7 +58,7 @@ export default Effect.gen(function* () {
     )
   `;
 
-	yield* sql`
+  yield* sql`
     CREATE TABLE IF NOT EXISTS projection_thread_sessions (
       thread_id TEXT PRIMARY KEY,
       status TEXT NOT NULL,
@@ -71,7 +71,7 @@ export default Effect.gen(function* () {
     )
   `;
 
-	yield* sql`
+  yield* sql`
     CREATE TABLE IF NOT EXISTS projection_turns (
       row_id INTEGER PRIMARY KEY AUTOINCREMENT,
       thread_id TEXT NOT NULL,
@@ -91,7 +91,7 @@ export default Effect.gen(function* () {
     )
   `;
 
-	yield* sql`
+  yield* sql`
     CREATE TABLE IF NOT EXISTS projection_pending_approvals (
       request_id TEXT PRIMARY KEY,
       thread_id TEXT NOT NULL,
@@ -103,7 +103,7 @@ export default Effect.gen(function* () {
     )
   `;
 
-	yield* sql`
+  yield* sql`
     CREATE TABLE IF NOT EXISTS projection_state (
       projector TEXT PRIMARY KEY,
       last_applied_sequence INTEGER NOT NULL,
@@ -111,42 +111,42 @@ export default Effect.gen(function* () {
     )
   `;
 
-	yield* sql`
+  yield* sql`
     CREATE INDEX IF NOT EXISTS idx_projection_projects_updated_at
     ON projection_projects(updated_at)
   `;
 
-	yield* sql`
+  yield* sql`
     CREATE INDEX IF NOT EXISTS idx_projection_threads_project_id
     ON projection_threads(project_id)
   `;
 
-	yield* sql`
+  yield* sql`
     CREATE INDEX IF NOT EXISTS idx_projection_thread_messages_thread_created
     ON projection_thread_messages(thread_id, created_at)
   `;
 
-	yield* sql`
+  yield* sql`
     CREATE INDEX IF NOT EXISTS idx_projection_thread_activities_thread_created
     ON projection_thread_activities(thread_id, created_at)
   `;
 
-	yield* sql`
+  yield* sql`
     CREATE INDEX IF NOT EXISTS idx_projection_thread_sessions_provider_session
     ON projection_thread_sessions(provider_session_id)
   `;
 
-	yield* sql`
+  yield* sql`
     CREATE INDEX IF NOT EXISTS idx_projection_turns_thread_requested
     ON projection_turns(thread_id, requested_at)
   `;
 
-	yield* sql`
+  yield* sql`
     CREATE INDEX IF NOT EXISTS idx_projection_turns_thread_checkpoint_completed
     ON projection_turns(thread_id, checkpoint_turn_count, completed_at)
   `;
 
-	yield* sql`
+  yield* sql`
     CREATE INDEX IF NOT EXISTS idx_projection_pending_approvals_thread_status
     ON projection_pending_approvals(thread_id, status)
   `;

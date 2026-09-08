@@ -1,14 +1,10 @@
-import {
-	T3_PROJECT_FILE_NAME,
-	type EnvironmentId,
-	type ThreadEnvMode,
-} from "@t3tools/contracts";
+import { T3_PROJECT_FILE_NAME, type EnvironmentId, type ThreadEnvMode } from "@t3tools/contracts";
 import { parseT3ProjectFile } from "@t3tools/shared/t3ProjectFile";
 import { executeAtomQuery } from "@t3tools/client-runtime/state/runtime";
 
 import {
-	getProjectFileQueryAtom,
-	resolveProjectFileQueryData,
+  getProjectFileQueryAtom,
+  resolveProjectFileQueryData,
 } from "~/components/files/projectFilesQueryState";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 
@@ -23,20 +19,20 @@ import { appAtomRegistry } from "~/rpc/atomRegistry";
  * resolve to null.
  */
 export async function readT3ProjectFileDefaultThreadEnvMode(
-	environmentId: EnvironmentId,
-	workspaceRoot: string,
+  environmentId: EnvironmentId,
+  workspaceRoot: string,
 ): Promise<ThreadEnvMode | null> {
-	const result = await executeAtomQuery(
-		appAtomRegistry,
-		getProjectFileQueryAtom(environmentId, workspaceRoot, T3_PROJECT_FILE_NAME),
-		{ reportDefect: false, reportFailure: false },
-	);
-	const data = resolveProjectFileQueryData(
-		environmentId,
-		workspaceRoot,
-		T3_PROJECT_FILE_NAME,
-		result._tag === "Success" ? result.value : null,
-	);
-	if (data === null || data.truncated) return null;
-	return parseT3ProjectFile(data.contents)?.defaultThreadEnvMode ?? null;
+  const result = await executeAtomQuery(
+    appAtomRegistry,
+    getProjectFileQueryAtom(environmentId, workspaceRoot, T3_PROJECT_FILE_NAME),
+    { reportDefect: false, reportFailure: false },
+  );
+  const data = resolveProjectFileQueryData(
+    environmentId,
+    workspaceRoot,
+    T3_PROJECT_FILE_NAME,
+    result._tag === "Success" ? result.value : null,
+  );
+  if (data === null || data.truncated) return null;
+  return parseT3ProjectFile(data.contents)?.defaultThreadEnvMode ?? null;
 }

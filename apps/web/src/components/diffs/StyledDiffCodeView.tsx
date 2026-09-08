@@ -1,10 +1,10 @@
 /* oxlint-disable eslint/no-restricted-imports -- This is the single styled adapter around Pierre's raw viewer. */
 import {
-	CodeView,
-	type CodeViewHandle,
-	type CodeViewProps,
-	type ControlledCodeViewProps,
-	type UncontrolledCodeViewProps,
+  CodeView,
+  type CodeViewHandle,
+  type CodeViewProps,
+  type ControlledCodeViewProps,
+  type UncontrolledCodeViewProps,
 } from "@pierre/diffs/react";
 /* oxlint-enable eslint/no-restricted-imports */
 import type { Ref } from "react";
@@ -260,66 +260,66 @@ const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
 `;
 
 export type StyledDiffCodeViewOptions<LAnnotation> = Omit<
-	NonNullable<CodeViewProps<LAnnotation>["options"]>,
-	"unsafeCSS" | "itemMetrics" | "layout"
+  NonNullable<CodeViewProps<LAnnotation>["options"]>,
+  "unsafeCSS" | "itemMetrics" | "layout"
 >;
 
 type StyledDiffCodeViewProps<LAnnotation> = (
-	| Omit<ControlledCodeViewProps<LAnnotation>, "options">
-	| Omit<UncontrolledCodeViewProps<LAnnotation>, "options">
+  | Omit<ControlledCodeViewProps<LAnnotation>, "options">
+  | Omit<UncontrolledCodeViewProps<LAnnotation>, "options">
 ) & {
-	readonly options?: StyledDiffCodeViewOptions<LAnnotation>;
-	readonly viewerRef?: Ref<CodeViewHandle<LAnnotation>>;
-	/**
-	 * Appended to the shared stylesheet inside the viewer's shadow root, for a surface that has
-	 * to restyle chrome the viewer owns — such as replacing its per-file line counts.
-	 */
-	readonly unsafeCSSExtra?: string;
+  readonly options?: StyledDiffCodeViewOptions<LAnnotation>;
+  readonly viewerRef?: Ref<CodeViewHandle<LAnnotation>>;
+  /**
+   * Appended to the shared stylesheet inside the viewer's shadow root, for a surface that has
+   * to restyle chrome the viewer owns — such as replacing its per-file line counts.
+   */
+  readonly unsafeCSSExtra?: string;
 };
 
 /** The shared web CodeView surface: app styling and virtualized geometry stay paired here. */
 export function StyledDiffCodeView<LAnnotation = undefined>({
-	options,
-	viewerRef,
-	className,
-	unsafeCSSExtra,
-	...props
+  options,
+  viewerRef,
+  className,
+  unsafeCSSExtra,
+  ...props
 }: StyledDiffCodeViewProps<LAnnotation>) {
-	return (
-		<DiffWorkerPoolProvider>
-			<CodeView<LAnnotation>
-				{...props}
-				{...(viewerRef ? { ref: viewerRef } : {})}
-				// The custom element itself is focusable for keyboard scrolling. Its native outline sits
-				// outside the panel clipping boundary; actual controls inside retain their own indicators.
-				className={
-					className
-						? `diff-render-surface [--code-background:var(--background)] outline-none ${className}`
-						: "diff-render-surface [--code-background:var(--background)] outline-none"
-				}
-				options={{
-					...options,
-					unsafeCSS: unsafeCSSExtra
-						? `${DIFF_VIEW_UNSAFE_CSS}\n${unsafeCSSExtra}`
-						: DIFF_VIEW_UNSAFE_CSS,
-					itemMetrics: {
-						diffHeaderHeight: 32,
-						hunkSeparatorHeight: 24,
-						// Pierre uses its general file spacing as a fallback in expanded-file layout paths.
-						// Keep it zero alongside the explicit paddingTop or expanding the first file can
-						// reintroduce the library's default 8px gap above its header.
-						spacing: 0,
-						paddingTop: 0,
-						// Unlike the gap above, the 8px under a file's last line is painted
-						// unconditionally by Pierre's stylesheet (`--diffs-gap-fallback`), so the metric has
-						// to count it: at zero every expanded file's virtual height ran 8px short of its
-						// rendered height, and the end of the list sat past the reachable scroll range —
-						// one clipped file row per expanded file above it.
-						paddingBottom: 8,
-					},
-					layout: { paddingTop: 0, paddingBottom: 0, gap: 0 },
-				}}
-			/>
-		</DiffWorkerPoolProvider>
-	);
+  return (
+    <DiffWorkerPoolProvider>
+      <CodeView<LAnnotation>
+        {...props}
+        {...(viewerRef ? { ref: viewerRef } : {})}
+        // The custom element itself is focusable for keyboard scrolling. Its native outline sits
+        // outside the panel clipping boundary; actual controls inside retain their own indicators.
+        className={
+          className
+            ? `diff-render-surface [--code-background:var(--background)] outline-none ${className}`
+            : "diff-render-surface [--code-background:var(--background)] outline-none"
+        }
+        options={{
+          ...options,
+          unsafeCSS: unsafeCSSExtra
+            ? `${DIFF_VIEW_UNSAFE_CSS}\n${unsafeCSSExtra}`
+            : DIFF_VIEW_UNSAFE_CSS,
+          itemMetrics: {
+            diffHeaderHeight: 32,
+            hunkSeparatorHeight: 24,
+            // Pierre uses its general file spacing as a fallback in expanded-file layout paths.
+            // Keep it zero alongside the explicit paddingTop or expanding the first file can
+            // reintroduce the library's default 8px gap above its header.
+            spacing: 0,
+            paddingTop: 0,
+            // Unlike the gap above, the 8px under a file's last line is painted
+            // unconditionally by Pierre's stylesheet (`--diffs-gap-fallback`), so the metric has
+            // to count it: at zero every expanded file's virtual height ran 8px short of its
+            // rendered height, and the end of the list sat past the reachable scroll range —
+            // one clipped file row per expanded file above it.
+            paddingBottom: 8,
+          },
+          layout: { paddingTop: 0, paddingBottom: 0, gap: 0 },
+        }}
+      />
+    </DiffWorkerPoolProvider>
+  );
 }

@@ -6,37 +6,33 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Struct from "effect/Struct";
 
-import {
-	ModelSelection,
-	ProjectIconOverride,
-	ProjectScript,
-} from "@t3tools/contracts";
+import { ModelSelection, ProjectIconOverride, ProjectScript } from "@t3tools/contracts";
 import { toPersistenceSqlError } from "../Errors.ts";
 import {
-	DeleteProjectionProjectInput,
-	GetProjectionProjectInput,
-	ProjectionProject,
-	ProjectionProjectRepository,
-	type ProjectionProjectRepositoryShape,
+  DeleteProjectionProjectInput,
+  GetProjectionProjectInput,
+  ProjectionProject,
+  ProjectionProjectRepository,
+  type ProjectionProjectRepositoryShape,
 } from "../Services/ProjectionProjects.ts";
 
 const ProjectionProjectDbRow = ProjectionProject.mapFields(
-	Struct.assign({
-		defaultModelSelection: Schema.NullOr(Schema.fromJsonString(ModelSelection)),
-		autoPull: Schema.Number,
-		projectIcon: Schema.NullOr(Schema.fromJsonString(ProjectIconOverride)),
-		scripts: Schema.fromJsonString(Schema.Array(ProjectScript)),
-	}),
+  Struct.assign({
+    defaultModelSelection: Schema.NullOr(Schema.fromJsonString(ModelSelection)),
+    autoPull: Schema.Number,
+    projectIcon: Schema.NullOr(Schema.fromJsonString(ProjectIconOverride)),
+    scripts: Schema.fromJsonString(Schema.Array(ProjectScript)),
+  }),
 );
 type ProjectionProjectDbRow = typeof ProjectionProjectDbRow.Type;
 
 const makeProjectionProjectRepository = Effect.gen(function* () {
-	const sql = yield* SqlClient.SqlClient;
+  const sql = yield* SqlClient.SqlClient;
 
-	const upsertProjectionProjectRow = SqlSchema.void({
-		Request: ProjectionProject,
-		execute: (row) =>
-			sql`
+  const upsertProjectionProjectRow = SqlSchema.void({
+    Request: ProjectionProject,
+    execute: (row) =>
+      sql`
         INSERT INTO projection_projects (
           project_id,
           title,
@@ -79,13 +75,13 @@ const makeProjectionProjectRepository = Effect.gen(function* () {
           updated_at = excluded.updated_at,
           deleted_at = excluded.deleted_at
       `,
-	});
+  });
 
-	const getProjectionProjectRow = SqlSchema.findOneOption({
-		Request: GetProjectionProjectInput,
-		Result: ProjectionProjectDbRow,
-		execute: ({ projectId }) =>
-			sql`
+  const getProjectionProjectRow = SqlSchema.findOneOption({
+    Request: GetProjectionProjectInput,
+    Result: ProjectionProjectDbRow,
+    execute: ({ projectId }) =>
+      sql`
         SELECT
           project_id AS "projectId",
           title,
@@ -102,13 +98,13 @@ const makeProjectionProjectRepository = Effect.gen(function* () {
         FROM projection_projects
         WHERE project_id = ${projectId}
       `,
-	});
+  });
 
-	const listProjectionProjectRows = SqlSchema.findAll({
-		Request: Schema.Void,
-		Result: ProjectionProjectDbRow,
-		execute: () =>
-			sql`
+  const listProjectionProjectRows = SqlSchema.findAll({
+    Request: Schema.Void,
+    Result: ProjectionProjectDbRow,
+    execute: () =>
+      sql`
         SELECT
           project_id AS "projectId",
           title,
@@ -125,60 +121,48 @@ const makeProjectionProjectRepository = Effect.gen(function* () {
         FROM projection_projects
         ORDER BY created_at ASC, project_id ASC
       `,
-	});
+  });
 
-	const deleteProjectionProjectRow = SqlSchema.void({
-		Request: DeleteProjectionProjectInput,
-		execute: ({ projectId }) =>
-			sql`
+  const deleteProjectionProjectRow = SqlSchema.void({
+    Request: DeleteProjectionProjectInput,
+    execute: ({ projectId }) =>
+      sql`
         DELETE FROM projection_projects
         WHERE project_id = ${projectId}
       `,
-	});
+  });
 
-	const upsert: ProjectionProjectRepositoryShape["upsert"] = (row) =>
-		upsertProjectionProjectRow(row).pipe(
-			Effect.mapError(
-				toPersistenceSqlError("ProjectionProjectRepository.upsert:query"),
-			),
-		);
+  const upsert: ProjectionProjectRepositoryShape["upsert"] = (row) =>
+    upsertProjectionProjectRow(row).pipe(
+      Effect.mapError(toPersistenceSqlError("ProjectionProjectRepository.upsert:query")),
+    );
 
-	const getById: ProjectionProjectRepositoryShape["getById"] = (input) =>
-		getProjectionProjectRow(input).pipe(
-			Effect.map(
-				Option.map((row) => ({ ...row, autoPull: row.autoPull === 1 })),
-			),
-			Effect.mapError(
-				toPersistenceSqlError("ProjectionProjectRepository.getById:query"),
-			),
-		);
+  const getById: ProjectionProjectRepositoryShape["getById"] = (input) =>
+    getProjectionProjectRow(input).pipe(
+      Effect.map(Option.map((row) => ({ ...row, autoPull: row.autoPull === 1 }))),
+      Effect.mapError(toPersistenceSqlError("ProjectionProjectRepository.getById:query")),
+    );
 
-	const listAll: ProjectionProjectRepositoryShape["listAll"] = () =>
-		listProjectionProjectRows().pipe(
-			Effect.map((rows) =>
-				rows.map((row) => ({ ...row, autoPull: row.autoPull === 1 })),
-			),
-			Effect.mapError(
-				toPersistenceSqlError("ProjectionProjectRepository.listAll:query"),
-			),
-		);
+  const listAll: ProjectionProjectRepositoryShape["listAll"] = () =>
+    listProjectionProjectRows().pipe(
+      Effect.map((rows) => rows.map((row) => ({ ...row, autoPull: row.autoPull === 1 }))),
+      Effect.mapError(toPersistenceSqlError("ProjectionProjectRepository.listAll:query")),
+    );
 
-	const deleteById: ProjectionProjectRepositoryShape["deleteById"] = (input) =>
-		deleteProjectionProjectRow(input).pipe(
-			Effect.mapError(
-				toPersistenceSqlError("ProjectionProjectRepository.deleteById:query"),
-			),
-		);
+  const deleteById: ProjectionProjectRepositoryShape["deleteById"] = (input) =>
+    deleteProjectionProjectRow(input).pipe(
+      Effect.mapError(toPersistenceSqlError("ProjectionProjectRepository.deleteById:query")),
+    );
 
-	return {
-		upsert,
-		getById,
-		listAll,
-		deleteById,
-	} satisfies ProjectionProjectRepositoryShape;
+  return {
+    upsert,
+    getById,
+    listAll,
+    deleteById,
+  } satisfies ProjectionProjectRepositoryShape;
 });
 
 export const ProjectionProjectRepositoryLive = Layer.effect(
-	ProjectionProjectRepository,
-	makeProjectionProjectRepository,
+  ProjectionProjectRepository,
+  makeProjectionProjectRepository,
 );

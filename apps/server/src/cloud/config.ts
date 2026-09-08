@@ -10,22 +10,19 @@ export const CLOUD_ENDPOINT_RUNTIME_CONFIG = "cloud-endpoint-runtime-config";
 export const CLOUD_LINKED_USER_ID = "cloud-linked-user-id";
 export const RELAY_URL_SECRET = "cloud-relay-url";
 export const RELAY_ISSUER_SECRET = "cloud-relay-issuer";
-export const RELAY_ENVIRONMENT_CREDENTIAL_SECRET =
-	"cloud-relay-environment-credential";
+export const RELAY_ENVIRONMENT_CREDENTIAL_SECRET = "cloud-relay-environment-credential";
 export const PUBLISH_AGENT_ACTIVITY_SECRET = "cloud-publish-agent-activity";
 
 export const encodeEndpointRuntimeConfigJson = Schema.encodeEffect(
-	Schema.fromJsonString(RelayManagedEndpointRuntimeConfig),
+  Schema.fromJsonString(RelayManagedEndpointRuntimeConfig),
 );
 
 export const decodeRuntimeConfig = Schema.decodeUnknownOption(
-	Schema.fromJsonString(RelayManagedEndpointRuntimeConfig),
+  Schema.fromJsonString(RelayManagedEndpointRuntimeConfig),
 );
 
-export function isAgentActivityPublishingEnabledValue(
-	value: string | null,
-): boolean {
-	return value === "true";
+export function isAgentActivityPublishingEnabledValue(value: string | null): boolean {
+  return value === "true";
 }
 
 /** Whether agent-activity publishes currently leave this environment: the
@@ -33,29 +30,29 @@ export function isAgentActivityPublishingEnabledValue(
     Mirrors the per-publish gate in AgentAwarenessRelay, so the descriptor
     capability never advertises publishing that the publisher would skip. */
 export const readAgentActivityPublishingActive = (
-	secrets: ServerSecretStore.ServerSecretStore["Service"],
+  secrets: ServerSecretStore.ServerSecretStore["Service"],
 ): Effect.Effect<boolean> =>
-	Effect.gen(function* () {
-		const readSecretString = (name: string) =>
-			secrets
-				.get(name)
-				.pipe(
-					Effect.map((bytes) =>
-						Option.isSome(bytes) ? new TextDecoder().decode(bytes.value) : null,
-					),
-				);
-		const [enabled, url, environmentCredential] = yield* Effect.all([
-			readSecretString(PUBLISH_AGENT_ACTIVITY_SECRET),
-			readSecretString(RELAY_URL_SECRET),
-			readSecretString(RELAY_ENVIRONMENT_CREDENTIAL_SECRET),
-		]);
-		// Empty strings are as unconfigured as missing files: the publisher's
-		// truthiness gate skips them, so the capability must too.
-		return (
-			isAgentActivityPublishingEnabledValue(enabled) &&
-			url !== null &&
-			url !== "" &&
-			environmentCredential !== null &&
-			environmentCredential !== ""
-		);
-	}).pipe(Effect.orElseSucceed(() => false));
+  Effect.gen(function* () {
+    const readSecretString = (name: string) =>
+      secrets
+        .get(name)
+        .pipe(
+          Effect.map((bytes) =>
+            Option.isSome(bytes) ? new TextDecoder().decode(bytes.value) : null,
+          ),
+        );
+    const [enabled, url, environmentCredential] = yield* Effect.all([
+      readSecretString(PUBLISH_AGENT_ACTIVITY_SECRET),
+      readSecretString(RELAY_URL_SECRET),
+      readSecretString(RELAY_ENVIRONMENT_CREDENTIAL_SECRET),
+    ]);
+    // Empty strings are as unconfigured as missing files: the publisher's
+    // truthiness gate skips them, so the capability must too.
+    return (
+      isAgentActivityPublishingEnabledValue(enabled) &&
+      url !== null &&
+      url !== "" &&
+      environmentCredential !== null &&
+      environmentCredential !== ""
+    );
+  }).pipe(Effect.orElseSucceed(() => false));

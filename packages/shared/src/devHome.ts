@@ -24,28 +24,25 @@ import * as Path from "effect/Path";
  * anything. So match on the `worktrees/<name>` tail, which git always uses,
  * rather than on the name of the directory containing it.
  */
-const pointsAtLinkedWorktree = (
-	gitFileContents: string,
-	path: Path.Path,
-): boolean => {
-	const gitdir = gitFileContents
-		.split(/\r?\n/)
-		.map((line) => line.trim())
-		.find((line) => line.startsWith("gitdir:"))
-		?.slice("gitdir:".length)
-		.trim();
-	if (gitdir === undefined || gitdir.length === 0) {
-		return false;
-	}
-	// Compare as path segments so a directory merely named `…worktrees…` cannot
-	// match as a substring. Trailing separators normalize away first.
-	const segments = path
-		.normalize(gitdir.replaceAll("\\", "/"))
-		.split(/[/\\]/)
-		.filter((segment) => segment.length > 0);
-	// `<common-dir>/worktrees/<name>`: `worktrees` is the penultimate segment,
-	// and something must precede it. This excludes `<git-dir>/modules/<name>`.
-	return segments.length >= 3 && segments.at(-2) === "worktrees";
+const pointsAtLinkedWorktree = (gitFileContents: string, path: Path.Path): boolean => {
+  const gitdir = gitFileContents
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.startsWith("gitdir:"))
+    ?.slice("gitdir:".length)
+    .trim();
+  if (gitdir === undefined || gitdir.length === 0) {
+    return false;
+  }
+  // Compare as path segments so a directory merely named `…worktrees…` cannot
+  // match as a substring. Trailing separators normalize away first.
+  const segments = path
+    .normalize(gitdir.replaceAll("\\", "/"))
+    .split(/[/\\]/)
+    .filter((segment) => segment.length > 0);
+  // `<common-dir>/worktrees/<name>`: `worktrees` is the penultimate segment,
+  // and something must precede it. This excludes `<git-dir>/modules/<name>`.
+  return segments.length >= 3 && segments.at(-2) === "worktrees";
 };
 
 /**
@@ -57,40 +54,36 @@ const pointsAtLinkedWorktree = (
  * same worktree as running from the top.
  */
 export const resolveGitWorktreePath = (
-	cwd: string,
-): Effect.Effect<
-	string | undefined,
-	never,
-	FileSystem.FileSystem | Path.Path
-> =>
-	Effect.gen(function* () {
-		const fileSystem = yield* FileSystem.FileSystem;
-		const path = yield* Path.Path;
+  cwd: string,
+): Effect.Effect<string | undefined, never, FileSystem.FileSystem | Path.Path> =>
+  Effect.gen(function* () {
+    const fileSystem = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
 
-		let directory = path.resolve(cwd);
-		for (;;) {
-			const gitPath = path.join(directory, ".git");
-			const info = yield* fileSystem.stat(gitPath).pipe(Effect.option);
-			if (Option.isSome(info)) {
-				// A directory means the main checkout. Stop either way: nesting one
-				// repository inside another does not make the outer one this root.
-				if (info.value.type !== "File") {
-					return undefined;
-				}
-				// A submodule also has a `.git` file, but it is not a worktree of this
-				// repository and gets no worktree-local home.
-				const contents = yield* fileSystem
-					.readFileString(gitPath)
-					.pipe(Effect.orElseSucceed(() => ""));
-				return pointsAtLinkedWorktree(contents, path) ? directory : undefined;
-			}
-			const parent = path.dirname(directory);
-			if (parent === directory) {
-				return undefined;
-			}
-			directory = parent;
-		}
-	});
+    let directory = path.resolve(cwd);
+    for (;;) {
+      const gitPath = path.join(directory, ".git");
+      const info = yield* fileSystem.stat(gitPath).pipe(Effect.option);
+      if (Option.isSome(info)) {
+        // A directory means the main checkout. Stop either way: nesting one
+        // repository inside another does not make the outer one this root.
+        if (info.value.type !== "File") {
+          return undefined;
+        }
+        // A submodule also has a `.git` file, but it is not a worktree of this
+        // repository and gets no worktree-local home.
+        const contents = yield* fileSystem
+          .readFileString(gitPath)
+          .pipe(Effect.orElseSucceed(() => ""));
+        return pointsAtLinkedWorktree(contents, path) ? directory : undefined;
+      }
+      const parent = path.dirname(directory);
+      if (parent === directory) {
+        return undefined;
+      }
+      directory = parent;
+    }
+  });
 
 /**
  * The worktree-local data directory for `cwd`, or undefined outside a linked
@@ -98,17 +91,13 @@ export const resolveGitWorktreePath = (
  * back because it is missing would send callers at the shared home.
  */
 export const resolveWorktreeT3Home = (
-	cwd: string,
-): Effect.Effect<
-	string | undefined,
-	never,
-	FileSystem.FileSystem | Path.Path
-> =>
-	Effect.gen(function* () {
-		const worktreePath = yield* resolveGitWorktreePath(cwd);
-		if (worktreePath === undefined) {
-			return undefined;
-		}
-		const path = yield* Path.Path;
-		return path.join(worktreePath, ".t3");
-	});
+  cwd: string,
+): Effect.Effect<string | undefined, never, FileSystem.FileSystem | Path.Path> =>
+  Effect.gen(function* () {
+    const worktreePath = yield* resolveGitWorktreePath(cwd);
+    if (worktreePath === undefined) {
+      return undefined;
+    }
+    const path = yield* Path.Path;
+    return path.join(worktreePath, ".t3");
+  });

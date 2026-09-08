@@ -1,5 +1,5 @@
 export {
-	getPairingTokenFromUrl,
-	setPairingTokenOnUrl,
-	stripPairingTokenFromUrl,
+  getPairingTokenFromUrl,
+  setPairingTokenOnUrl,
+  stripPairingTokenFromUrl,
 } from "@t3tools/shared/remote";

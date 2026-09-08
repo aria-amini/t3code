@@ -10,7 +10,7 @@ import App from "./src/App";
 featureFlags.experiment.synchronousScreenUpdatesEnabled = true;
 
 if (process.env.EXPO_PUBLIC_SHOWCASE === "1") {
-	LogBox.ignoreAllLogs();
+  LogBox.ignoreAllLogs();
 }
 
 registerRootComponent(App);

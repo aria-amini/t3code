@@ -6,18 +6,16 @@ import { Atom } from "effect/unstable/reactivity";
 
 import { connectionAtomRuntime } from "../connection/runtime";
 
-export const environmentSession = createEnvironmentSessionAtoms(
-	connectionAtomRuntime,
-);
+export const environmentSession = createEnvironmentSessionAtoms(connectionAtomRuntime);
 
 const EMPTY_PREPARED_CONNECTION_ATOM = Atom.make(Option.none()).pipe(
-	Atom.withLabel("mobile-prepared-connection:empty"),
+  Atom.withLabel("mobile-prepared-connection:empty"),
 );
 
 export function usePreparedConnection(environmentId: EnvironmentId | null) {
-	return useAtomValue(
-		environmentId === null
-			? EMPTY_PREPARED_CONNECTION_ATOM
-			: environmentSession.preparedConnectionValueAtom(environmentId),
-	);
+  return useAtomValue(
+    environmentId === null
+      ? EMPTY_PREPARED_CONNECTION_ATOM
+      : environmentSession.preparedConnectionValueAtom(environmentId),
+  );
 }

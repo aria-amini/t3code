@@ -22,11 +22,11 @@
  * @module provider/ProviderDriver
  */
 import type {
-	ProviderConsumeResetCreditOutcome,
-	ProviderDriverKind,
-	ProviderInstanceEnvironment,
-	ProviderInstanceId,
-	ServerProvider,
+  ProviderConsumeResetCreditOutcome,
+  ProviderDriverKind,
+  ProviderInstanceEnvironment,
+  ProviderInstanceId,
+  ServerProvider,
 } from "@t3tools/contracts";
 import type * as Effect from "effect/Effect";
 import type * as Schema from "effect/Schema";
@@ -44,15 +44,15 @@ import type { ProviderAuthController } from "./Services/ProviderAuthService.ts";
  * about it is dynamic — drivers are registered at startup.
  */
 export interface ProviderDriverMetadata {
-	/** Human-readable name for the driver itself (e.g. "Codex"). */
-	readonly displayName: string;
-	/**
-	 * Whether the driver may be instantiated more than once concurrently.
-	 * Defaults to `true`. Set to `false` for drivers that wrap a global
-	 * resource (e.g. a single desktop app socket) — the registry then
-	 * rejects multi-instance configurations with a clear error.
-	 */
-	readonly supportsMultipleInstances?: boolean;
+  /** Human-readable name for the driver itself (e.g. "Codex"). */
+  readonly displayName: string;
+  /**
+   * Whether the driver may be instantiated more than once concurrently.
+   * Defaults to `true`. Set to `false` for drivers that wrap a global
+   * resource (e.g. a single desktop app socket) — the registry then
+   * rejects multi-instance configurations with a clear error.
+   */
+  readonly supportsMultipleInstances?: boolean;
 }
 
 /**
@@ -65,44 +65,42 @@ export interface ProviderDriverMetadata {
  * state.
  */
 export interface ProviderInstance {
-	readonly instanceId: ProviderInstanceId;
-	readonly driverKind: ProviderDriverKind;
-	readonly continuationIdentity: ProviderContinuationIdentity;
-	readonly displayName: string | undefined;
-	readonly accentColor?: string | undefined;
-	readonly enabled: boolean;
-	readonly snapshot: ServerProviderShape;
-	readonly snapshotForCwd?: (
-		cwd: string,
-	) => Effect.Effect<ServerProvider, ProviderDriverError>;
-	readonly refreshModels?: () => Effect.Effect<void, ProviderDriverError>;
-	/**
-	 * Redeem one banked rate-limit reset credit on the signed-in account, then
-	 * re-probe so the snapshot reflects the cleared windows. Account-level,
-	 * not thread-level, which is why it lives here rather than on the adapter.
-	 */
-	readonly consumeResetCredit?: () => Effect.Effect<
-		ProviderConsumeResetCreditOutcome,
-		ProviderDriverError
-	>;
-	readonly adapter: ProviderAdapterShape<ProviderAdapterError>;
-	readonly textGeneration: TextGeneration.TextGeneration["Service"];
-	readonly auth?: ProviderAuthController;
+  readonly instanceId: ProviderInstanceId;
+  readonly driverKind: ProviderDriverKind;
+  readonly continuationIdentity: ProviderContinuationIdentity;
+  readonly displayName: string | undefined;
+  readonly accentColor?: string | undefined;
+  readonly enabled: boolean;
+  readonly snapshot: ServerProviderShape;
+  readonly snapshotForCwd?: (cwd: string) => Effect.Effect<ServerProvider, ProviderDriverError>;
+  readonly refreshModels?: () => Effect.Effect<void, ProviderDriverError>;
+  /**
+   * Redeem one banked rate-limit reset credit on the signed-in account, then
+   * re-probe so the snapshot reflects the cleared windows. Account-level,
+   * not thread-level, which is why it lives here rather than on the adapter.
+   */
+  readonly consumeResetCredit?: () => Effect.Effect<
+    ProviderConsumeResetCreditOutcome,
+    ProviderDriverError
+  >;
+  readonly adapter: ProviderAdapterShape<ProviderAdapterError>;
+  readonly textGeneration: TextGeneration.TextGeneration["Service"];
+  readonly auth?: ProviderAuthController;
 }
 
 export interface ProviderContinuationIdentity {
-	readonly driverKind: ProviderDriverKind;
-	readonly continuationKey: string;
+  readonly driverKind: ProviderDriverKind;
+  readonly continuationKey: string;
 }
 
 export function defaultProviderContinuationIdentity(input: {
-	readonly driverKind: ProviderDriverKind;
-	readonly instanceId: ProviderInstanceId;
+  readonly driverKind: ProviderDriverKind;
+  readonly instanceId: ProviderInstanceId;
 }): ProviderContinuationIdentity {
-	return {
-		driverKind: input.driverKind,
-		continuationKey: `${input.driverKind}:instance:${input.instanceId}`,
-	};
+  return {
+    driverKind: input.driverKind,
+    continuationKey: `${input.driverKind}:instance:${input.instanceId}`,
+  };
 }
 
 /**
@@ -112,12 +110,12 @@ export function defaultProviderContinuationIdentity(input: {
  * `driver.configSchema`. Drivers never decode their own raw envelope.
  */
 export interface ProviderDriverCreateInput<Config> {
-	readonly instanceId: ProviderInstanceId;
-	readonly displayName: string | undefined;
-	readonly accentColor?: string | undefined;
-	readonly environment: ProviderInstanceEnvironment;
-	readonly enabled: boolean;
-	readonly config: Config;
+  readonly instanceId: ProviderInstanceId;
+  readonly displayName: string | undefined;
+  readonly accentColor?: string | undefined;
+  readonly environment: ProviderInstanceEnvironment;
+  readonly enabled: boolean;
+  readonly config: Config;
 }
 
 /**
@@ -134,43 +132,43 @@ export interface ProviderDriverCreateInput<Config> {
  * `config` MUST yield instances with no shared mutable state.
  */
 export interface ProviderDriver<Config, R = never> {
-	readonly driverKind: ProviderDriverKind;
-	readonly metadata: ProviderDriverMetadata;
-	/**
-	 * Decoder for the opaque `ProviderInstanceConfig.config` envelope. The
-	 * registry runs this exactly once per (re)load of an instance; a decode
-	 * failure is surfaced as `ProviderDriverError` and downgraded to an
-	 * unavailable shadow snapshot.
-	 *
-	 * The `Encoded` parameter is intentionally left as `unknown` (not
-	 * `Config`) so schemas with `withDecodingDefault` / transformations — where
-	 * the encoded shape differs from the decoded shape — satisfy the SPI
-	 * without casts. The registry only ever decodes `unknown` envelopes here,
-	 * so the precise encoded type is irrelevant at this boundary.
-	 *
-	 * Using `Codec` rather than `Schema` pins `DecodingServices = never` — if
-	 * we used `Schema<Config>`, the erased `any` in `AnyProviderDriver` would
-	 * widen `DecodingServices` to `unknown` and poison the R channel of every
-	 * caller of `decodeUnknownEffect`.
-	 */
-	readonly configSchema: Schema.Codec<Config, unknown>;
-	/**
-	 * Default config payload used when the legacy
-	 * `ServerSettings.providers.<kind>` entry is empty or when the driver
-	 * is auto-bootstrapped without user configuration. Returning a typed
-	 * default keeps the migration path simple — no special-casing needed
-	 * to construct a "blank" instance.
-	 */
-	readonly defaultConfig: () => Config;
-	/**
-	 * Materialize one instance. The returned effect runs in a scope owned
-	 * by the registry; closing that scope releases every resource the
-	 * driver opened. Failures become unavailable shadow snapshots — the
-	 * driver MUST NOT throw defects.
-	 */
-	readonly create: (
-		input: ProviderDriverCreateInput<Config>,
-	) => Effect.Effect<ProviderInstance, ProviderDriverError, R | Scope.Scope>;
+  readonly driverKind: ProviderDriverKind;
+  readonly metadata: ProviderDriverMetadata;
+  /**
+   * Decoder for the opaque `ProviderInstanceConfig.config` envelope. The
+   * registry runs this exactly once per (re)load of an instance; a decode
+   * failure is surfaced as `ProviderDriverError` and downgraded to an
+   * unavailable shadow snapshot.
+   *
+   * The `Encoded` parameter is intentionally left as `unknown` (not
+   * `Config`) so schemas with `withDecodingDefault` / transformations — where
+   * the encoded shape differs from the decoded shape — satisfy the SPI
+   * without casts. The registry only ever decodes `unknown` envelopes here,
+   * so the precise encoded type is irrelevant at this boundary.
+   *
+   * Using `Codec` rather than `Schema` pins `DecodingServices = never` — if
+   * we used `Schema<Config>`, the erased `any` in `AnyProviderDriver` would
+   * widen `DecodingServices` to `unknown` and poison the R channel of every
+   * caller of `decodeUnknownEffect`.
+   */
+  readonly configSchema: Schema.Codec<Config, unknown>;
+  /**
+   * Default config payload used when the legacy
+   * `ServerSettings.providers.<kind>` entry is empty or when the driver
+   * is auto-bootstrapped without user configuration. Returning a typed
+   * default keeps the migration path simple — no special-casing needed
+   * to construct a "blank" instance.
+   */
+  readonly defaultConfig: () => Config;
+  /**
+   * Materialize one instance. The returned effect runs in a scope owned
+   * by the registry; closing that scope releases every resource the
+   * driver opened. Failures become unavailable shadow snapshots — the
+   * driver MUST NOT throw defects.
+   */
+  readonly create: (
+    input: ProviderDriverCreateInput<Config>,
+  ) => Effect.Effect<ProviderInstance, ProviderDriverError, R | Scope.Scope>;
 }
 
 /**

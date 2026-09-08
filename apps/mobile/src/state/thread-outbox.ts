@@ -1,16 +1,13 @@
 import { appAtomRegistry } from "./atom-registry";
 import { createThreadOutboxManager } from "./thread-outbox-manager";
 import type { QueuedThreadMessage } from "./thread-outbox-model";
-import {
-	expoThreadOutboxStorage,
-	flushThreadOutboxWrites,
-} from "./thread-outbox-storage";
+import { expoThreadOutboxStorage, flushThreadOutboxWrites } from "./thread-outbox-storage";
 
 export * from "./thread-outbox-model";
 
 export const threadOutboxManager = createThreadOutboxManager({
-	registry: appAtomRegistry,
-	storage: expoThreadOutboxStorage,
+  registry: appAtomRegistry,
+  storage: expoThreadOutboxStorage,
 });
 
 /**
@@ -20,21 +17,17 @@ export const threadOutboxManager = createThreadOutboxManager({
  * already mid-file would miss it.
  */
 export async function flushThreadOutbox(): Promise<void> {
-	await threadOutboxManager.serialize(async () => {});
-	await flushThreadOutboxWrites();
+  await threadOutboxManager.serialize(async () => {});
+  await flushThreadOutboxWrites();
 }
 
-export function enqueueThreadOutboxMessage(
-	message: QueuedThreadMessage,
-): Promise<void> {
-	return threadOutboxManager.enqueue(message);
+export function enqueueThreadOutboxMessage(message: QueuedThreadMessage): Promise<void> {
+  return threadOutboxManager.enqueue(message);
 }
 
 /** Waits for pending writes to settle; false if the message was rolled back. */
-export function confirmThreadOutboxMessageQueued(
-	message: QueuedThreadMessage,
-): Promise<boolean> {
-	return threadOutboxManager.confirmQueued(message);
+export function confirmThreadOutboxMessageQueued(message: QueuedThreadMessage): Promise<boolean> {
+  return threadOutboxManager.confirmQueued(message);
 }
 
 /**
@@ -43,17 +36,15 @@ export function confirmThreadOutboxMessageQueued(
  * was accepted since the revision was read.
  */
 export function updateThreadOutboxMessage(
-	message: QueuedThreadMessage,
-	expectedRevision?: number,
+  message: QueuedThreadMessage,
+  expectedRevision?: number,
 ): Promise<boolean> {
-	return threadOutboxManager.update(message, expectedRevision);
+  return threadOutboxManager.update(message, expectedRevision);
 }
 
 /** Snapshot of a queued message's write revision, for update's CAS. */
-export function threadOutboxRevision(
-	messageId: QueuedThreadMessage["messageId"],
-): number {
-	return threadOutboxManager.revisionOf(messageId);
+export function threadOutboxRevision(messageId: QueuedThreadMessage["messageId"]): number {
+  return threadOutboxManager.revisionOf(messageId);
 }
 
 // Removal lives in `thread-outbox-removal.ts`: taking a message out of the

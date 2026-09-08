@@ -8,64 +8,60 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as CodexClient from "../../src/client.ts";
 
 const program = Effect.gen(function* () {
-	const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-	const handle = yield* spawner.spawn(
-		ChildProcess.make(process.env.CODEX_BIN ?? "codex", ["app-server"], {
-			cwd: process.cwd(),
-			shell: false,
-		}),
-	);
-	const codexLayer = CodexClient.layerChildProcess(handle, {
-		logIncoming: true,
-		logOutgoing: true,
-	});
+  const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+  const handle = yield* spawner.spawn(
+    ChildProcess.make(process.env.CODEX_BIN ?? "codex", ["app-server"], {
+      cwd: process.cwd(),
+      shell: false,
+    }),
+  );
+  const codexLayer = CodexClient.layerChildProcess(handle, {
+    logIncoming: true,
+    logOutgoing: true,
+  });
 
-	yield* Effect.gen(function* () {
-		const client = yield* CodexClient.CodexAppServerClient;
+  yield* Effect.gen(function* () {
+    const client = yield* CodexClient.CodexAppServerClient;
 
-		yield* client.handleServerRequest("item/tool/requestUserInput", (payload) =>
-			Effect.succeed({
-				answers: Object.fromEntries(
-					payload.questions.map((question) => [
-						question.id,
-						{
-							answers:
-								question.options && question.options.length > 0
-									? [question.options[0]!.label]
-									: ["ok"],
-						},
-					]),
-				),
-			}),
-		);
+    yield* client.handleServerRequest("item/tool/requestUserInput", (payload) =>
+      Effect.succeed({
+        answers: Object.fromEntries(
+          payload.questions.map((question) => [
+            question.id,
+            {
+              answers:
+                question.options && question.options.length > 0
+                  ? [question.options[0]!.label]
+                  : ["ok"],
+            },
+          ]),
+        ),
+      }),
+    );
 
-		const initialized = yield* client.request("initialize", {
-			clientInfo: {
-				name: "effect-codex-app-server-probe",
-				title: "Effect Codex App Server Probe",
-				version: "0.0.0",
-			},
-			capabilities: {
-				experimentalApi: true,
-				optOutNotificationMethods: null,
-			},
-		});
-		yield* Console.log("initialize", initialized);
+    const initialized = yield* client.request("initialize", {
+      clientInfo: {
+        name: "effect-codex-app-server-probe",
+        title: "Effect Codex App Server Probe",
+        version: "0.0.0",
+      },
+      capabilities: {
+        experimentalApi: true,
+        optOutNotificationMethods: null,
+      },
+    });
+    yield* Console.log("initialize", initialized);
 
-		yield* client.notify("initialized", undefined);
+    yield* client.notify("initialized", undefined);
 
-		const account = yield* client.request("account/read", {});
-		yield* Console.log("account/read", account);
+    const account = yield* client.request("account/read", {});
+    yield* Console.log("account/read", account);
 
-		const skills = yield* client.request("skills/list", {
-			cwds: [process.cwd()],
-		});
-		yield* Console.log("skills/list", skills);
-	}).pipe(Effect.provide(codexLayer));
+    const skills = yield* client.request("skills/list", {
+      cwds: [process.cwd()],
+    });
+    yield* Console.log("skills/list", skills);
+  }).pipe(Effect.provide(codexLayer));
 });
 
-program.pipe(
-	Effect.scoped,
-	Effect.provide(NodeServices.layer),
-	NodeRuntime.runMain,
-);
+program.pipe(Effect.scoped, Effect.provide(NodeServices.layer), NodeRuntime.runMain);

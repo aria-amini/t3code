@@ -6,8 +6,8 @@ import { appAtomRegistry } from "../../state/atom-registry";
 // sign-in just completed. Holds the account id so a sign-out between the
 // request and the navigation cannot present the sheet for the wrong account.
 export const connectOnboardingRequestAtom = Atom.make<string | null>(null).pipe(
-	Atom.keepAlive,
-	Atom.withLabel("mobile:connect-onboarding-request"),
+  Atom.keepAlive,
+  Atom.withLabel("mobile:connect-onboarding-request"),
 );
 
 /**
@@ -16,9 +16,9 @@ export const connectOnboardingRequestAtom = Atom.make<string | null>(null).pipe(
  * each new session starts with no connected devices.
  */
 export function requestConnectOnboarding(accountId: string): void {
-	appAtomRegistry.set(connectOnboardingRequestAtom, accountId);
+  appAtomRegistry.set(connectOnboardingRequestAtom, accountId);
 }
 
 export function clearConnectOnboardingRequest(): void {
-	appAtomRegistry.set(connectOnboardingRequestAtom, null);
+  appAtomRegistry.set(connectOnboardingRequestAtom, null);
 }

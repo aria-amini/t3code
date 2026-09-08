@@ -2,6 +2,4 @@ import { createFilesystemEnvironmentAtoms } from "@t3tools/client-runtime/state/
 
 import { connectionAtomRuntime } from "../connection/runtime";
 
-export const filesystemEnvironment = createFilesystemEnvironmentAtoms(
-	connectionAtomRuntime,
-);
+export const filesystemEnvironment = createFilesystemEnvironmentAtoms(connectionAtomRuntime);

@@ -10,7 +10,7 @@ import { Easing, ReduceMotion } from "react-native-reanimated";
  * 160ms in-cubic close) read as jank during those simultaneous swaps.
  */
 export const WORKSPACE_PANE_TIMING = {
-	duration: 260,
-	easing: Easing.inOut(Easing.cubic),
-	reduceMotion: ReduceMotion.System,
+  duration: 260,
+  easing: Easing.inOut(Easing.cubic),
+  reduceMotion: ReduceMotion.System,
 } as const;

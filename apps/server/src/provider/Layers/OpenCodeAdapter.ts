@@ -614,6 +614,15 @@ function mapPermissionToRequestType(
 }
 
 function mapPermissionDecision(reply: "once" | "always" | "reject"): string {
+	switch (reply) {
+		case "once":
+			return "accept";
+		case "always":
+			return "acceptForSession";
+		case "reject":
+		default:
+			return "decline";
+	}
 }
 
 const ensureSessionContext = Effect.fn("ensureSessionContext")(function* (

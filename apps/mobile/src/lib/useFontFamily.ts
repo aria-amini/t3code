@@ -1,7 +1,7 @@
 const FONT_FAMILIES = {
-	regular: "DMSans-Regular",
-	medium: "DMSans-Medium",
-	bold: "DMSans-Bold",
+  regular: "DMSans-Regular",
+  medium: "DMSans-Medium",
+  bold: "DMSans-Bold",
 } as const;
 
 /**
@@ -9,5 +9,5 @@ const FONT_FAMILIES = {
  * Prefer Uniwind font classes when the target component accepts `className`.
  */
 export function useFontFamily(weight: keyof typeof FONT_FAMILIES): string {
-	return FONT_FAMILIES[weight];
+  return FONT_FAMILIES[weight];
 }

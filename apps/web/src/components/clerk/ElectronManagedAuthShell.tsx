@@ -12,19 +12,15 @@ import { clerkAppearance } from "./clerkAppearance";
  * clerk-js back into every client's startup graph.
  */
 export default function ElectronManagedAuthShell({
-	publishableKey,
-	children,
+  publishableKey,
+  children,
 }: {
-	readonly publishableKey: string;
-	readonly children: ReactNode;
+  readonly publishableKey: string;
+  readonly children: ReactNode;
 }) {
-	return (
-		<ClerkProvider
-			appearance={clerkAppearance}
-			publishableKey={publishableKey}
-			passkeys={passkeys}
-		>
-			<ManagedRelayAuthProvider>{children}</ManagedRelayAuthProvider>
-		</ClerkProvider>
-	);
+  return (
+    <ClerkProvider appearance={clerkAppearance} publishableKey={publishableKey} passkeys={passkeys}>
+      <ManagedRelayAuthProvider>{children}</ManagedRelayAuthProvider>
+    </ClerkProvider>
+  );
 }

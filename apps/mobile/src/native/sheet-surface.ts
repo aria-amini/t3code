@@ -3,5 +3,5 @@
  * presented route paints its content with bg-sheet, including nested pushes.
  */
 export const FORM_SHEET_PRESENTATION_OPTIONS = {
-	presentation: "formSheet" as const,
+  presentation: "formSheet" as const,
 };

@@ -2,9 +2,9 @@ import * as SqlClient from "effect/unstable/sql/SqlClient";
 import * as Effect from "effect/Effect";
 
 export default Effect.gen(function* () {
-	const sql = yield* SqlClient.SqlClient;
+  const sql = yield* SqlClient.SqlClient;
 
-	yield* sql`
+  yield* sql`
     DELETE FROM projection_pending_approvals
     WHERE NOT EXISTS (
       SELECT 1
@@ -15,7 +15,7 @@ export default Effect.gen(function* () {
     )
   `;
 
-	yield* sql`
+  yield* sql`
     UPDATE projection_threads
     SET pending_approval_count = COALESCE((
       SELECT COUNT(*)

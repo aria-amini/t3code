@@ -2,6 +2,4 @@ import { createSourceControlEnvironmentAtoms } from "@t3tools/client-runtime/sta
 
 import { connectionAtomRuntime } from "../connection/runtime";
 
-export const sourceControlEnvironment = createSourceControlEnvironmentAtoms(
-	connectionAtomRuntime,
-);
+export const sourceControlEnvironment = createSourceControlEnvironmentAtoms(connectionAtomRuntime);

@@ -33,22 +33,20 @@ import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 
 export interface ProviderInstanceRegistryMutatorShape {
-	/**
-	 * Bring the live registry in line with the supplied config map. See
-	 * module docs for the add / remove / replace semantics.
-	 *
-	 * The effect never fails: individual driver `create` failures are
-	 * captured as "unavailable" shadow snapshots inside the registry, the
-	 * same way boot-time failures are handled by
-	 * `makeProviderInstanceRegistry`. This keeps settings-watcher loops from
-	 * erroring out on a single bad entry.
-	 */
-	readonly reconcile: (
-		configMap: ProviderInstanceConfigMap,
-	) => Effect.Effect<void>;
+  /**
+   * Bring the live registry in line with the supplied config map. See
+   * module docs for the add / remove / replace semantics.
+   *
+   * The effect never fails: individual driver `create` failures are
+   * captured as "unavailable" shadow snapshots inside the registry, the
+   * same way boot-time failures are handled by
+   * `makeProviderInstanceRegistry`. This keeps settings-watcher loops from
+   * erroring out on a single bad entry.
+   */
+  readonly reconcile: (configMap: ProviderInstanceConfigMap) => Effect.Effect<void>;
 }
 
 export class ProviderInstanceRegistryMutator extends Context.Service<
-	ProviderInstanceRegistryMutator,
-	ProviderInstanceRegistryMutatorShape
+  ProviderInstanceRegistryMutator,
+  ProviderInstanceRegistryMutatorShape
 >()("t3/provider/Services/ProviderInstanceRegistryMutator") {}

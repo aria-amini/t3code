@@ -11,8 +11,8 @@ It is a JSON array of rules:
 
 ```json
 [
-	{ "key": "mod+g", "command": "terminal.toggle" },
-	{ "key": "mod+shift+g", "command": "terminal.new", "when": "terminalFocus" }
+  { "key": "mod+g", "command": "terminal.toggle" },
+  { "key": "mod+shift+g", "command": "terminal.new", "when": "terminalFocus" }
 ]
 ```
 
@@ -42,11 +42,7 @@ Available context keys are `terminalFocus`, `terminalOpen`, `previewFocus`,
 Combine keys with `!` for not, `&&` for and, `||` for or, and parentheses:
 
 ```json
-{
-	"key": "mod+j",
-	"command": "terminal.toggle",
-	"when": "terminalOpen && !terminalFocus"
-}
+{ "key": "mod+j", "command": "terminal.toggle", "when": "terminalOpen && !terminalFocus" }
 ```
 
 ## Precedence
@@ -56,6 +52,9 @@ different command. Put a more specific rule after a general one when they share
 a shortcut.
 
 ## Commands with special behavior
+
+`thread.stop` interrupts the running turn in the focused thread. It has no default
+shortcut; assign one in **Settings → Keybindings**.
 
 `chat.new` may ask you to choose a project when there is more than one.
 `chat.newLocal` skips that chooser. Both use your

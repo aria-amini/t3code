@@ -1,7 +1,7 @@
 {
-	"extends": "expo/tsconfig.base",
-	"compilerOptions": {
-		"allowImportingTsExtensions": true,
-		"strict": true
-	}
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "strict": true
+  }
 }

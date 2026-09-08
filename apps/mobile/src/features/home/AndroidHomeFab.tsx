@@ -9,40 +9,40 @@ import { SymbolView } from "../../components/AppSymbol";
  * list. Other platforms render children unchanged.
  */
 export function AndroidHomeFabLayout(props: {
-	readonly onStartNewTask: () => void;
-	readonly children: ReactNode;
+  readonly onStartNewTask: () => void;
+  readonly children: ReactNode;
 }) {
-	if (Platform.OS !== "android") {
-		return <>{props.children}</>;
-	}
+  if (Platform.OS !== "android") {
+    return <>{props.children}</>;
+  }
 
-	return <AndroidHomeFab {...props} />;
+  return <AndroidHomeFab {...props} />;
 }
 
 function AndroidHomeFab(props: {
-	readonly onStartNewTask: () => void;
-	readonly children: ReactNode;
+  readonly onStartNewTask: () => void;
+  readonly children: ReactNode;
 }) {
-	const insets = useSafeAreaInsets();
-	return (
-		<View className="flex-1">
-			{props.children}
-			<Pressable
-				accessibilityLabel="New task"
-				accessibilityRole="button"
-				onPress={props.onStartNewTask}
-				className="absolute right-5 size-14 items-center justify-center rounded-full bg-primary shadow-lg"
-				style={{
-					bottom: Math.max(insets.bottom, 16) + 16,
-				}}
-			>
-				<SymbolView
-					name="square.and.pencil"
-					size={22}
-					tintColorClassName={"accent-primary-foreground"}
-					type="monochrome"
-				/>
-			</Pressable>
-		</View>
-	);
+  const insets = useSafeAreaInsets();
+  return (
+    <View className="flex-1">
+      {props.children}
+      <Pressable
+        accessibilityLabel="New task"
+        accessibilityRole="button"
+        onPress={props.onStartNewTask}
+        className="absolute right-5 size-14 items-center justify-center rounded-full bg-primary shadow-lg"
+        style={{
+          bottom: Math.max(insets.bottom, 16) + 16,
+        }}
+      >
+        <SymbolView
+          name="square.and.pencil"
+          size={22}
+          tintColorClassName={"accent-primary-foreground"}
+          type="monochrome"
+        />
+      </Pressable>
+    </View>
+  );
 }

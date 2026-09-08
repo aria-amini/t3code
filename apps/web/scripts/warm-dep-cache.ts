@@ -13,15 +13,10 @@ import * as NodeURL from "node:url";
 
 import { optimizeDeps, resolveConfig } from "vite";
 
-const webRoot = NodePath.dirname(
-	NodePath.dirname(NodeURL.fileURLToPath(import.meta.url)),
-);
+const webRoot = NodePath.dirname(NodePath.dirname(NodeURL.fileURLToPath(import.meta.url)));
 
 // logLevel "error" silences the "manually calling optimizeDeps is deprecated"
 // warning — deliberate here: warming ahead of the server is the whole point.
-const config = await resolveConfig(
-	{ root: webRoot, logLevel: "error" },
-	"serve",
-);
+const config = await resolveConfig({ root: webRoot, logLevel: "error" }, "serve");
 await optimizeDeps(config);
 console.log("[warm-dep-cache] web dependency cache is warm");

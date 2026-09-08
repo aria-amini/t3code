@@ -14,64 +14,63 @@
  * @module browserDefaults
  */
 import {
-	DEFAULT_BROWSER_PROFILE_ID,
-	resolveBrowserProfiles,
-	type BrowserProfile,
-	type DesktopPreviewTabDefaults,
-	type PreviewAppearancePreference,
-	type PreviewViewportSetting,
+  DEFAULT_BROWSER_PROFILE_ID,
+  resolveBrowserProfiles,
+  type BrowserProfile,
+  type DesktopPreviewTabDefaults,
+  type PreviewAppearancePreference,
+  type PreviewViewportSetting,
 } from "@t3tools/contracts";
 
 import {
-	ensureClientSettingsHydrated,
-	getClientSettings,
-	useClientSettings,
+  ensureClientSettingsHydrated,
+  getClientSettings,
+  useClientSettings,
 } from "~/hooks/useSettings";
 
 import { resolveResponsiveBrowserViewportSize } from "./browserViewportLayout";
 
 export interface BrowserDefaults {
-	readonly viewport: PreviewViewportSetting;
-	readonly zoomFactor: number;
-	readonly appearance: PreviewAppearancePreference;
-	readonly autoShowFloatingPreview: boolean;
-	readonly profiles: ReadonlyArray<BrowserProfile>;
-	readonly profileId: string;
+  readonly viewport: PreviewViewportSetting;
+  readonly zoomFactor: number;
+  readonly appearance: PreviewAppearancePreference;
+  readonly autoShowFloatingPreview: boolean;
+  readonly profiles: ReadonlyArray<BrowserProfile>;
+  readonly profileId: string;
 }
 
 const toBrowserDefaults = (settings: {
-	readonly browserDefaultViewport: PreviewViewportSetting;
-	readonly browserDefaultZoomFactor: number;
-	readonly browserDefaultAppearance: PreviewAppearancePreference;
-	readonly browserAutoShowFloatingPreview: boolean;
-	readonly browserProfiles: ReadonlyArray<BrowserProfile>;
-	readonly browserDefaultProfileId: string;
+  readonly browserDefaultViewport: PreviewViewportSetting;
+  readonly browserDefaultZoomFactor: number;
+  readonly browserDefaultAppearance: PreviewAppearancePreference;
+  readonly browserAutoShowFloatingPreview: boolean;
+  readonly browserProfiles: ReadonlyArray<BrowserProfile>;
+  readonly browserDefaultProfileId: string;
 }): BrowserDefaults => {
-	const profiles = resolveBrowserProfiles(settings.browserProfiles);
-	return {
-		viewport: settings.browserDefaultViewport,
-		zoomFactor: settings.browserDefaultZoomFactor,
-		appearance: settings.browserDefaultAppearance,
-		autoShowFloatingPreview: settings.browserAutoShowFloatingPreview,
-		profiles,
-		// A default pointing at a deleted profile falls back rather than opening
-		// tabs into a partition with no profile behind it.
-		// Incognito is a per-tab choice, not a default: a profile that discards
-		// everything on close would leave every new tab signed out. Excluding it
-		// here keeps the resolved default equal to what the settings list offers,
-		// so the row badged "Default" is the one tabs actually open under.
-		profileId:
-			profiles.find(
-				(profile) =>
-					profile.id === settings.browserDefaultProfileId &&
-					profile.kind !== "incognito",
-			)?.id ?? DEFAULT_BROWSER_PROFILE_ID,
-	};
+  const profiles = resolveBrowserProfiles(settings.browserProfiles);
+  return {
+    viewport: settings.browserDefaultViewport,
+    zoomFactor: settings.browserDefaultZoomFactor,
+    appearance: settings.browserDefaultAppearance,
+    autoShowFloatingPreview: settings.browserAutoShowFloatingPreview,
+    profiles,
+    // A default pointing at a deleted profile falls back rather than opening
+    // tabs into a partition with no profile behind it.
+    // Incognito is a per-tab choice, not a default: a profile that discards
+    // everything on close would leave every new tab signed out. Excluding it
+    // here keeps the resolved default equal to what the settings list offers,
+    // so the row badged "Default" is the one tabs actually open under.
+    profileId:
+      profiles.find(
+        (profile) =>
+          profile.id === settings.browserDefaultProfileId && profile.kind !== "incognito",
+      )?.id ?? DEFAULT_BROWSER_PROFILE_ID,
+  };
 };
 
 /** Non-hook accessor for imperative open paths (menu actions, automation hosts). */
 export function getBrowserDefaults(): BrowserDefaults {
-	return toBrowserDefaults(getClientSettings());
+  return toBrowserDefaults(getClientSettings());
 }
 
 /**
@@ -83,12 +82,12 @@ export function getBrowserDefaults(): BrowserDefaults {
  * Read failures reject so a new tab cannot use the wrong profile or viewport.
  */
 export async function resolveBrowserDefaults(): Promise<BrowserDefaults> {
-	await ensureClientSettingsHydrated();
-	return getBrowserDefaults();
+  await ensureClientSettingsHydrated();
+  return getBrowserDefaults();
 }
 
 export function useBrowserDefaults(): BrowserDefaults {
-	return useClientSettings(toBrowserDefaults);
+  return useClientSettings(toBrowserDefaults);
 }
 
 /**
@@ -97,9 +96,9 @@ export function useBrowserDefaults(): BrowserDefaults {
  * painting a frame at 100%/system first.
  */
 export function browserDefaultTabState(
-	defaults: BrowserDefaults = getBrowserDefaults(),
+  defaults: BrowserDefaults = getBrowserDefaults(),
 ): DesktopPreviewTabDefaults {
-	return { zoomFactor: defaults.zoomFactor, colorScheme: defaults.appearance };
+  return { zoomFactor: defaults.zoomFactor, colorScheme: defaults.appearance };
 }
 
 /**
@@ -108,16 +107,16 @@ export function browserDefaultTabState(
  * frame later, which the user would see as a visible reflow.
  */
 export function browserDefaultOpenViewport(
-	defaults: BrowserDefaults = getBrowserDefaults(),
+  defaults: BrowserDefaults = getBrowserDefaults(),
 ): PreviewViewportSetting {
-	return defaults.viewport;
+  return defaults.viewport;
 }
 
 /** Profile a tab opens under when the caller doesn't name one. */
 export function browserDefaultOpenProfileId(
-	defaults: BrowserDefaults = getBrowserDefaults(),
+  defaults: BrowserDefaults = getBrowserDefaults(),
 ): string {
-	return defaults.profileId;
+  return defaults.profileId;
 }
 
 /**
@@ -129,23 +128,17 @@ export function browserDefaultOpenProfileId(
  * fall back to fitting the panel — and only when the panel hasn't been measured
  * yet does a fixed size apply.
  */
-export const FALLBACK_RESPONSIVE_VIEWPORT_SIZE = {
-	width: 1024,
-	height: 768,
-} as const;
+export const FALLBACK_RESPONSIVE_VIEWPORT_SIZE = { width: 1024, height: 768 } as const;
 
 export function browserResponsiveViewportForToggle(input: {
-	readonly defaults?: BrowserDefaults;
-	readonly panelRect: {
-		readonly width: number;
-		readonly height: number;
-	} | null;
-	readonly zoomFactor: number | undefined;
+  readonly defaults?: BrowserDefaults;
+  readonly panelRect: { readonly width: number; readonly height: number } | null;
+  readonly zoomFactor: number | undefined;
 }): PreviewViewportSetting {
-	const defaults = input.defaults ?? getBrowserDefaults();
-	if (defaults.viewport._tag !== "fill") return defaults.viewport;
-	const size = input.panelRect
-		? resolveResponsiveBrowserViewportSize(input.panelRect, input.zoomFactor)
-		: FALLBACK_RESPONSIVE_VIEWPORT_SIZE;
-	return { _tag: "freeform", ...size };
+  const defaults = input.defaults ?? getBrowserDefaults();
+  if (defaults.viewport._tag !== "fill") return defaults.viewport;
+  const size = input.panelRect
+    ? resolveResponsiveBrowserViewportSize(input.panelRect, input.zoomFactor)
+    : FALLBACK_RESPONSIVE_VIEWPORT_SIZE;
+  return { _tag: "freeform", ...size };
 }

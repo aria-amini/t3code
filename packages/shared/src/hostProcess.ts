@@ -4,52 +4,52 @@ import * as NodeDns from "node:dns";
 import * as NodeOS from "node:os";
 
 export const HostProcessPlatform = Context.Reference<NodeJS.Platform>(
-	"@t3tools/shared/hostProcess/HostProcessPlatform",
-	{
-		defaultValue: () => process.platform,
-	},
+  "@t3tools/shared/hostProcess/HostProcessPlatform",
+  {
+    defaultValue: () => process.platform,
+  },
 );
 
 export const HostProcessArchitecture = Context.Reference<NodeJS.Architecture>(
-	"@t3tools/shared/hostProcess/HostProcessArchitecture",
-	{
-		defaultValue: () => process.arch,
-	},
+  "@t3tools/shared/hostProcess/HostProcessArchitecture",
+  {
+    defaultValue: () => process.arch,
+  },
 );
 
 export const HostProcessHostname = Context.Reference<string>(
-	"@t3tools/shared/hostProcess/HostProcessHostname",
-	{
-		defaultValue: () => NodeOS.hostname(),
-	},
+  "@t3tools/shared/hostProcess/HostProcessHostname",
+  {
+    defaultValue: () => NodeOS.hostname(),
+  },
 );
 
 export const HostProcessEnvironment = Context.Reference<NodeJS.ProcessEnv>(
-	"@t3tools/shared/hostProcess/HostProcessEnvironment",
-	{
-		defaultValue: () => process.env,
-	},
+  "@t3tools/shared/hostProcess/HostProcessEnvironment",
+  {
+    defaultValue: () => process.env,
+  },
 );
 
 export const HostProcessWorkingDirectory = Context.Reference<string>(
-	"@t3tools/shared/hostProcess/HostProcessWorkingDirectory",
-	{
-		defaultValue: () => process.cwd(),
-	},
+  "@t3tools/shared/hostProcess/HostProcessWorkingDirectory",
+  {
+    defaultValue: () => process.cwd(),
+  },
 );
 
 export const HostProcessExecutablePath = Context.Reference<string>(
-	"@t3tools/shared/hostProcess/HostProcessExecutablePath",
-	{
-		defaultValue: () => process.execPath,
-	},
+  "@t3tools/shared/hostProcess/HostProcessExecutablePath",
+  {
+    defaultValue: () => process.execPath,
+  },
 );
 
 export const HostProcessArguments = Context.Reference<ReadonlyArray<string>>(
-	"@t3tools/shared/hostProcess/HostProcessArguments",
-	{
-		defaultValue: () => process.argv,
-	},
+  "@t3tools/shared/hostProcess/HostProcessArguments",
+  {
+    defaultValue: () => process.argv,
+  },
 );
 
 /**
@@ -62,33 +62,31 @@ export const HostProcessArguments = Context.Reference<ReadonlyArray<string>>(
  *
  * Best effort: a failed lookup just leaves the interface set.
  */
-export const HostProcessAddresses = Context.Reference<
-	Effect.Effect<ReadonlySet<string>>
->("@t3tools/shared/hostProcess/HostProcessAddresses", {
-	defaultValue: () =>
-		Effect.gen(function* () {
-			const interfaces = Object.values(NodeOS.networkInterfaces())
-				.flat()
-				.flatMap((entry) => (entry ? [entry.address] : []));
-			const resolved = yield* Effect.tryPromise(() =>
-				NodeDns.promises.lookup(NodeOS.hostname(), { all: true }),
-			).pipe(
-				Effect.map((entries) => entries.map((entry) => entry.address)),
-				Effect.orElseSucceed(() => [] as ReadonlyArray<string>),
-			);
-			return new Set([...interfaces, ...resolved]);
-		}),
-});
+export const HostProcessAddresses = Context.Reference<Effect.Effect<ReadonlySet<string>>>(
+  "@t3tools/shared/hostProcess/HostProcessAddresses",
+  {
+    defaultValue: () =>
+      Effect.gen(function* () {
+        const interfaces = Object.values(NodeOS.networkInterfaces())
+          .flat()
+          .flatMap((entry) => (entry ? [entry.address] : []));
+        const resolved = yield* Effect.tryPromise(() =>
+          NodeDns.promises.lookup(NodeOS.hostname(), { all: true }),
+        ).pipe(
+          Effect.map((entries) => entries.map((entry) => entry.address)),
+          Effect.orElseSucceed(() => [] as ReadonlyArray<string>),
+        );
+        return new Set([...interfaces, ...resolved]);
+      }),
+  },
+);
 
 /** Undefined on platforms without POSIX uids (Windows). */
 export const HostProcessUserId = Context.Reference<number | undefined>(
-	"@t3tools/shared/hostProcess/HostProcessUserId",
-	{
-		defaultValue: () => process.getuid?.(),
-	},
+  "@t3tools/shared/hostProcess/HostProcessUserId",
+  {
+    defaultValue: () => process.getuid?.(),
+  },
 );
 
-export const isHostWindows = Effect.map(
-	HostProcessPlatform,
-	(platform) => platform === "win32",
-);
+export const isHostWindows = Effect.map(HostProcessPlatform, (platform) => platform === "win32");

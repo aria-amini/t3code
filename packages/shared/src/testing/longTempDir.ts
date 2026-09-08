@@ -9,11 +9,11 @@ import { HostProcessPlatform } from "../hostProcess.ts";
 // its canonical form fail. Node reads TEMP/TMP on every os.tmpdir() call, so
 // pointing them at the long form fixes every temp directory the suite makes.
 if (HostProcessPlatform.defaultValue() === "win32") {
-	try {
-		const longForm = NodeFS.realpathSync.native(NodeOS.tmpdir());
-		process.env.TEMP = longForm;
-		process.env.TMP = longForm;
-	} catch {
-		// Leave the host's value alone if it cannot be resolved.
-	}
+  try {
+    const longForm = NodeFS.realpathSync.native(NodeOS.tmpdir());
+    process.env.TEMP = longForm;
+    process.env.TMP = longForm;
+  } catch {
+    // Leave the host's value alone if it cannot be resolved.
+  }
 }

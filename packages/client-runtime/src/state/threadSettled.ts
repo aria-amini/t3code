@@ -21,30 +21,27 @@ const DAY_MS = 24 * 60 * 60 * 1_000;
  * within the adoption grace window.
  */
 export function hasQueuedTurnStart(
-	shell: Pick<
-		OrchestrationThreadShell,
-		"latestUserMessageAt" | "latestTurn" | "session"
-	>,
-	options: { readonly now: string },
+  shell: Pick<OrchestrationThreadShell, "latestUserMessageAt" | "latestTurn" | "session">,
+  options: { readonly now: string },
 ): boolean {
-	if (shell.latestUserMessageAt == null) return false;
-	// A failed session start clears the queued state: the failure is already
-	// visible (status edge / error).
-	if (shell.session?.status === "error") return false;
-	const messageAt = Date.parse(shell.latestUserMessageAt);
-	if (Number.isNaN(messageAt)) return false;
-	const nowMs = Date.parse(options.now);
-	if (Number.isNaN(nowMs)) return false;
-	// Bounded on both sides: message timestamps originate on whichever device
-	// sent the message, so a clock ahead of this one yields a negative age
-	// that would otherwise hold the queued state for the whole skew. Mirrors
-	// the decider's guard.
-	if (Math.abs(nowMs - messageAt) > QUEUED_TURN_START_GRACE_MS) return false;
-	const turn = shell.latestTurn;
-	if (turn === null) return true;
-	return [turn.requestedAt, turn.startedAt, turn.completedAt].every(
-		(candidate) => candidate == null || Date.parse(candidate) < messageAt,
-	);
+  if (shell.latestUserMessageAt == null) return false;
+  // A failed session start clears the queued state: the failure is already
+  // visible (status edge / error).
+  if (shell.session?.status === "error") return false;
+  const messageAt = Date.parse(shell.latestUserMessageAt);
+  if (Number.isNaN(messageAt)) return false;
+  const nowMs = Date.parse(options.now);
+  if (Number.isNaN(nowMs)) return false;
+  // Bounded on both sides: message timestamps originate on whichever device
+  // sent the message, so a clock ahead of this one yields a negative age
+  // that would otherwise hold the queued state for the whole skew. Mirrors
+  // the decider's guard.
+  if (Math.abs(nowMs - messageAt) > QUEUED_TURN_START_GRACE_MS) return false;
+  const turn = shell.latestTurn;
+  if (turn === null) return true;
+  return [turn.requestedAt, turn.startedAt, turn.completedAt].every(
+    (candidate) => candidate == null || Date.parse(candidate) < messageAt,
+  );
 }
 
 /**
@@ -54,13 +51,13 @@ export function hasQueuedTurnStart(
  * its wake time passes or the thread demands attention.
  */
 export type ThreadSnoozeShell = Pick<
-	OrchestrationThreadShell,
-	| "snoozedUntil"
-	| "snoozedAt"
-	| "hasPendingApprovals"
-	| "hasPendingUserInput"
-	| "session"
-	| "latestTurn"
+  OrchestrationThreadShell,
+  | "snoozedUntil"
+  | "snoozedAt"
+  | "hasPendingApprovals"
+  | "hasPendingUserInput"
+  | "session"
+  | "latestTurn"
 >;
 
 /**
@@ -71,30 +68,27 @@ export type ThreadSnoozeShell = Pick<
  * Raising a hand never clears the server-side snooze fields; it only stops
  * the thread from classifying as snoozed.
  */
-export function threadRaisedHandWhileSnoozed(
-	shell: ThreadSnoozeShell,
-): boolean {
-	if (shell.hasPendingApprovals || shell.hasPendingUserInput) return true;
-	// Only a FRESH failure raises the hand: a thread snoozed while already
-	// failed stays snoozed — that snooze was the user saying "I saw it, not
-	// now". session.updatedAt stamps the status edge, so an error newer than
-	// the snooze is new information.
-	if (
-		shell.session?.status === "error" &&
-		(shell.snoozedAt == null ||
-			Date.parse(shell.session.updatedAt) > Date.parse(shell.snoozedAt))
-	) {
-		return true;
-	}
-	if (
-		shell.snoozedAt != null &&
-		shell.latestTurn?.state === "completed" &&
-		shell.latestTurn.completedAt != null &&
-		Date.parse(shell.latestTurn.completedAt) > Date.parse(shell.snoozedAt)
-	) {
-		return true;
-	}
-	return false;
+export function threadRaisedHandWhileSnoozed(shell: ThreadSnoozeShell): boolean {
+  if (shell.hasPendingApprovals || shell.hasPendingUserInput) return true;
+  // Only a FRESH failure raises the hand: a thread snoozed while already
+  // failed stays snoozed — that snooze was the user saying "I saw it, not
+  // now". session.updatedAt stamps the status edge, so an error newer than
+  // the snooze is new information.
+  if (
+    shell.session?.status === "error" &&
+    (shell.snoozedAt == null || Date.parse(shell.session.updatedAt) > Date.parse(shell.snoozedAt))
+  ) {
+    return true;
+  }
+  if (
+    shell.snoozedAt != null &&
+    shell.latestTurn?.state === "completed" &&
+    shell.latestTurn.completedAt != null &&
+    Date.parse(shell.latestTurn.completedAt) > Date.parse(shell.snoozedAt)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -106,19 +100,15 @@ export function threadRaisedHandWhileSnoozed(
  * invariants so the UI can reject before a round trip.
  */
 export function canSnooze(
-	shell: Pick<
-		OrchestrationThreadShell,
-		| "hasPendingApprovals"
-		| "hasPendingUserInput"
-		| "latestUserMessageAt"
-		| "latestTurn"
-		| "session"
-	>,
-	options: { readonly now: string },
+  shell: Pick<
+    OrchestrationThreadShell,
+    "hasPendingApprovals" | "hasPendingUserInput" | "latestUserMessageAt" | "latestTurn" | "session"
+  >,
+  options: { readonly now: string },
 ): boolean {
-	if (shell.hasPendingApprovals || shell.hasPendingUserInput) return false;
-	if (hasQueuedTurnStart(shell, options)) return false;
-	return true;
+  if (shell.hasPendingApprovals || shell.hasPendingUserInput) return false;
+  if (hasQueuedTurnStart(shell, options)) return false;
+  return true;
 }
 
 /**
@@ -129,15 +119,15 @@ export function canSnooze(
  * visits or re-engages).
  */
 export function effectiveSnoozed(
-	shell: ThreadSnoozeShell,
-	options: { readonly now: string },
+  shell: ThreadSnoozeShell,
+  options: { readonly now: string },
 ): boolean {
-	if (shell.snoozedUntil == null) return false;
-	const wakeAtMs = Date.parse(shell.snoozedUntil);
-	// Malformed data never hides a thread.
-	if (Number.isNaN(wakeAtMs)) return false;
-	if (wakeAtMs <= Date.parse(options.now)) return false;
-	return !threadRaisedHandWhileSnoozed(shell);
+  if (shell.snoozedUntil == null) return false;
+  const wakeAtMs = Date.parse(shell.snoozedUntil);
+  // Malformed data never hides a thread.
+  if (Number.isNaN(wakeAtMs)) return false;
+  if (wakeAtMs <= Date.parse(options.now)) return false;
+  return !threadRaisedHandWhileSnoozed(shell);
 }
 
 /**
@@ -152,72 +142,64 @@ export function effectiveSnoozed(
  * the indicator.
  */
 export function threadWokeAt(
-	shell: ThreadSnoozeShell,
-	options: { readonly now: string },
+  shell: ThreadSnoozeShell,
+  options: { readonly now: string },
 ): string | null {
-	if (shell.snoozedUntil == null) return null;
-	const wakeAtMs = Date.parse(shell.snoozedUntil);
-	if (Number.isNaN(wakeAtMs)) return null;
-	// An early hand-raise wake stays authoritative even after the scheduled
-	// wake time passes: reporting snoozedUntil then would resurface a Woke
-	// indicator the user already cleared by visiting (snoozedUntil is newer
-	// than that visit's lastVisitedAt).
-	if (threadRaisedHandWhileSnoozed(shell)) {
-		if (
-			shell.snoozedAt != null &&
-			shell.latestTurn?.state === "completed" &&
-			shell.latestTurn.completedAt != null &&
-			Date.parse(shell.latestTurn.completedAt) > Date.parse(shell.snoozedAt)
-		) {
-			return shell.latestTurn.completedAt;
-		}
-		return shell.session?.updatedAt ?? shell.snoozedAt ?? null;
-	}
-	// No raised hand: woke iff the timer elapsed (still-snoozed → null).
-	return wakeAtMs <= Date.parse(options.now) ? shell.snoozedUntil : null;
+  if (shell.snoozedUntil == null) return null;
+  const wakeAtMs = Date.parse(shell.snoozedUntil);
+  if (Number.isNaN(wakeAtMs)) return null;
+  // An early hand-raise wake stays authoritative even after the scheduled
+  // wake time passes: reporting snoozedUntil then would resurface a Woke
+  // indicator the user already cleared by visiting (snoozedUntil is newer
+  // than that visit's lastVisitedAt).
+  if (threadRaisedHandWhileSnoozed(shell)) {
+    if (
+      shell.snoozedAt != null &&
+      shell.latestTurn?.state === "completed" &&
+      shell.latestTurn.completedAt != null &&
+      Date.parse(shell.latestTurn.completedAt) > Date.parse(shell.snoozedAt)
+    ) {
+      return shell.latestTurn.completedAt;
+    }
+    return shell.session?.updatedAt ?? shell.snoozedAt ?? null;
+  }
+  // No raised hand: woke iff the timer elapsed (still-snoozed → null).
+  return wakeAtMs <= Date.parse(options.now) ? shell.snoozedUntil : null;
 }
 
 const HOUR_MS = 60 * 60 * 1_000;
 const EVENING_HOUR = 18;
 const MORNING_HOUR = 9;
 
-export type SnoozePresetId =
-	| "hour"
-	| "three-hours"
-	| "evening"
-	| "tomorrow"
-	| "next-week";
+export type SnoozePresetId = "hour" | "three-hours" | "evening" | "tomorrow" | "next-week";
 
 export interface SnoozePreset {
-	readonly id: SnoozePresetId;
-	readonly label: string;
-	/** Menu-row time column. Complements the label instead of repeating it:
+  readonly id: SnoozePresetId;
+  readonly label: string;
+  /** Menu-row time column. Complements the label instead of repeating it:
       "Tomorrow" pairs with "9:00 AM", not "tomorrow 9:00 AM". */
-	readonly whenLabel: string;
-	/** ISO wake time. */
-	readonly snoozedUntil: string;
+  readonly whenLabel: string;
+  /** ISO wake time. */
+  readonly snoozedUntil: string;
 }
 
 function snoozeTimeOfDayLabel(date: Date): string {
-	return date.toLocaleTimeString(undefined, {
-		hour: "numeric",
-		minute: "2-digit",
-	});
+  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
 function snoozeAtHour(base: Date, hour: number): Date {
-	const next = new Date(base);
-	next.setHours(hour, 0, 0, 0);
-	return next;
+  const next = new Date(base);
+  next.setHours(hour, 0, 0, 0);
+  return next;
 }
 
 // Calendar-day advance instead of adding DAY_MS: fixed millisecond offsets
 // land on the wrong local day across DST transitions (a spring-forward day
 // is 23 hours, so 23:30 + 24h skips the whole next day).
 function addSnoozeDays(base: Date, days: number): Date {
-	const next = new Date(base);
-	next.setDate(next.getDate() + days);
-	return next;
+  const next = new Date(base);
+  next.setDate(next.getDate() + days);
+  return next;
 }
 
 /**
@@ -228,56 +210,53 @@ function addSnoozeDays(base: Date, days: number): Date {
  * morning, so only "Tomorrow" is offered.
  */
 export function resolveSnoozePresets(now: Date): ReadonlyArray<SnoozePreset> {
-	const inAnHour = new Date(now.getTime() + HOUR_MS);
-	const inThreeHours = new Date(now.getTime() + 3 * HOUR_MS);
-	const presets: SnoozePreset[] = [
-		{
-			id: "hour",
-			label: "In 1 hour",
-			whenLabel: snoozeTimeOfDayLabel(inAnHour),
-			snoozedUntil: inAnHour.toISOString(),
-		},
-		{
-			id: "three-hours",
-			label: "In 3 hours",
-			whenLabel: snoozeTimeOfDayLabel(inThreeHours),
-			snoozedUntil: inThreeHours.toISOString(),
-		},
-	];
+  const inAnHour = new Date(now.getTime() + HOUR_MS);
+  const inThreeHours = new Date(now.getTime() + 3 * HOUR_MS);
+  const presets: SnoozePreset[] = [
+    {
+      id: "hour",
+      label: "In 1 hour",
+      whenLabel: snoozeTimeOfDayLabel(inAnHour),
+      snoozedUntil: inAnHour.toISOString(),
+    },
+    {
+      id: "three-hours",
+      label: "In 3 hours",
+      whenLabel: snoozeTimeOfDayLabel(inThreeHours),
+      snoozedUntil: inThreeHours.toISOString(),
+    },
+  ];
 
-	const evening = snoozeAtHour(now, EVENING_HOUR);
-	if (evening.getTime() - now.getTime() > HOUR_MS) {
-		presets.push({
-			id: "evening",
-			label: "This evening",
-			whenLabel: snoozeTimeOfDayLabel(evening),
-			snoozedUntil: evening.toISOString(),
-		});
-	}
+  const evening = snoozeAtHour(now, EVENING_HOUR);
+  if (evening.getTime() - now.getTime() > HOUR_MS) {
+    presets.push({
+      id: "evening",
+      label: "This evening",
+      whenLabel: snoozeTimeOfDayLabel(evening),
+      snoozedUntil: evening.toISOString(),
+    });
+  }
 
-	const tomorrow = snoozeAtHour(addSnoozeDays(now, 1), MORNING_HOUR);
-	presets.push({
-		id: "tomorrow",
-		label: "Tomorrow",
-		whenLabel: snoozeTimeOfDayLabel(tomorrow),
-		snoozedUntil: tomorrow.toISOString(),
-	});
+  const tomorrow = snoozeAtHour(addSnoozeDays(now, 1), MORNING_HOUR);
+  presets.push({
+    id: "tomorrow",
+    label: "Tomorrow",
+    whenLabel: snoozeTimeOfDayLabel(tomorrow),
+    snoozedUntil: tomorrow.toISOString(),
+  });
 
-	const daysUntilMonday = (1 - now.getDay() + 7) % 7 || 7;
-	const nextWeek = snoozeAtHour(
-		addSnoozeDays(now, daysUntilMonday),
-		MORNING_HOUR,
-	);
-	if (nextWeek.getTime() !== tomorrow.getTime()) {
-		presets.push({
-			id: "next-week",
-			label: "Next week",
-			whenLabel: `${nextWeek.toLocaleDateString(undefined, { weekday: "short" })} ${snoozeTimeOfDayLabel(nextWeek)}`,
-			snoozedUntil: nextWeek.toISOString(),
-		});
-	}
+  const daysUntilMonday = (1 - now.getDay() + 7) % 7 || 7;
+  const nextWeek = snoozeAtHour(addSnoozeDays(now, daysUntilMonday), MORNING_HOUR);
+  if (nextWeek.getTime() !== tomorrow.getTime()) {
+    presets.push({
+      id: "next-week",
+      label: "Next week",
+      whenLabel: `${nextWeek.toLocaleDateString(undefined, { weekday: "short" })} ${snoozeTimeOfDayLabel(nextWeek)}`,
+      snoozedUntil: nextWeek.toISOString(),
+    });
+  }
 
-	return presets;
+  return presets;
 }
 
 /**
@@ -285,17 +264,13 @@ export function resolveSnoozePresets(now: Date): ReadonlyArray<SnoozePreset> {
  * round up so a snooze never reads "0m" while still hidden. Shared by web
  * and mobile so the same wake time never reads differently per client.
  */
-export function snoozeWakeLabel(
-	snoozedUntil: string,
-	options: { readonly now: string },
-): string {
-	const wakeMs = Date.parse(snoozedUntil);
-	const nowMs = Date.parse(options.now);
-	if (Number.isNaN(wakeMs) || Number.isNaN(nowMs)) return "now";
-	const remainingMs = wakeMs - nowMs;
-	if (remainingMs <= 0) return "now";
-	if (remainingMs < HOUR_MS)
-		return `${Math.max(1, Math.ceil(remainingMs / 60_000))}m`;
-	if (remainingMs < DAY_MS) return `${Math.ceil(remainingMs / HOUR_MS)}h`;
-	return `${Math.ceil(remainingMs / DAY_MS)}d`;
+export function snoozeWakeLabel(snoozedUntil: string, options: { readonly now: string }): string {
+  const wakeMs = Date.parse(snoozedUntil);
+  const nowMs = Date.parse(options.now);
+  if (Number.isNaN(wakeMs) || Number.isNaN(nowMs)) return "now";
+  const remainingMs = wakeMs - nowMs;
+  if (remainingMs <= 0) return "now";
+  if (remainingMs < HOUR_MS) return `${Math.max(1, Math.ceil(remainingMs / 60_000))}m`;
+  if (remainingMs < DAY_MS) return `${Math.ceil(remainingMs / HOUR_MS)}h`;
+  return `${Math.ceil(remainingMs / DAY_MS)}d`;
 }

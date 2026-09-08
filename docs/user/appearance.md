@@ -54,14 +54,14 @@ For an integration that generates a palette, this shorter format also works:
 
 ```json
 {
-	"name": "Nightfall",
-	"appearance": "dark",
-	"canvas": "#1a1b26",
-	"accent": "#7aa2f7",
-	"colors": {
-		"terminalSelection": "#292e42",
-		"error": "#f7768e"
-	}
+  "name": "Nightfall",
+  "appearance": "dark",
+  "canvas": "#1a1b26",
+  "accent": "#7aa2f7",
+  "colors": {
+    "terminalSelection": "#292e42",
+    "error": "#f7768e"
+  }
 }
 ```
 

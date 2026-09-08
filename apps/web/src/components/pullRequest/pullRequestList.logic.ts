@@ -1,21 +1,21 @@
 import * as Schema from "effect/Schema";
 
 import {
-	EnvironmentId,
-	PullRequestListEntry,
-	PullRequestListProjectError,
-	PullRequestListResult,
-	resolvePullRequestAuthorFilter,
+  EnvironmentId,
+  PullRequestListEntry,
+  PullRequestListProjectError,
+  PullRequestListResult,
+  resolvePullRequestAuthorFilter,
 } from "@t3tools/contracts";
 import type {
-	ProjectId,
-	PullRequestActor,
-	PullRequestDiffStat,
-	PullRequestInvolvement,
-	PullRequestLabel,
-	PullRequestListCursors,
-	PullRequestListFilters,
-	PullRequestListState,
+  ProjectId,
+  PullRequestActor,
+  PullRequestDiffStat,
+  PullRequestInvolvement,
+  PullRequestLabel,
+  PullRequestListCursors,
+  PullRequestListFilters,
+  PullRequestListState,
 } from "@t3tools/contracts";
 
 import { toSortableTimestamp } from "../../lib/threadSort";
@@ -27,35 +27,33 @@ import type { PullRequestListSort } from "./pullRequestListPreferences";
  * opening its detail all need the tag the listing itself does not carry.
  */
 export interface EnvironmentPullRequestEntry extends PullRequestListEntry {
-	readonly environmentId: EnvironmentId;
+  readonly environmentId: EnvironmentId;
 }
 
 export interface EnvironmentPullRequestStat extends PullRequestDiffStat {
-	readonly environmentId: EnvironmentId;
+  readonly environmentId: EnvironmentId;
 }
 
 export interface EnvironmentPullRequestError extends PullRequestListProjectError {
-	readonly environmentId: EnvironmentId;
+  readonly environmentId: EnvironmentId;
 }
 
 export type PullRequestGroupKey = "reviewRequested" | "authored" | "others";
 
-export interface PullRequestGroup<
-	Entry extends PullRequestListEntry = PullRequestListEntry,
-> {
-	readonly key: PullRequestGroupKey;
-	readonly label: string;
-	readonly entries: ReadonlyArray<Entry>;
+export interface PullRequestGroup<Entry extends PullRequestListEntry = PullRequestListEntry> {
+  readonly key: PullRequestGroupKey;
+  readonly label: string;
+  readonly entries: ReadonlyArray<Entry>;
 }
 
 export interface PullRequestAuthorFacet {
-	readonly actor: PullRequestActor;
-	readonly count: number;
-	readonly mergedCount: number;
+  readonly actor: PullRequestActor;
+  readonly count: number;
+  readonly mergedCount: number;
 }
 
 export interface PullRequestLabelFacet extends PullRequestLabel {
-	readonly count: number;
+  readonly count: number;
 }
 
 /**
@@ -70,74 +68,70 @@ export type PullRequestViewers = PullRequestListResult["viewers"];
 type ScopedEntry = PullRequestListEntry & { readonly environmentId?: string };
 
 const pullRequestViewerKey = (entry: ScopedEntry): string =>
-	`${entry.environmentId ?? ""} ${entry.host}`;
+  `${entry.environmentId ?? ""} ${entry.host}`;
 
 const GROUP_LABELS: Record<PullRequestGroupKey, string> = {
-	reviewRequested: "Review requested",
-	authored: "Authored",
-	others: "Others",
+  reviewRequested: "Review requested",
+  authored: "Authored",
+  others: "Others",
 };
 
 function normalize(value: string | null | undefined): string | null {
-	const trimmed = value?.trim().toLowerCase() ?? "";
-	return trimmed.length > 0 ? trimmed : null;
+  const trimmed = value?.trim().toLowerCase() ?? "";
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 export function pullRequestLabelColor(color: string | null): string | null {
-	const hex = color?.trim().replace(/^#/, "") ?? "";
-	return /^[0-9a-fA-F]{6}$/.test(hex) ? `#${hex}` : null;
+  const hex = color?.trim().replace(/^#/, "") ?? "";
+  return /^[0-9a-fA-F]{6}$/.test(hex) ? `#${hex}` : null;
 }
 
 export function collectPullRequestListFacets(
-	entries: ReadonlyArray<PullRequestListEntry>,
-	state: PullRequestListState,
+  entries: ReadonlyArray<PullRequestListEntry>,
+  state: PullRequestListState,
 ) {
-	const authors = new Map<string, PullRequestAuthorFacet>();
-	const labels = new Map<string, PullRequestLabelFacet>();
-	const uniqueEntries = new Map(
-		entries.map((entry) => [pullRequestEntryKey(entry), entry]),
-	);
-	for (const entry of uniqueEntries.values()) {
-		const inState = state === "all" || entry.state === state;
-		if (entry.author !== null) {
-			const key = normalize(entry.author.login);
-			if (key !== null) {
-				const held = authors.get(key);
-				authors.set(key, {
-					actor: held?.actor ?? entry.author,
-					count: (held?.count ?? 0) + Number(inState),
-					mergedCount:
-						(held?.mergedCount ?? 0) + Number(entry.state === "merged"),
-				});
-			}
-		}
-		if (!inState) continue;
-		for (const label of entry.labels) {
-			const key = normalize(label.name);
-			if (key === null) continue;
-			const held = labels.get(key);
-			labels.set(key, {
-				...label,
-				name: held?.name ?? label.name,
-				color: held?.color ?? label.color,
-				count: (held?.count ?? 0) + 1,
-			});
-		}
-	}
-	return {
-		authors: [...authors.values()]
-			.filter((author) => author.count > 0)
-			.toSorted(
-				(left, right) =>
-					right.mergedCount - left.mergedCount ||
-					right.count - left.count ||
-					left.actor.login.localeCompare(right.actor.login),
-			),
-		labels: [...labels.values()].toSorted(
-			(left, right) =>
-				right.count - left.count || left.name.localeCompare(right.name),
-		),
-	};
+  const authors = new Map<string, PullRequestAuthorFacet>();
+  const labels = new Map<string, PullRequestLabelFacet>();
+  const uniqueEntries = new Map(entries.map((entry) => [pullRequestEntryKey(entry), entry]));
+  for (const entry of uniqueEntries.values()) {
+    const inState = state === "all" || entry.state === state;
+    if (entry.author !== null) {
+      const key = normalize(entry.author.login);
+      if (key !== null) {
+        const held = authors.get(key);
+        authors.set(key, {
+          actor: held?.actor ?? entry.author,
+          count: (held?.count ?? 0) + Number(inState),
+          mergedCount: (held?.mergedCount ?? 0) + Number(entry.state === "merged"),
+        });
+      }
+    }
+    if (!inState) continue;
+    for (const label of entry.labels) {
+      const key = normalize(label.name);
+      if (key === null) continue;
+      const held = labels.get(key);
+      labels.set(key, {
+        ...label,
+        name: held?.name ?? label.name,
+        color: held?.color ?? label.color,
+        count: (held?.count ?? 0) + 1,
+      });
+    }
+  }
+  return {
+    authors: [...authors.values()]
+      .filter((author) => author.count > 0)
+      .toSorted(
+        (left, right) =>
+          right.mergedCount - left.mergedCount ||
+          right.count - left.count ||
+          left.actor.login.localeCompare(right.actor.login),
+      ),
+    labels: [...labels.values()].toSorted(
+      (left, right) => right.count - left.count || left.name.localeCompare(right.name),
+    ),
+  };
 }
 
 /**
@@ -145,12 +139,12 @@ export function collectPullRequestListFacets(
  * authorship matching here and by `author:me` resolution wherever a row's own viewer is needed.
  */
 export function pullRequestEntryViewer(
-	entry: ScopedEntry,
-	viewers: PullRequestViewers,
+  entry: ScopedEntry,
+  viewers: PullRequestViewers,
 ): string | null {
-	// The environment's own answer first; a plain host key is what a single-environment listing
-	// still writes, and what the snapshot from one carries.
-	return normalize(viewers[pullRequestViewerKey(entry)] ?? viewers[entry.host]);
+  // The environment's own answer first; a plain host key is what a single-environment listing
+  // still writes, and what the snapshot from one carries.
+  return normalize(viewers[pullRequestViewerKey(entry)] ?? viewers[entry.host]);
 }
 
 /**
@@ -158,28 +152,25 @@ export function pullRequestEntryViewer(
  * GitHub, GitLab and a GitHub Enterprise install, and the account that owns one says nothing
  * about the others.
  */
-function isAuthoredByViewer(
-	entry: ScopedEntry,
-	viewers: PullRequestViewers,
-): boolean {
-	const viewer = pullRequestEntryViewer(entry, viewers);
-	return viewer !== null && normalize(entry.author?.login) === viewer;
+function isAuthoredByViewer(entry: ScopedEntry, viewers: PullRequestViewers): boolean {
+  const viewer = pullRequestEntryViewer(entry, viewers);
+  return viewer !== null && normalize(entry.author?.login) === viewer;
 }
 
 /** What `review:` and `status:` take, in GitHub's spelling and in the contract's. */
 const REVIEW_VALUES: Record<string, PullRequestListFilters["review"]> = {
-	approved: "approved",
-	changes_requested: "changes-requested",
-	"changes-requested": "changes-requested",
-	required: "review-required",
-	"review-required": "review-required",
-	none: "none",
+  approved: "approved",
+  changes_requested: "changes-requested",
+  "changes-requested": "changes-requested",
+  required: "review-required",
+  "review-required": "review-required",
+  none: "none",
 };
 const CHECKS_VALUES: Record<string, PullRequestListFilters["checks"]> = {
-	success: "passing",
-	passing: "passing",
-	failure: "failing",
-	failing: "failing",
+  success: "passing",
+  passing: "passing",
+  failure: "failing",
+  failing: "failing",
 };
 
 /**
@@ -193,21 +184,21 @@ const MAX_QUALIFIER_VALUES = 10;
 const MAX_QUALIFIER_LENGTH = 200;
 
 function qualifierValue(raw: string): string {
-	return raw.replaceAll('"', "").trim();
+  return raw.replaceAll('"', "").trim();
 }
 
 /** A qualifier's value as the list it may be: split on commas, each name unquoted on its own. */
 function splitQualifierList(raw: string): string[] {
-	// Quoting names one whole label however many commas it holds: `label:"needs,triage"` asks for
-	// the label written that way, not for either half of it.
-	if (/^\s*"[^"]*"\s*$/.test(raw)) {
-		const whole = qualifierValue(raw);
-		return whole.length === 0 ? [] : [whole];
-	}
-	return raw
-		.split(",")
-		.map((part) => qualifierValue(part))
-		.filter((part) => part.length > 0);
+  // Quoting names one whole label however many commas it holds: `label:"needs,triage"` asks for
+  // the label written that way, not for either half of it.
+  if (/^\s*"[^"]*"\s*$/.test(raw)) {
+    const whole = qualifierValue(raw);
+    return whole.length === 0 ? [] : [whole];
+  }
+  return raw
+    .split(",")
+    .map((part) => qualifierValue(part))
+    .filter((part) => part.length > 0);
 }
 
 /**
@@ -215,10 +206,10 @@ function splitQualifierList(raw: string): string[] {
  * is typed past those bounds is cut here rather than refused by the request that carries it.
  */
 function boundedNames(names: ReadonlyArray<string>): string[] {
-	return names
-		.slice(0, MAX_QUALIFIER_VALUES)
-		.map((name) => name.slice(0, MAX_QUALIFIER_LENGTH).trim())
-		.filter((name) => name.length > 0);
+  return names
+    .slice(0, MAX_QUALIFIER_VALUES)
+    .map((name) => name.slice(0, MAX_QUALIFIER_LENGTH).trim())
+    .filter((name) => name.length > 0);
 }
 
 /**
@@ -236,106 +227,95 @@ function boundedNames(names: ReadonlyArray<string>): string[] {
  * text too, so a search for "status:" itself is still findable.
  */
 export function parsePullRequestQuery(raw: string): {
-	readonly text: string;
-	readonly filters: PullRequestListFilters;
+  readonly text: string;
+  readonly filters: PullRequestListFilters;
 } {
-	const text: string[] = [];
-	const labels: string[][] = [];
-	const excludedLabels: string[] = [];
-	let author: string | undefined;
-	let draft: PullRequestListFilters["draft"];
-	let review: PullRequestListFilters["review"];
-	let checks: PullRequestListFilters["checks"];
-	for (const [token] of raw.matchAll(QUERY_TOKEN)) {
-		const qualifier = /^(-?)([A-Za-z][A-Za-z0-9_-]*):(.*)$/.exec(token);
-		const value = qualifier === null ? "" : qualifierValue(qualifier[3] ?? "");
-		const negated = qualifier?.[1] === "-";
-		switch (value.length === 0 ? "" : (qualifier?.[2]?.toLowerCase() ?? "")) {
-			case "label": {
-				// GitHub's own OR: `label:a,b` is one qualifier satisfied by either name. Negated, the
-				// comma excludes each — a row carrying any of them goes.
-				const names = boundedNames(splitQualifierList(qualifier?.[3] ?? ""));
-				if (names.length === 0) break;
-				if (negated) excludedLabels.push(...names);
-				else labels.push(names);
-				continue;
-			}
-			case "author":
-				if (negated) break;
-				author = value.slice(0, MAX_QUALIFIER_LENGTH).trim();
-				continue;
-			case "draft":
-				if (
-					negated ||
-					(value.toLowerCase() !== "true" && value.toLowerCase() !== "false")
-				)
-					break;
-				draft = value.toLowerCase() === "true" ? "only" : "hide";
-				continue;
-			case "review": {
-				const decision = negated
-					? undefined
-					: REVIEW_VALUES[value.toLowerCase()];
-				if (decision === undefined) break;
-				review = decision;
-				continue;
-			}
-			case "status":
-			case "checks": {
-				const state = negated ? undefined : CHECKS_VALUES[value.toLowerCase()];
-				if (state === undefined) break;
-				checks = state;
-				continue;
-			}
-			case "":
-				break;
-			default:
-				// An unknown key, read as the namespaced label it almost always is. A pasted link is
-				// not one — `https://…` would otherwise become a label named after its own scheme.
-				if (!value.startsWith("/")) {
-					// The key names the namespace, so the bare parts of `size:S,XS` are both sizes. A part
-					// that already carries a colon names its whole label — `size:S,size:XS` is the same
-					// pair written out, and prefixing it again would ask for `size:size:XS`.
-					const names = boundedNames(
-						splitQualifierList(qualifier?.[3] ?? "").map((name) =>
-							name.includes(":") ? name : `${qualifier?.[2] ?? ""}:${name}`,
-						),
-					);
-					if (names.length === 0) break;
-					if (negated) excludedLabels.push(...names);
-					else labels.push(names);
-					continue;
-				}
-		}
-		text.push(token);
-	}
-	return {
-		text: text.join(" "),
-		filters: {
-			...(labels.length === 0
-				? {}
-				: { labels: labels.slice(0, MAX_QUALIFIER_VALUES) }),
-			...(excludedLabels.length === 0
-				? {}
-				: { excludedLabels: excludedLabels.slice(0, MAX_QUALIFIER_VALUES) }),
-			...(author === undefined ? {} : { author }),
-			...(draft === undefined ? {} : { draft }),
-			...(review === undefined ? {} : { review }),
-			...(checks === undefined ? {} : { checks }),
-		},
-	};
+  const text: string[] = [];
+  const labels: string[][] = [];
+  const excludedLabels: string[] = [];
+  let author: string | undefined;
+  let draft: PullRequestListFilters["draft"];
+  let review: PullRequestListFilters["review"];
+  let checks: PullRequestListFilters["checks"];
+  for (const [token] of raw.matchAll(QUERY_TOKEN)) {
+    const qualifier = /^(-?)([A-Za-z][A-Za-z0-9_-]*):(.*)$/.exec(token);
+    const value = qualifier === null ? "" : qualifierValue(qualifier[3] ?? "");
+    const negated = qualifier?.[1] === "-";
+    switch (value.length === 0 ? "" : (qualifier?.[2]?.toLowerCase() ?? "")) {
+      case "label": {
+        // GitHub's own OR: `label:a,b` is one qualifier satisfied by either name. Negated, the
+        // comma excludes each — a row carrying any of them goes.
+        const names = boundedNames(splitQualifierList(qualifier?.[3] ?? ""));
+        if (names.length === 0) break;
+        if (negated) excludedLabels.push(...names);
+        else labels.push(names);
+        continue;
+      }
+      case "author":
+        if (negated) break;
+        author = value.slice(0, MAX_QUALIFIER_LENGTH).trim();
+        continue;
+      case "draft":
+        if (negated || (value.toLowerCase() !== "true" && value.toLowerCase() !== "false")) break;
+        draft = value.toLowerCase() === "true" ? "only" : "hide";
+        continue;
+      case "review": {
+        const decision = negated ? undefined : REVIEW_VALUES[value.toLowerCase()];
+        if (decision === undefined) break;
+        review = decision;
+        continue;
+      }
+      case "status":
+      case "checks": {
+        const state = negated ? undefined : CHECKS_VALUES[value.toLowerCase()];
+        if (state === undefined) break;
+        checks = state;
+        continue;
+      }
+      case "":
+        break;
+      default:
+        // An unknown key, read as the namespaced label it almost always is. A pasted link is
+        // not one — `https://…` would otherwise become a label named after its own scheme.
+        if (!value.startsWith("/")) {
+          // The key names the namespace, so the bare parts of `size:S,XS` are both sizes. A part
+          // that already carries a colon names its whole label — `size:S,size:XS` is the same
+          // pair written out, and prefixing it again would ask for `size:size:XS`.
+          const names = boundedNames(
+            splitQualifierList(qualifier?.[3] ?? "").map((name) =>
+              name.includes(":") ? name : `${qualifier?.[2] ?? ""}:${name}`,
+            ),
+          );
+          if (names.length === 0) break;
+          if (negated) excludedLabels.push(...names);
+          else labels.push(names);
+          continue;
+        }
+    }
+    text.push(token);
+  }
+  return {
+    text: text.join(" "),
+    filters: {
+      ...(labels.length === 0 ? {} : { labels: labels.slice(0, MAX_QUALIFIER_VALUES) }),
+      ...(excludedLabels.length === 0
+        ? {}
+        : { excludedLabels: excludedLabels.slice(0, MAX_QUALIFIER_VALUES) }),
+      ...(author === undefined ? {} : { author }),
+      ...(draft === undefined ? {} : { draft }),
+      ...(review === undefined ? {} : { review }),
+      ...(checks === undefined ? {} : { checks }),
+    },
+  };
 }
 
 /** Free-text filter over the fields a row actually shows, plus `#123` / `123`. */
-export function matchesPullRequestQuery(
-	entry: PullRequestListEntry,
-	query: string,
-): boolean {
-	const normalizedQuery = query.trim().toLowerCase();
-	if (normalizedQuery.length === 0) return true;
-	return `#${entry.number} ${entry.title} ${entry.repository} ${entry.headBranch} ${entry.author?.login ?? ""}`
-		.toLowerCase()
-		.includes(normalizedQuery);
+export function matchesPullRequestQuery(entry: PullRequestListEntry, query: string): boolean {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (normalizedQuery.length === 0) return true;
+  return `#${entry.number} ${entry.title} ${entry.repository} ${entry.headBranch} ${entry.author?.login ?? ""}`
+    .toLowerCase()
+    .includes(normalizedQuery);
 }
 
 /**
@@ -343,17 +323,17 @@ export function matchesPullRequestQuery(
  * and Authored tabs never waits on the network.
  */
 export function filterPullRequestsByInvolvement<Entry extends ScopedEntry>(
-	entries: ReadonlyArray<Entry>,
-	viewers: PullRequestViewers,
-	involvement: PullRequestInvolvement,
+  entries: ReadonlyArray<Entry>,
+  viewers: PullRequestViewers,
+  involvement: PullRequestInvolvement,
 ): ReadonlyArray<Entry> {
-	if (involvement === "reviewing") {
-		return entries.filter((entry) => entry.viewerReviewRequested);
-	}
-	if (involvement === "authored") {
-		return entries.filter((entry) => isAuthoredByViewer(entry, viewers));
-	}
-	return entries;
+  if (involvement === "reviewing") {
+    return entries.filter((entry) => entry.viewerReviewRequested);
+  }
+  if (involvement === "authored") {
+    return entries.filter((entry) => isAuthoredByViewer(entry, viewers));
+  }
+  return entries;
 }
 
 /**
@@ -370,20 +350,19 @@ export function filterPullRequestsByInvolvement<Entry extends ScopedEntry>(
  * hosts' own answer; both are narrowed where that knowledge already lives.
  */
 export function narrowPullRequestsToFilters<Entry extends PullRequestListEntry>(
-	entries: ReadonlyArray<Entry>,
-	filters: {
-		readonly state: PullRequestListState;
-		readonly projectId: string | undefined;
-		readonly host: string | undefined;
-	},
+  entries: ReadonlyArray<Entry>,
+  filters: {
+    readonly state: PullRequestListState;
+    readonly projectId: string | undefined;
+    readonly host: string | undefined;
+  },
 ): ReadonlyArray<Entry> {
-	return entries.filter(
-		(entry) =>
-			(filters.state === "all" || entry.state === filters.state) &&
-			(filters.projectId === undefined ||
-				entry.projectId === filters.projectId) &&
-			(filters.host === undefined || entry.host === filters.host),
-	);
+  return entries.filter(
+    (entry) =>
+      (filters.state === "all" || entry.state === filters.state) &&
+      (filters.projectId === undefined || entry.projectId === filters.projectId) &&
+      (filters.host === undefined || entry.host === filters.host),
+  );
 }
 
 /**
@@ -397,27 +376,24 @@ export function narrowPullRequestsToFilters<Entry extends PullRequestListEntry>(
  * than being compared as the literal name "me". Optional, and left unresolved without one.
  */
 export function matchesPullRequestFilters(
-	entry: PullRequestListEntry,
-	filters: PullRequestListFilters,
-	viewer?: string | null,
+  entry: PullRequestListEntry,
+  filters: PullRequestListFilters,
+  viewer?: string | null,
 ): boolean {
-	const labels = entry.labels.map((label) => label.name.trim().toLowerCase());
-	const holds = (label: string) => labels.includes(label.trim().toLowerCase());
-	return (
-		(filters.draft === undefined ||
-			entry.isDraft === (filters.draft === "only")) &&
-		(filters.review === undefined ||
-			(filters.review === "none"
-				? entry.reviewDecision === undefined
-				: entry.reviewDecision === filters.review)) &&
-		(filters.labels === undefined ||
-			filters.labels.every((group) => group.some(holds))) &&
-		(filters.excludedLabels === undefined ||
-			!filters.excludedLabels.some(holds)) &&
-		(filters.author === undefined ||
-			entry.author?.login.toLowerCase() ===
-				resolvePullRequestAuthorFilter(filters.author, viewer).toLowerCase())
-	);
+  const labels = entry.labels.map((label) => label.name.trim().toLowerCase());
+  const holds = (label: string) => labels.includes(label.trim().toLowerCase());
+  return (
+    (filters.draft === undefined || entry.isDraft === (filters.draft === "only")) &&
+    (filters.review === undefined ||
+      (filters.review === "none"
+        ? entry.reviewDecision === undefined
+        : entry.reviewDecision === filters.review)) &&
+    (filters.labels === undefined || filters.labels.every((group) => group.some(holds))) &&
+    (filters.excludedLabels === undefined || !filters.excludedLabels.some(holds)) &&
+    (filters.author === undefined ||
+      entry.author?.login.toLowerCase() ===
+        resolvePullRequestAuthorFilter(filters.author, viewer).toLowerCase())
+  );
 }
 
 /**
@@ -425,26 +401,26 @@ export function matchesPullRequestFilters(
  * inferred, because the listing has no review history.
  */
 export function groupPullRequestsByInvolvement<Entry extends ScopedEntry>(
-	entries: ReadonlyArray<Entry>,
-	viewers: PullRequestViewers,
+  entries: ReadonlyArray<Entry>,
+  viewers: PullRequestViewers,
 ): ReadonlyArray<PullRequestGroup<Entry>> {
-	const buckets: Record<PullRequestGroupKey, Entry[]> = {
-		reviewRequested: [],
-		authored: [],
-		others: [],
-	};
-	for (const entry of entries) {
-		if (isAuthoredByViewer(entry, viewers)) {
-			buckets.authored.push(entry);
-		} else if (entry.viewerReviewRequested) {
-			buckets.reviewRequested.push(entry);
-		} else {
-			buckets.others.push(entry);
-		}
-	}
-	return (["authored", "reviewRequested", "others"] as const)
-		.filter((key) => buckets[key].length > 0)
-		.map((key) => ({ key, label: GROUP_LABELS[key], entries: buckets[key] }));
+  const buckets: Record<PullRequestGroupKey, Entry[]> = {
+    reviewRequested: [],
+    authored: [],
+    others: [],
+  };
+  for (const entry of entries) {
+    if (isAuthoredByViewer(entry, viewers)) {
+      buckets.authored.push(entry);
+    } else if (entry.viewerReviewRequested) {
+      buckets.reviewRequested.push(entry);
+    } else {
+      buckets.others.push(entry);
+    }
+  }
+  return (["authored", "reviewRequested", "others"] as const)
+    .filter((key) => buckets[key].length > 0)
+    .map((key) => ({ key, label: GROUP_LABELS[key], entries: buckets[key] }));
 }
 
 /**
@@ -453,99 +429,94 @@ export function groupPullRequestsByInvolvement<Entry extends ScopedEntry>(
  * would otherwise contribute two rows under one key.
  */
 export function pullRequestEntryKey(entry: ScopedEntry): string {
-	const scope =
-		entry.environmentId === undefined ? "" : `${entry.environmentId}:`;
-	return `${scope}${entry.host}:${entry.repository}#${entry.number}`;
+  const scope = entry.environmentId === undefined ? "" : `${entry.environmentId}:`;
+  return `${scope}${entry.host}:${entry.repository}#${entry.number}`;
 }
 
 export interface PullRequestStatsTarget {
-	readonly environmentId: EnvironmentId;
-	readonly input: {
-		readonly refs: ReadonlyArray<{
-			readonly projectId: ProjectId;
-			readonly repository: string;
-			readonly number: number;
-		}>;
-	};
+  readonly environmentId: EnvironmentId;
+  readonly input: {
+    readonly refs: ReadonlyArray<{
+      readonly projectId: ProjectId;
+      readonly repository: string;
+      readonly number: number;
+    }>;
+  };
 }
 
 export interface PullRequestStatsBatch extends PullRequestStatsTarget {
-	readonly keys: ReadonlySet<string>;
+  readonly keys: ReadonlySet<string>;
 }
 
 export type PullRequestStatsPolicy = "visible" | "eager";
 
 export interface PullRequestStatsScope {
-	readonly key: string;
-	readonly policy: PullRequestStatsPolicy;
+  readonly key: string;
+  readonly policy: PullRequestStatsPolicy;
 }
 
 const MAX_PULL_REQUEST_STATS_REFS = 500;
 
 /** Excludes rows already covered by an active batch or the received-count cache. */
 export function pullRequestStatsKeysToRequest(
-	entriesByKey: ReadonlyMap<string, EnvironmentPullRequestEntry>,
-	enteredKeys: ReadonlySet<string>,
-	batches: ReadonlyArray<PullRequestStatsBatch>,
-	statsByRow: ReadonlyMap<string, unknown>,
+  entriesByKey: ReadonlyMap<string, EnvironmentPullRequestEntry>,
+  enteredKeys: ReadonlySet<string>,
+  batches: ReadonlyArray<PullRequestStatsBatch>,
+  statsByRow: ReadonlyMap<string, unknown>,
 ): ReadonlySet<string> {
-	const requested = new Set(batches.flatMap((batch) => [...batch.keys]));
-	return new Set(
-		[...enteredKeys].filter((key) => {
-			const entry = entriesByKey.get(key);
-			return (
-				entry !== undefined &&
-				entry.additions === 0 &&
-				entry.deletions === 0 &&
-				!requested.has(key) &&
-				!statsByRow.has(pullRequestDiffStatKey(entry))
-			);
-		}),
-	);
+  const requested = new Set(batches.flatMap((batch) => [...batch.keys]));
+  return new Set(
+    [...enteredKeys].filter((key) => {
+      const entry = entriesByKey.get(key);
+      return (
+        entry !== undefined &&
+        entry.additions === 0 &&
+        entry.deletions === 0 &&
+        !requested.has(key) &&
+        !statsByRow.has(pullRequestDiffStatKey(entry))
+      );
+    }),
+  );
 }
 
 /** Groups selected rows into bounded, immutable line-count reads per environment. */
 export function pullRequestStatsBatches(
-	entriesByKey: ReadonlyMap<string, EnvironmentPullRequestEntry>,
-	keys: ReadonlySet<string>,
+  entriesByKey: ReadonlyMap<string, EnvironmentPullRequestEntry>,
+  keys: ReadonlySet<string>,
 ): ReadonlyArray<PullRequestStatsBatch> {
-	const byEnvironment = new Map<
-		EnvironmentId,
-		Array<{
-			readonly key: string;
-			readonly ref: PullRequestStatsTarget["input"]["refs"][number];
-		}>
-	>();
-	for (const key of keys) {
-		const entry = entriesByKey.get(key);
-		if (entry === undefined) continue;
-		const rows = byEnvironment.get(entry.environmentId) ?? [];
-		rows.push({
-			key,
-			ref: {
-				projectId: entry.projectId,
-				repository: entry.repository,
-				number: entry.number,
-			},
-		});
-		byEnvironment.set(entry.environmentId, rows);
-	}
-	return [...byEnvironment].flatMap(([environmentId, rows]) => {
-		const batches: PullRequestStatsBatch[] = [];
-		for (
-			let index = 0;
-			index < rows.length;
-			index += MAX_PULL_REQUEST_STATS_REFS
-		) {
-			const batch = rows.slice(index, index + MAX_PULL_REQUEST_STATS_REFS);
-			batches.push({
-				environmentId,
-				input: { refs: batch.map((row) => row.ref) },
-				keys: new Set(batch.map((row) => row.key)),
-			});
-		}
-		return batches;
-	});
+  const byEnvironment = new Map<
+    EnvironmentId,
+    Array<{
+      readonly key: string;
+      readonly ref: PullRequestStatsTarget["input"]["refs"][number];
+    }>
+  >();
+  for (const key of keys) {
+    const entry = entriesByKey.get(key);
+    if (entry === undefined) continue;
+    const rows = byEnvironment.get(entry.environmentId) ?? [];
+    rows.push({
+      key,
+      ref: {
+        projectId: entry.projectId,
+        repository: entry.repository,
+        number: entry.number,
+      },
+    });
+    byEnvironment.set(entry.environmentId, rows);
+  }
+  return [...byEnvironment].flatMap(([environmentId, rows]) => {
+    const batches: PullRequestStatsBatch[] = [];
+    for (let index = 0; index < rows.length; index += MAX_PULL_REQUEST_STATS_REFS) {
+      const batch = rows.slice(index, index + MAX_PULL_REQUEST_STATS_REFS);
+      batches.push({
+        environmentId,
+        input: { refs: batch.map((row) => row.ref) },
+        keys: new Set(batch.map((row) => row.key)),
+      });
+    }
+    return batches;
+  });
 }
 
 /**
@@ -554,74 +525,65 @@ export function pullRequestStatsBatches(
  * refresh asks for the selected rows again.
  */
 export function pullRequestStatsRequestBatches({
-	entriesByKey,
-	candidateKeys,
-	policy,
-	activeBatches,
-	statsByRow,
-	refresh = false,
+  entriesByKey,
+  candidateKeys,
+  policy,
+  activeBatches,
+  statsByRow,
+  refresh = false,
 }: {
-	readonly entriesByKey: ReadonlyMap<string, EnvironmentPullRequestEntry>;
-	readonly candidateKeys: ReadonlySet<string>;
-	readonly policy: PullRequestStatsPolicy;
-	readonly activeBatches: ReadonlyArray<PullRequestStatsBatch>;
-	readonly statsByRow: ReadonlyMap<string, unknown>;
-	readonly refresh?: boolean;
+  readonly entriesByKey: ReadonlyMap<string, EnvironmentPullRequestEntry>;
+  readonly candidateKeys: ReadonlySet<string>;
+  readonly policy: PullRequestStatsPolicy;
+  readonly activeBatches: ReadonlyArray<PullRequestStatsBatch>;
+  readonly statsByRow: ReadonlyMap<string, unknown>;
+  readonly refresh?: boolean;
 }): ReadonlyArray<PullRequestStatsBatch> {
-	const requestedKeys =
-		policy === "eager" ? new Set(entriesByKey.keys()) : candidateKeys;
-	const keys = refresh
-		? requestedKeys
-		: pullRequestStatsKeysToRequest(
-				entriesByKey,
-				requestedKeys,
-				activeBatches,
-				statsByRow,
-			);
-	return pullRequestStatsBatches(entriesByKey, keys);
+  const requestedKeys = policy === "eager" ? new Set(entriesByKey.keys()) : candidateKeys;
+  const keys = refresh
+    ? requestedKeys
+    : pullRequestStatsKeysToRequest(entriesByKey, requestedKeys, activeBatches, statsByRow);
+  return pullRequestStatsBatches(entriesByKey, keys);
 }
 
 /** Ignores a refresh that finished after the list moved to another filter or stats policy. */
 export function pullRequestStatsRefreshBatches({
-	requestedScope,
-	currentScope,
-	entriesByKey,
-	candidateKeys,
-	statsByRow,
+  requestedScope,
+  currentScope,
+  entriesByKey,
+  candidateKeys,
+  statsByRow,
 }: {
-	readonly requestedScope: PullRequestStatsScope;
-	readonly currentScope: PullRequestStatsScope;
-	readonly entriesByKey: ReadonlyMap<string, EnvironmentPullRequestEntry>;
-	readonly candidateKeys: ReadonlySet<string>;
-	readonly statsByRow: ReadonlyMap<string, unknown>;
+  readonly requestedScope: PullRequestStatsScope;
+  readonly currentScope: PullRequestStatsScope;
+  readonly entriesByKey: ReadonlyMap<string, EnvironmentPullRequestEntry>;
+  readonly candidateKeys: ReadonlySet<string>;
+  readonly statsByRow: ReadonlyMap<string, unknown>;
 }): ReadonlyArray<PullRequestStatsBatch> | null {
-	if (
-		requestedScope.key !== currentScope.key ||
-		requestedScope.policy !== currentScope.policy
-	) {
-		return null;
-	}
-	return pullRequestStatsRequestBatches({
-		entriesByKey,
-		candidateKeys,
-		policy: requestedScope.policy,
-		activeBatches: [],
-		statsByRow,
-		refresh: true,
-	});
+  if (requestedScope.key !== currentScope.key || requestedScope.policy !== currentScope.policy) {
+    return null;
+  }
+  return pullRequestStatsRequestBatches({
+    entriesByKey,
+    candidateKeys,
+    policy: requestedScope.policy,
+    activeBatches: [],
+    statsByRow,
+    refresh: true,
+  });
 }
 
 /** Drops completed batches once every row in them has left the observer window. */
 export function retainVisiblePullRequestStatsBatches(
-	batches: ReadonlyArray<PullRequestStatsBatch>,
-	visibleKeys: ReadonlySet<string>,
+  batches: ReadonlyArray<PullRequestStatsBatch>,
+  visibleKeys: ReadonlySet<string>,
 ): ReadonlyArray<PullRequestStatsBatch> {
-	return batches.filter((batch) => {
-		for (const key of batch.keys) {
-			if (visibleKeys.has(key)) return true;
-		}
-		return false;
-	});
+  return batches.filter((batch) => {
+    for (const key of batch.keys) {
+      if (visibleKeys.has(key)) return true;
+    }
+    return false;
+  });
 }
 
 /**
@@ -632,57 +594,46 @@ export function retainVisiblePullRequestStatsBatches(
  * server-filtered reads, the feed fills "Others" in its own order, and a continuation can only
  * append — a row it carries that a partition already holds is dropped rather than moved.
  */
-export function partitionPullRequestsWithPriority<
-	Entry extends PullRequestListEntry,
->(
-	entries: ReadonlyArray<Entry>,
-	authored: ReadonlyArray<Entry>,
-	reviewRequested: ReadonlyArray<Entry>,
+export function partitionPullRequestsWithPriority<Entry extends PullRequestListEntry>(
+  entries: ReadonlyArray<Entry>,
+  authored: ReadonlyArray<Entry>,
+  reviewRequested: ReadonlyArray<Entry>,
 ): ReadonlyArray<PullRequestGroup<Entry>> {
-	const authoredByKey = new Map(
-		authored.map((entry) => [pullRequestEntryKey(entry), entry]),
-	);
-	// A row can be both authored and review-requested; authored wins, as the local grouping has it.
-	const reviewByKey = new Map(
-		reviewRequested.flatMap((entry) => {
-			const key = pullRequestEntryKey(entry);
-			return authoredByKey.has(key) ? [] : [[key, entry] as const];
-		}),
-	);
-	const others: Entry[] = [];
-	for (const entry of entries) {
-		const key = pullRequestEntryKey(entry);
-		// The feed's copy of a partitioned row is at least as fresh — it replaces in place.
-		if (authoredByKey.has(key)) {
-			authoredByKey.set(key, entry);
-		} else if (reviewByKey.has(key)) {
-			reviewByKey.set(key, entry);
-		} else {
-			others.push(entry);
-		}
-	}
-	const byRecency = (left: Entry, right: Entry) =>
-		right.updatedAt.localeCompare(left.updatedAt);
-	return (
-		[
-			{
-				key: "authored",
-				entries: [...authoredByKey.values()].toSorted(byRecency),
-			},
-			{
-				key: "reviewRequested",
-				entries: [...reviewByKey.values()].toSorted(byRecency),
-			},
-			{ key: "others", entries: others },
-		] as const
-	)
-		.filter((group) => group.entries.length > 0)
-		.map((group) => ({ ...group, label: GROUP_LABELS[group.key] }));
+  const authoredByKey = new Map(authored.map((entry) => [pullRequestEntryKey(entry), entry]));
+  // A row can be both authored and review-requested; authored wins, as the local grouping has it.
+  const reviewByKey = new Map(
+    reviewRequested.flatMap((entry) => {
+      const key = pullRequestEntryKey(entry);
+      return authoredByKey.has(key) ? [] : [[key, entry] as const];
+    }),
+  );
+  const others: Entry[] = [];
+  for (const entry of entries) {
+    const key = pullRequestEntryKey(entry);
+    // The feed's copy of a partitioned row is at least as fresh — it replaces in place.
+    if (authoredByKey.has(key)) {
+      authoredByKey.set(key, entry);
+    } else if (reviewByKey.has(key)) {
+      reviewByKey.set(key, entry);
+    } else {
+      others.push(entry);
+    }
+  }
+  const byRecency = (left: Entry, right: Entry) => right.updatedAt.localeCompare(left.updatedAt);
+  return (
+    [
+      { key: "authored", entries: [...authoredByKey.values()].toSorted(byRecency) },
+      { key: "reviewRequested", entries: [...reviewByKey.values()].toSorted(byRecency) },
+      { key: "others", entries: others },
+    ] as const
+  )
+    .filter((group) => group.entries.length > 0)
+    .map((group) => ({ ...group, label: GROUP_LABELS[group.key] }));
 }
 
 export type PullRequestDiffStats = ReadonlyMap<
-	string,
-	{ readonly additions: number; readonly deletions: number }
+  string,
+  { readonly additions: number; readonly deletions: number }
 >;
 
 /**
@@ -692,31 +643,31 @@ export type PullRequestDiffStats = ReadonlyMap<
  * keeps them until their replacements arrive.
  */
 export function mergePullRequestDiffStats(
-	previous: PullRequestDiffStats,
-	stats: ReadonlyArray<{
-		readonly environmentId: string;
-		readonly projectId: string;
-		readonly number: number;
-		readonly additions: number;
-		readonly deletions: number;
-	}>,
+  previous: PullRequestDiffStats,
+  stats: ReadonlyArray<{
+    readonly environmentId: string;
+    readonly projectId: string;
+    readonly number: number;
+    readonly additions: number;
+    readonly deletions: number;
+  }>,
 ): PullRequestDiffStats {
-	if (stats.length === 0) return previous;
-	const next = new Map(previous);
-	for (const stat of stats) {
-		next.set(pullRequestDiffStatKey(stat), {
-			additions: stat.additions,
-			deletions: stat.deletions,
-		});
-	}
-	return next;
+  if (stats.length === 0) return previous;
+  const next = new Map(previous);
+  for (const stat of stats) {
+    next.set(pullRequestDiffStatKey(stat), {
+      additions: stat.additions,
+      deletions: stat.deletions,
+    });
+  }
+  return next;
 }
 
 /** A project id only names a project within its own environment, so the key carries both. */
 export const pullRequestDiffStatKey = (row: {
-	readonly environmentId: string;
-	readonly projectId: string;
-	readonly number: number;
+  readonly environmentId: string;
+  readonly projectId: string;
+  readonly number: number;
 }) => `${row.environmentId} ${row.projectId} ${row.number}`;
 
 /**
@@ -727,19 +678,19 @@ export const pullRequestDiffStatKey = (row: {
  * a host names one account, and the same host reached from two machines is the same account.
  */
 export interface MergedPullRequestList {
-	/** Keyed `"<environmentId> <host>"`, so one host's two accounts stay two accounts. */
-	readonly viewers: PullRequestViewers;
-	readonly providers: PullRequestListResult["providers"];
-	readonly entries: ReadonlyArray<EnvironmentPullRequestEntry>;
-	readonly errors: ReadonlyArray<EnvironmentPullRequestError>;
-	readonly truncated: boolean;
-	readonly nextCursors: Readonly<Record<string, PullRequestListCursors>>;
-	/**
-	 * The environments with rows still on their hosts. Those with a cursor are continued from it;
-	 * the rest can only be reached by asking them for a longer page, and are named here so that
-	 * asking still happens once every other environment has run out of cursors.
-	 */
-	readonly truncatedEnvironments: ReadonlyArray<string>;
+  /** Keyed `"<environmentId> <host>"`, so one host's two accounts stay two accounts. */
+  readonly viewers: PullRequestViewers;
+  readonly providers: PullRequestListResult["providers"];
+  readonly entries: ReadonlyArray<EnvironmentPullRequestEntry>;
+  readonly errors: ReadonlyArray<EnvironmentPullRequestError>;
+  readonly truncated: boolean;
+  readonly nextCursors: Readonly<Record<string, PullRequestListCursors>>;
+  /**
+   * The environments with rows still on their hosts. Those with a cursor are continued from it;
+   * the rest can only be reached by asking them for a longer page, and are named here so that
+   * asking still happens once every other environment has run out of cursors.
+   */
+  readonly truncatedEnvironments: ReadonlyArray<string>;
 }
 
 /**
@@ -748,58 +699,51 @@ export interface MergedPullRequestList {
  * every one of them did — a host answering unnarrowed anywhere still needs the local pass.
  */
 export function mergePullRequestLists(
-	answers: ReadonlyArray<readonly [EnvironmentId, PullRequestListResult]>,
+  answers: ReadonlyArray<readonly [EnvironmentId, PullRequestListResult]>,
 ): MergedPullRequestList | null {
-	if (answers.length === 0) return null;
-	const viewers: Record<string, string> = {};
-	const truncatedEnvironments: string[] = [];
-	const providers = new Map<
-		string,
-		PullRequestListResult["providers"][number]
-	>();
-	const entries: EnvironmentPullRequestEntry[] = [];
-	const errors: EnvironmentPullRequestError[] = [];
-	const nextCursors: Record<string, PullRequestListCursors> = {};
-	let truncated = false;
-	for (const [environmentId, answer] of answers) {
-		for (const [host, login] of Object.entries(answer.viewers)) {
-			viewers[`${environmentId} ${host}`] = login;
-		}
-		for (const provider of answer.providers) {
-			const held = providers.get(provider.host);
-			providers.set(
-				provider.host,
-				held === undefined
-					? provider
-					: {
-							...(held.configured ? held : provider),
-							projectCount: held.projectCount + provider.projectCount,
-							searchesOnHost: held.searchesOnHost && provider.searchesOnHost,
-							configured: held.configured || provider.configured,
-						},
-			);
-		}
-		entries.push(
-			...answer.entries.map((entry) => ({ ...entry, environmentId })),
-		);
-		errors.push(...answer.errors.map((error) => ({ ...error, environmentId })));
-		truncated ||= answer.truncated;
-		if (answer.truncated) truncatedEnvironments.push(environmentId);
-		if (Object.keys(answer.nextCursors).length > 0) {
-			nextCursors[environmentId] = answer.nextCursors;
-		}
-	}
-	return {
-		viewers,
-		providers: [...providers.values()],
-		entries: entries.toSorted((left, right) =>
-			right.updatedAt.localeCompare(left.updatedAt),
-		),
-		errors,
-		truncated,
-		nextCursors,
-		truncatedEnvironments,
-	};
+  if (answers.length === 0) return null;
+  const viewers: Record<string, string> = {};
+  const truncatedEnvironments: string[] = [];
+  const providers = new Map<string, PullRequestListResult["providers"][number]>();
+  const entries: EnvironmentPullRequestEntry[] = [];
+  const errors: EnvironmentPullRequestError[] = [];
+  const nextCursors: Record<string, PullRequestListCursors> = {};
+  let truncated = false;
+  for (const [environmentId, answer] of answers) {
+    for (const [host, login] of Object.entries(answer.viewers)) {
+      viewers[`${environmentId} ${host}`] = login;
+    }
+    for (const provider of answer.providers) {
+      const held = providers.get(provider.host);
+      providers.set(
+        provider.host,
+        held === undefined
+          ? provider
+          : {
+              ...(held.configured ? held : provider),
+              projectCount: held.projectCount + provider.projectCount,
+              searchesOnHost: held.searchesOnHost && provider.searchesOnHost,
+              configured: held.configured || provider.configured,
+            },
+      );
+    }
+    entries.push(...answer.entries.map((entry) => ({ ...entry, environmentId })));
+    errors.push(...answer.errors.map((error) => ({ ...error, environmentId })));
+    truncated ||= answer.truncated;
+    if (answer.truncated) truncatedEnvironments.push(environmentId);
+    if (Object.keys(answer.nextCursors).length > 0) {
+      nextCursors[environmentId] = answer.nextCursors;
+    }
+  }
+  return {
+    viewers,
+    providers: [...providers.values()],
+    entries: entries.toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+    errors,
+    truncated,
+    nextCursors,
+    truncatedEnvironments,
+  };
 }
 
 /** One page is what the list itself starts with, and all a cold start needs to look warm. */
@@ -812,15 +756,11 @@ type SnapshotStorage = Pick<Storage, "getItem" | "setItem">;
  * changes which rows belong on the page, and a snapshot taken from a different set would
  * hydrate rows no longer being read.
  */
-export const pullRequestEnvironmentSetKey = (
-	environmentIds: ReadonlyArray<string>,
-): string =>
-	[...environmentIds]
-		.sort((left, right) => left.localeCompare(right))
-		.join(",");
+export const pullRequestEnvironmentSetKey = (environmentIds: ReadonlyArray<string>): string =>
+  [...environmentIds].sort((left, right) => left.localeCompare(right)).join(",");
 
 const snapshotStorageKey = (environmentSetKey: string) =>
-	`t3.pullRequests.list:${environmentSetKey}`;
+  `t3.pullRequests.list:${environmentSetKey}`;
 
 /**
  * The priority groups' own server-filtered answers, carried with the feed. An authored pull
@@ -828,14 +768,14 @@ const snapshotStorageKey = (environmentSetKey: string) =>
  * cold-starts into an Authored group missing exactly the rows that made it worth having.
  */
 export interface PullRequestPartitionsSnapshot {
-	readonly authored: ReadonlyArray<EnvironmentPullRequestEntry>;
-	readonly reviewing: ReadonlyArray<EnvironmentPullRequestEntry>;
+  readonly authored: ReadonlyArray<EnvironmentPullRequestEntry>;
+  readonly reviewing: ReadonlyArray<EnvironmentPullRequestEntry>;
 }
 
 export interface PullRequestListSnapshot {
-	readonly scope: string;
-	readonly data: MergedPullRequestList;
-	readonly partitions?: PullRequestPartitionsSnapshot | undefined;
+  readonly scope: string;
+  readonly data: MergedPullRequestList;
+  readonly partitions?: PullRequestPartitionsSnapshot | undefined;
 }
 
 /**
@@ -845,37 +785,34 @@ export interface PullRequestListSnapshot {
  * schema change is rejected the same way, which is exactly the cold start it would have broken.
  */
 const EnvironmentPullRequestEntrySchema = Schema.Struct({
-	...PullRequestListEntry.fields,
-	environmentId: EnvironmentId,
+  ...PullRequestListEntry.fields,
+  environmentId: EnvironmentId,
 });
 
 const EnvironmentPullRequestErrorSchema = Schema.Struct({
-	...PullRequestListProjectError.fields,
-	environmentId: EnvironmentId,
+  ...PullRequestListProjectError.fields,
+  environmentId: EnvironmentId,
 });
 
 const decodeSnapshot = Schema.decodeUnknownOption(
-	Schema.Struct({
-		scope: Schema.String,
-		data: Schema.Struct({
-			...PullRequestListResult.fields,
-			entries: Schema.Array(EnvironmentPullRequestEntrySchema),
-			errors: Schema.Array(EnvironmentPullRequestErrorSchema),
-			// Per environment here, unlike the wire shape, which is per repository within one.
-			nextCursors: Schema.Record(
-				Schema.String,
-				PullRequestListResult.fields.nextCursors,
-			),
-			truncatedEnvironments: Schema.Array(Schema.String),
-		}),
-		// Optional so a snapshot written before the partitions existed still hydrates the feed.
-		partitions: Schema.optional(
-			Schema.Struct({
-				authored: Schema.Array(EnvironmentPullRequestEntrySchema),
-				reviewing: Schema.Array(EnvironmentPullRequestEntrySchema),
-			}),
-		),
-	}),
+  Schema.Struct({
+    scope: Schema.String,
+    data: Schema.Struct({
+      ...PullRequestListResult.fields,
+      entries: Schema.Array(EnvironmentPullRequestEntrySchema),
+      errors: Schema.Array(EnvironmentPullRequestErrorSchema),
+      // Per environment here, unlike the wire shape, which is per repository within one.
+      nextCursors: Schema.Record(Schema.String, PullRequestListResult.fields.nextCursors),
+      truncatedEnvironments: Schema.Array(Schema.String),
+    }),
+    // Optional so a snapshot written before the partitions existed still hydrates the feed.
+    partitions: Schema.optional(
+      Schema.Struct({
+        authored: Schema.Array(EnvironmentPullRequestEntrySchema),
+        reviewing: Schema.Array(EnvironmentPullRequestEntrySchema),
+      }),
+    ),
+  }),
 );
 
 /**
@@ -886,58 +823,52 @@ const decodeSnapshot = Schema.decodeUnknownOption(
  * never cached, and yesterday's is not this morning's.
  */
 export function readPullRequestListSnapshot(
-	storage: SnapshotStorage | undefined,
-	environmentSetKey: string,
+  storage: SnapshotStorage | undefined,
+  environmentSetKey: string,
 ): PullRequestListSnapshot | null {
-	try {
-		const raw = storage?.getItem(snapshotStorageKey(environmentSetKey));
-		if (!raw) return null;
-		const decoded = decodeSnapshot(JSON.parse(raw));
-		return decoded._tag === "Some" ? decoded.value : null;
-	} catch {
-		return null;
-	}
+  try {
+    const raw = storage?.getItem(snapshotStorageKey(environmentSetKey));
+    if (!raw) return null;
+    const decoded = decodeSnapshot(JSON.parse(raw));
+    return decoded._tag === "Some" ? decoded.value : null;
+  } catch {
+    return null;
+  }
 }
 
 export function writePullRequestListSnapshot(
-	storage: SnapshotStorage | undefined,
-	environmentSetKey: string,
-	snapshot: PullRequestListSnapshot,
+  storage: SnapshotStorage | undefined,
+  environmentSetKey: string,
+  snapshot: PullRequestListSnapshot,
 ): void {
-	try {
-		storage?.setItem(
-			snapshotStorageKey(environmentSetKey),
-			JSON.stringify({
-				scope: snapshot.scope,
-				data: {
-					...snapshot.data,
-					entries: snapshot.data.entries.slice(0, SNAPSHOT_MAX_ENTRIES),
-					// A failure is never cached and yesterday's is not this morning's; a cursor names a
-					// position in a listing the host has long since forgotten.
-					errors: [],
-					nextCursors: {},
-					// Where a listing stopped is as stale as the cursor that named it.
-					truncatedEnvironments: [],
-				},
-				...(snapshot.partitions === undefined
-					? {}
-					: {
-							partitions: {
-								authored: snapshot.partitions.authored.slice(
-									0,
-									SNAPSHOT_MAX_ENTRIES,
-								),
-								reviewing: snapshot.partitions.reviewing.slice(
-									0,
-									SNAPSHOT_MAX_ENTRIES,
-								),
-							},
-						}),
-			}),
-		);
-	} catch {
-		// Storage can be full or denied; the snapshot is a convenience, not a record.
-	}
+  try {
+    storage?.setItem(
+      snapshotStorageKey(environmentSetKey),
+      JSON.stringify({
+        scope: snapshot.scope,
+        data: {
+          ...snapshot.data,
+          entries: snapshot.data.entries.slice(0, SNAPSHOT_MAX_ENTRIES),
+          // A failure is never cached and yesterday's is not this morning's; a cursor names a
+          // position in a listing the host has long since forgotten.
+          errors: [],
+          nextCursors: {},
+          // Where a listing stopped is as stale as the cursor that named it.
+          truncatedEnvironments: [],
+        },
+        ...(snapshot.partitions === undefined
+          ? {}
+          : {
+              partitions: {
+                authored: snapshot.partitions.authored.slice(0, SNAPSHOT_MAX_ENTRIES),
+                reviewing: snapshot.partitions.reviewing.slice(0, SNAPSHOT_MAX_ENTRIES),
+              },
+            }),
+      }),
+    );
+  } catch {
+    // Storage can be full or denied; the snapshot is a convenience, not a record.
+  }
 }
 
 /**
@@ -951,14 +882,12 @@ export function writePullRequestListSnapshot(
  * project's pull requests for a moment before narrowing back down.
  */
 export function resolveProjectScope<Id extends string>(
-	projectId: Id | undefined,
-	projects: ReadonlyArray<{ readonly id: string }>,
-	projectsKnown: boolean,
+  projectId: Id | undefined,
+  projects: ReadonlyArray<{ readonly id: string }>,
+  projectsKnown: boolean,
 ): Id | undefined {
-	if (projectId === undefined || !projectsKnown) return projectId;
-	return projects.some((project) => project.id === projectId)
-		? projectId
-		: undefined;
+  if (projectId === undefined || !projectsKnown) return projectId;
+  return projects.some((project) => project.id === projectId) ? projectId : undefined;
 }
 
 /**
@@ -968,18 +897,18 @@ export function resolveProjectScope<Id extends string>(
  * id — narrowing to the wrong machine reads an empty list nobody asked for.
  */
 export function findScopedProject<
-	Project extends { readonly id: string; readonly environmentId: string },
+  Project extends { readonly id: string; readonly environmentId: string },
 >(
-	projects: ReadonlyArray<Project>,
-	environmentId: string | null | undefined,
-	projectId: string | undefined,
+  projects: ReadonlyArray<Project>,
+  environmentId: string | null | undefined,
+  projectId: string | undefined,
 ): Project | undefined {
-	if (projectId === undefined) return undefined;
-	const matches = projects.filter((project) => project.id === projectId);
-	if (environmentId === null || environmentId === undefined) {
-		return matches.length === 1 ? matches[0] : undefined;
-	}
-	return matches.find((project) => project.environmentId === environmentId);
+  if (projectId === undefined) return undefined;
+  const matches = projects.filter((project) => project.id === projectId);
+  if (environmentId === null || environmentId === undefined) {
+    return matches.length === 1 ? matches[0] : undefined;
+  }
+  return matches.find((project) => project.environmentId === environmentId);
 }
 
 /**
@@ -991,26 +920,24 @@ export function findScopedProject<
  * project's rows rather than an honest empty answer.
  */
 export function resolveQueryEnvironmentIds<Id extends string>(
-	environmentIds: ReadonlyArray<Id>,
-	projects: ReadonlyArray<{ readonly id: string; readonly environmentId: Id }>,
-	scopedProject: { readonly environmentId: Id } | undefined,
-	scopedProjectId: string | undefined,
-	projectsKnown: boolean,
+  environmentIds: ReadonlyArray<Id>,
+  projects: ReadonlyArray<{ readonly id: string; readonly environmentId: Id }>,
+  scopedProject: { readonly environmentId: Id } | undefined,
+  scopedProjectId: string | undefined,
+  projectsKnown: boolean,
 ): ReadonlyArray<Id> {
-	if (scopedProject !== undefined) {
-		return environmentIds.filter(
-			(environmentId) => environmentId === scopedProject.environmentId,
-		);
-	}
-	// Before the servers have said what they hold, an id nothing matches is an id nothing has been
-	// asked about yet — reading none of them would show an empty page for a project that is there.
-	if (scopedProjectId === undefined || !projectsKnown) return environmentIds;
-	const holders = new Set(
-		projects
-			.filter((project) => project.id === scopedProjectId)
-			.map((project) => project.environmentId),
-	);
-	return environmentIds.filter((environmentId) => holders.has(environmentId));
+  if (scopedProject !== undefined) {
+    return environmentIds.filter((environmentId) => environmentId === scopedProject.environmentId);
+  }
+  // Before the servers have said what they hold, an id nothing matches is an id nothing has been
+  // asked about yet — reading none of them would show an empty page for a project that is there.
+  if (scopedProjectId === undefined || !projectsKnown) return environmentIds;
+  const holders = new Set(
+    projects
+      .filter((project) => project.id === scopedProjectId)
+      .map((project) => project.environmentId),
+  );
+  return environmentIds.filter((environmentId) => holders.has(environmentId));
 }
 
 /**
@@ -1022,14 +949,12 @@ export function resolveQueryEnvironmentIds<Id extends string>(
  * lets a link to a server since removed still resolve by project id alone.
  */
 export function resolveSelectedEnvironmentId<Id extends string>(
-	namedEnvironmentId: Id | undefined,
-	knownEnvironmentIds: ReadonlySet<Id>,
-	fallbackEnvironmentId: Id | null,
+  namedEnvironmentId: Id | undefined,
+  knownEnvironmentIds: ReadonlySet<Id>,
+  fallbackEnvironmentId: Id | null,
 ): Id | null {
-	if (namedEnvironmentId === undefined) return fallbackEnvironmentId;
-	return knownEnvironmentIds.has(namedEnvironmentId)
-		? namedEnvironmentId
-		: fallbackEnvironmentId;
+  if (namedEnvironmentId === undefined) return fallbackEnvironmentId;
+  return knownEnvironmentIds.has(namedEnvironmentId) ? namedEnvironmentId : fallbackEnvironmentId;
 }
 
 /**
@@ -1044,29 +969,25 @@ export function resolveSelectedEnvironmentId<Id extends string>(
  * The scale is deliberately coarse. It sorts rows into "this is the one", "this mentions it" and
  * "the host says so", which is as fine a judgement as the row's own fields support.
  */
-export function scorePullRequestMatch(
-	entry: PullRequestListEntry,
-	query: string,
-): number {
-	const needle = query.trim().toLowerCase();
-	if (needle.length === 0) return 0;
-	const number = needle.replace(/^#/u, "");
-	// Asking for a number is asking for one pull request, and it is the answer or it is not.
-	if (/^\d+$/u.test(number)) return String(entry.number) === number ? 100 : 0;
+export function scorePullRequestMatch(entry: PullRequestListEntry, query: string): number {
+  const needle = query.trim().toLowerCase();
+  if (needle.length === 0) return 0;
+  const number = needle.replace(/^#/u, "");
+  // Asking for a number is asking for one pull request, and it is the answer or it is not.
+  if (/^\d+$/u.test(number)) return String(entry.number) === number ? 100 : 0;
 
-	const title = entry.title.toLowerCase();
-	const terms = needle.split(/\s+/u).filter((term) => term.length > 0);
-	if (title === needle) return 90;
-	if (title.includes(needle)) return 80;
-	// Every word, in any order: "wizard welcome" is still about the welcome wizard.
-	if (terms.length > 1 && terms.every((term) => title.includes(term)))
-		return 70;
-	if (entry.headBranch.toLowerCase().includes(needle)) return 60;
-	if ((entry.author?.login ?? "").toLowerCase().includes(needle)) return 50;
-	if (entry.repository.toLowerCase().includes(needle)) return 40;
-	if (terms.some((term) => title.includes(term))) return 30;
-	// The host matched something this row does not show — a description, a comment, a commit.
-	return 10;
+  const title = entry.title.toLowerCase();
+  const terms = needle.split(/\s+/u).filter((term) => term.length > 0);
+  if (title === needle) return 90;
+  if (title.includes(needle)) return 80;
+  // Every word, in any order: "wizard welcome" is still about the welcome wizard.
+  if (terms.length > 1 && terms.every((term) => title.includes(term))) return 70;
+  if (entry.headBranch.toLowerCase().includes(needle)) return 60;
+  if ((entry.author?.login ?? "").toLowerCase().includes(needle)) return 50;
+  if (entry.repository.toLowerCase().includes(needle)) return 40;
+  if (terms.some((term) => title.includes(term))) return 30;
+  // The host matched something this row does not show — a description, a comment, a commit.
+  return 10;
 }
 
 /**
@@ -1074,17 +995,14 @@ export function scorePullRequestMatch(
  * among equals. Without a search, preserve the host order for the caller's browse-time ranking.
  */
 export function rankPullRequestMatches<Entry extends PullRequestListEntry>(
-	entries: ReadonlyArray<Entry>,
-	query: string,
+  entries: ReadonlyArray<Entry>,
+  query: string,
 ): ReadonlyArray<Entry> {
-	if (query.trim().length === 0) return entries;
-	return entries.toSorted((left, right) => {
-		const byScore =
-			scorePullRequestMatch(right, query) - scorePullRequestMatch(left, query);
-		return byScore !== 0
-			? byScore
-			: right.updatedAt.localeCompare(left.updatedAt);
-	});
+  if (query.trim().length === 0) return entries;
+  return entries.toSorted((left, right) => {
+    const byScore = scorePullRequestMatch(right, query) - scorePullRequestMatch(left, query);
+    return byScore !== 0 ? byScore : right.updatedAt.localeCompare(left.updatedAt);
+  });
 }
 
 /**
@@ -1095,83 +1013,64 @@ export function rankPullRequestMatches<Entry extends PullRequestListEntry>(
  * bottom. Within each tier, smaller measured diffs come first, then unknown sizes. Recency
  * breaks ties between equally sized diffs.
  */
-export function rankPullRequestsByMergeReadiness<
-	Entry extends PullRequestListEntry,
->(
-	entries: ReadonlyArray<Entry>,
-	hasMeasuredSize: (entry: Entry) => boolean = (entry) =>
-		entry.additions + entry.deletions > 0,
+export function rankPullRequestsByMergeReadiness<Entry extends PullRequestListEntry>(
+  entries: ReadonlyArray<Entry>,
+  hasMeasuredSize: (entry: Entry) => boolean = (entry) => entry.additions + entry.deletions > 0,
 ): ReadonlyArray<Entry> {
-	const tier = (entry: Entry) => {
-		if (entry.mergeability === "conflicting") return 4;
-		if (entry.state !== "open") return 3;
-		if (entry.isDraft) return 2;
-		if (entry.checksState === "passing" && entry.reviewDecision === "approved")
-			return 0;
-		if (entry.checksState === "passing") return 1;
-		return 2;
-	};
-	return entries.toSorted((left, right) => {
-		const byTier = tier(left) - tier(right);
-		if (byTier !== 0) return byTier;
-		const measured =
-			Number(hasMeasuredSize(right)) - Number(hasMeasuredSize(left));
-		const sized =
-			left.additions + left.deletions - (right.additions + right.deletions);
-		return measured || sized || right.updatedAt.localeCompare(left.updatedAt);
-	});
+  const tier = (entry: Entry) => {
+    if (entry.mergeability === "conflicting") return 4;
+    if (entry.state !== "open") return 3;
+    if (entry.isDraft) return 2;
+    if (entry.checksState === "passing" && entry.reviewDecision === "approved") return 0;
+    if (entry.checksState === "passing") return 1;
+    return 2;
+  };
+  return entries.toSorted((left, right) => {
+    const byTier = tier(left) - tier(right);
+    if (byTier !== 0) return byTier;
+    const measured = Number(hasMeasuredSize(right)) - Number(hasMeasuredSize(left));
+    const sized = left.additions + left.deletions - (right.additions + right.deletions);
+    return measured || sized || right.updatedAt.localeCompare(left.updatedAt);
+  });
 }
 
 /** Keeps authored work first while applying the selected ordering inside every involvement group. */
 export function sortPullRequestGroups<Entry extends PullRequestListEntry>(
-	groups: ReadonlyArray<PullRequestGroup<Entry>>,
-	sort: PullRequestListSort,
-	searchText: string,
-	hasMeasuredSize: (entry: Entry) => boolean = (entry) =>
-		entry.additions + entry.deletions > 0,
+  groups: ReadonlyArray<PullRequestGroup<Entry>>,
+  sort: PullRequestListSort,
+  searchText: string,
+  hasMeasuredSize: (entry: Entry) => boolean = (entry) => entry.additions + entry.deletions > 0,
 ): ReadonlyArray<PullRequestGroup<Entry>> {
-	const sortWithinGroups = (
-		rank: (entries: ReadonlyArray<Entry>) => ReadonlyArray<Entry>,
-	) => groups.map((group) => ({ ...group, entries: rank(group.entries) }));
+  const sortWithinGroups = (rank: (entries: ReadonlyArray<Entry>) => ReadonlyArray<Entry>) =>
+    groups.map((group) => ({ ...group, entries: rank(group.entries) }));
 
-	if (sort === "ready") {
-		return searchText.trim().length === 0
-			? sortWithinGroups((entries) =>
-					rankPullRequestsByMergeReadiness(entries, hasMeasuredSize),
-				)
-			: groups;
-	}
-	if (sort === "updated") return groups;
+  if (sort === "ready") {
+    return searchText.trim().length === 0
+      ? sortWithinGroups((entries) => rankPullRequestsByMergeReadiness(entries, hasMeasuredSize))
+      : groups;
+  }
+  if (sort === "updated") return groups;
 
-	const timestamp = (entry: Entry) =>
-		toSortableTimestamp(entry.updatedAt) ??
-		toSortableTimestamp(entry.createdAt) ??
-		0;
-	return sortWithinGroups((entries) =>
-		entries.toSorted((left, right) => {
-			if (sort === "newest" || sort === "oldest") {
-				const leftCreated = toSortableTimestamp(left.createdAt);
-				const rightCreated = toSortableTimestamp(right.createdAt);
-				const measured =
-					Number(rightCreated !== null) - Number(leftCreated !== null);
-				const dated = (leftCreated ?? 0) - (rightCreated ?? 0);
-				return (
-					measured ||
-					(sort === "newest" ? -dated : dated) ||
-					timestamp(right) - timestamp(left)
-				);
-			}
-			const measured =
-				Number(hasMeasuredSize(right)) - Number(hasMeasuredSize(left));
-			const sized =
-				left.additions + left.deletions - (right.additions + right.deletions);
-			return (
-				measured ||
-				(sort === "largest" ? -sized : sized) ||
-				timestamp(right) - timestamp(left)
-			);
-		}),
-	);
+  const timestamp = (entry: Entry) =>
+    toSortableTimestamp(entry.updatedAt) ?? toSortableTimestamp(entry.createdAt) ?? 0;
+  return sortWithinGroups((entries) =>
+    entries.toSorted((left, right) => {
+      if (sort === "newest" || sort === "oldest") {
+        const leftCreated = toSortableTimestamp(left.createdAt);
+        const rightCreated = toSortableTimestamp(right.createdAt);
+        const measured = Number(rightCreated !== null) - Number(leftCreated !== null);
+        const dated = (leftCreated ?? 0) - (rightCreated ?? 0);
+        return (
+          measured || (sort === "newest" ? -dated : dated) || timestamp(right) - timestamp(left)
+        );
+      }
+      const measured = Number(hasMeasuredSize(right)) - Number(hasMeasuredSize(left));
+      const sized = left.additions + left.deletions - (right.additions + right.deletions);
+      return (
+        measured || (sort === "largest" ? -sized : sized) || timestamp(right) - timestamp(left)
+      );
+    }),
+  );
 }
 
 /**
@@ -1180,15 +1079,12 @@ export function sortPullRequestGroups<Entry extends PullRequestListEntry>(
  * draws perfectly well without them in the meantime.
  */
 export function withDiffStat<
-	Entry extends PullRequestListEntry & { readonly environmentId: string },
+  Entry extends PullRequestListEntry & { readonly environmentId: string },
 >(
-	entry: Entry,
-	statsByRow: ReadonlyMap<
-		string,
-		{ readonly additions: number; readonly deletions: number }
-	>,
+  entry: Entry,
+  statsByRow: ReadonlyMap<string, { readonly additions: number; readonly deletions: number }>,
 ): Entry {
-	if (entry.additions !== 0 || entry.deletions !== 0) return entry;
-	const stat = statsByRow.get(pullRequestDiffStatKey(entry));
-	return stat === undefined ? entry : { ...entry, ...stat };
+  if (entry.additions !== 0 || entry.deletions !== 0) return entry;
+  const stat = statsByRow.get(pullRequestDiffStatKey(entry));
+  return stat === undefined ? entry : { ...entry, ...stat };
 }

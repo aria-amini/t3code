@@ -1,19 +1,19 @@
 export function resolveReviewAvailability(input: {
-	readonly hasEnvironmentPresentation: boolean;
-	readonly isEnvironmentConnected: boolean;
-	readonly hasCachedSelectedDiff: boolean;
-	readonly hasAnyCachedDiff: boolean;
+  readonly hasEnvironmentPresentation: boolean;
+  readonly isEnvironmentConnected: boolean;
+  readonly hasCachedSelectedDiff: boolean;
+  readonly hasAnyCachedDiff: boolean;
 }): {
-	readonly showConnectionNotice: boolean;
-	readonly showSectionToolbar: boolean;
+  readonly showConnectionNotice: boolean;
+  readonly showSectionToolbar: boolean;
 } {
-	const showConnectionNotice =
-		input.hasEnvironmentPresentation &&
-		!input.isEnvironmentConnected &&
-		!input.hasCachedSelectedDiff;
+  const showConnectionNotice =
+    input.hasEnvironmentPresentation &&
+    !input.isEnvironmentConnected &&
+    !input.hasCachedSelectedDiff;
 
-	return {
-		showConnectionNotice,
-		showSectionToolbar: !showConnectionNotice || input.hasAnyCachedDiff,
-	};
+  return {
+    showConnectionNotice,
+    showSectionToolbar: !showConnectionNotice || input.hasAnyCachedDiff,
+  };
 }

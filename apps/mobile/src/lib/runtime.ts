@@ -9,48 +9,44 @@ import { managedRelayClientLayer } from "../features/cloud/managedRelayLayer";
 import { resolveCloudPublicConfig } from "../features/cloud/publicConfig";
 import { tracingLayer } from "../features/observability/tracing";
 import * as Persistence from "../persistence/layer";
-import {
-	disposeOnFoundationReplace,
-	type FoundationHotModule,
-} from "./foundation-fast-refresh";
+import { disposeOnFoundationReplace, type FoundationHotModule } from "./foundation-fast-refresh";
 
 declare const module: { readonly hot?: FoundationHotModule } | undefined;
 
 function configuredRelayUrl(): string {
-	return resolveCloudPublicConfig().relay.url ?? "http://relay.invalid";
+  return resolveCloudPublicConfig().relay.url ?? "http://relay.invalid";
 }
 
 const httpClientLayer = remoteHttpClientLayer(fetch);
 
 type RuntimeLayerSource =
-	| ReturnType<typeof managedRelayClientLayer>
-	| typeof Socket.layerWebSocketConstructorGlobal
-	| typeof cryptoLayer
-	| typeof httpClientLayer
-	| typeof Persistence.layer
-	| typeof tracingLayer;
+  | ReturnType<typeof managedRelayClientLayer>
+  | typeof Socket.layerWebSocketConstructorGlobal
+  | typeof cryptoLayer
+  | typeof httpClientLayer
+  | typeof Persistence.layer
+  | typeof tracingLayer;
 
 const runtimeLayer = Layer.merge(
-	managedRelayClientLayer(configuredRelayUrl()),
-	Socket.layerWebSocketConstructorGlobal,
+  managedRelayClientLayer(configuredRelayUrl()),
+  Socket.layerWebSocketConstructorGlobal,
 ).pipe(
-	Layer.provideMerge(cryptoLayer),
-	Layer.provideMerge(httpClientLayer),
-	Layer.provideMerge(tracingLayer.pipe(Layer.provide(httpClientLayer))),
-	Layer.provideMerge(Persistence.layer),
+  Layer.provideMerge(cryptoLayer),
+  Layer.provideMerge(httpClientLayer),
+  Layer.provideMerge(tracingLayer.pipe(Layer.provide(httpClientLayer))),
+  Layer.provideMerge(Persistence.layer),
 );
 
 export const runtime: ManagedRuntime.ManagedRuntime<
-	Layer.Success<RuntimeLayerSource>,
-	Layer.Error<RuntimeLayerSource>
+  Layer.Success<RuntimeLayerSource>,
+  Layer.Error<RuntimeLayerSource>
 > = ManagedRuntime.make(runtimeLayer);
 
 export const runtimeContextLayer: Layer.Layer<
-	Layer.Success<RuntimeLayerSource>,
-	Layer.Error<RuntimeLayerSource>
+  Layer.Success<RuntimeLayerSource>,
+  Layer.Error<RuntimeLayerSource>
 > = Layer.effectContext(runtime.contextEffect);
 
-disposeOnFoundationReplace(
-	typeof module === "undefined" ? undefined : module.hot,
-	() => runtime.dispose(),
+disposeOnFoundationReplace(typeof module === "undefined" ? undefined : module.hot, () =>
+  runtime.dispose(),
 );

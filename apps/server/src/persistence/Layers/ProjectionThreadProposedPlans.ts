@@ -6,21 +6,21 @@ import * as SqlSchema from "effect/unstable/sql/SqlSchema";
 
 import { toPersistenceSqlError } from "../Errors.ts";
 import {
-	DeleteProjectionThreadProposedPlansInput,
-	HasActionableProjectionThreadProposedPlanInput,
-	GetProjectionThreadProposedPlanInput,
-	ListProjectionThreadProposedPlansInput,
-	ProjectionThreadProposedPlan,
-	ProjectionThreadProposedPlanRepository,
-	type ProjectionThreadProposedPlanRepositoryShape,
+  DeleteProjectionThreadProposedPlansInput,
+  HasActionableProjectionThreadProposedPlanInput,
+  GetProjectionThreadProposedPlanInput,
+  ListProjectionThreadProposedPlansInput,
+  ProjectionThreadProposedPlan,
+  ProjectionThreadProposedPlanRepository,
+  type ProjectionThreadProposedPlanRepositoryShape,
 } from "../Services/ProjectionThreadProposedPlans.ts";
 
 const makeProjectionThreadProposedPlanRepository = Effect.gen(function* () {
-	const sql = yield* SqlClient.SqlClient;
+  const sql = yield* SqlClient.SqlClient;
 
-	const upsertProjectionThreadProposedPlanRow = SqlSchema.void({
-		Request: ProjectionThreadProposedPlan,
-		execute: (row) => sql`
+  const upsertProjectionThreadProposedPlanRow = SqlSchema.void({
+    Request: ProjectionThreadProposedPlan,
+    execute: (row) => sql`
       INSERT INTO projection_thread_proposed_plans (
         plan_id,
         thread_id,
@@ -51,12 +51,12 @@ const makeProjectionThreadProposedPlanRepository = Effect.gen(function* () {
         created_at = excluded.created_at,
         updated_at = excluded.updated_at
     `,
-	});
+  });
 
-	const getProjectionThreadProposedPlanRow = SqlSchema.findOneOption({
-		Request: GetProjectionThreadProposedPlanInput,
-		Result: ProjectionThreadProposedPlan,
-		execute: ({ threadId, planId }) => sql`
+  const getProjectionThreadProposedPlanRow = SqlSchema.findOneOption({
+    Request: GetProjectionThreadProposedPlanInput,
+    Result: ProjectionThreadProposedPlan,
+    execute: ({ threadId, planId }) => sql`
       SELECT
         plan_id AS "planId",
         thread_id AS "threadId",
@@ -69,12 +69,12 @@ const makeProjectionThreadProposedPlanRepository = Effect.gen(function* () {
       FROM projection_thread_proposed_plans
       WHERE thread_id = ${threadId} AND plan_id = ${planId}
     `,
-	});
+  });
 
-	const listProjectionThreadProposedPlanRows = SqlSchema.findAll({
-		Request: ListProjectionThreadProposedPlansInput,
-		Result: ProjectionThreadProposedPlan,
-		execute: ({ threadId }) => sql`
+  const listProjectionThreadProposedPlanRows = SqlSchema.findAll({
+    Request: ListProjectionThreadProposedPlansInput,
+    Result: ProjectionThreadProposedPlan,
+    execute: ({ threadId }) => sql`
       SELECT
         plan_id AS "planId",
         thread_id AS "threadId",
@@ -88,24 +88,24 @@ const makeProjectionThreadProposedPlanRepository = Effect.gen(function* () {
       WHERE thread_id = ${threadId}
       ORDER BY created_at ASC, plan_id ASC
     `,
-	});
+  });
 
-	const deleteProjectionThreadProposedPlanRows = SqlSchema.void({
-		Request: DeleteProjectionThreadProposedPlansInput,
-		execute: ({ threadId }) => sql`
+  const deleteProjectionThreadProposedPlanRows = SqlSchema.void({
+    Request: DeleteProjectionThreadProposedPlansInput,
+    execute: ({ threadId }) => sql`
       DELETE FROM projection_thread_proposed_plans
       WHERE thread_id = ${threadId}
     `,
-	});
+  });
 
-	const listPlanStatusCandidates = SqlSchema.findAll({
-		Request: HasActionableProjectionThreadProposedPlanInput,
-		Result: Schema.Struct({
-			planId: ProjectionThreadProposedPlan.fields.planId,
-			implementedAt: ProjectionThreadProposedPlan.fields.implementedAt,
-			updatedAt: ProjectionThreadProposedPlan.fields.updatedAt,
-		}),
-		execute: ({ threadId, latestTurnId }) => sql`
+  const listPlanStatusCandidates = SqlSchema.findAll({
+    Request: HasActionableProjectionThreadProposedPlanInput,
+    Result: Schema.Struct({
+      planId: ProjectionThreadProposedPlan.fields.planId,
+      implementedAt: ProjectionThreadProposedPlan.fields.implementedAt,
+      updatedAt: ProjectionThreadProposedPlan.fields.updatedAt,
+    }),
+    execute: ({ threadId, latestTurnId }) => sql`
       SELECT
         plan_id AS "planId",
         implemented_at AS "implementedAt",
@@ -121,83 +121,70 @@ const makeProjectionThreadProposedPlanRepository = Effect.gen(function* () {
         )
       ORDER BY created_at ASC, plan_id ASC
     `,
-	});
+  });
 
-	const hasActionableByThreadId = Effect.fn(
-		"ProjectionThreadProposedPlanRepository.hasActionableByThreadId",
-	)(
-		function* (input: HasActionableProjectionThreadProposedPlanInput) {
-			const candidates = yield* listPlanStatusCandidates(input);
-			let selected: (typeof candidates)[number] | undefined;
-			// Timestamps and IDs use localeCompare, not SQLite byte order. Replace
-			// equal candidates to preserve the stable order of listByThreadId.
-			for (const candidate of candidates) {
-				if (
-					selected === undefined ||
-					(candidate.updatedAt.localeCompare(selected.updatedAt) ||
-						candidate.planId.localeCompare(selected.planId)) >= 0
-				) {
-					selected = candidate;
-				}
-			}
-			return selected?.implementedAt === null;
-		},
-		Effect.mapError(
-			toPersistenceSqlError(
-				"ProjectionThreadProposedPlanRepository.hasActionableByThreadId:query",
-			),
-		),
-	);
+  const hasActionableByThreadId = Effect.fn(
+    "ProjectionThreadProposedPlanRepository.hasActionableByThreadId",
+  )(
+    function* (input: HasActionableProjectionThreadProposedPlanInput) {
+      const candidates = yield* listPlanStatusCandidates(input);
+      let selected: (typeof candidates)[number] | undefined;
+      // Timestamps and IDs use localeCompare, not SQLite byte order. Replace
+      // equal candidates to preserve the stable order of listByThreadId.
+      for (const candidate of candidates) {
+        if (
+          selected === undefined ||
+          (candidate.updatedAt.localeCompare(selected.updatedAt) ||
+            candidate.planId.localeCompare(selected.planId)) >= 0
+        ) {
+          selected = candidate;
+        }
+      }
+      return selected?.implementedAt === null;
+    },
+    Effect.mapError(
+      toPersistenceSqlError("ProjectionThreadProposedPlanRepository.hasActionableByThreadId:query"),
+    ),
+  );
 
-	const upsert: ProjectionThreadProposedPlanRepositoryShape["upsert"] = (row) =>
-		upsertProjectionThreadProposedPlanRow(row).pipe(
-			Effect.mapError(
-				toPersistenceSqlError(
-					"ProjectionThreadProposedPlanRepository.upsert:query",
-				),
-			),
-		);
+  const upsert: ProjectionThreadProposedPlanRepositoryShape["upsert"] = (row) =>
+    upsertProjectionThreadProposedPlanRow(row).pipe(
+      Effect.mapError(toPersistenceSqlError("ProjectionThreadProposedPlanRepository.upsert:query")),
+    );
 
-	const getByPlanId: ProjectionThreadProposedPlanRepositoryShape["getByPlanId"] =
-		(input) =>
-			getProjectionThreadProposedPlanRow(input).pipe(
-				Effect.mapError(
-					toPersistenceSqlError(
-						"ProjectionThreadProposedPlanRepository.getByPlanId:query",
-					),
-				),
-			);
+  const getByPlanId: ProjectionThreadProposedPlanRepositoryShape["getByPlanId"] = (input) =>
+    getProjectionThreadProposedPlanRow(input).pipe(
+      Effect.mapError(
+        toPersistenceSqlError("ProjectionThreadProposedPlanRepository.getByPlanId:query"),
+      ),
+    );
 
-	const listByThreadId: ProjectionThreadProposedPlanRepositoryShape["listByThreadId"] =
-		(input) =>
-			listProjectionThreadProposedPlanRows(input).pipe(
-				Effect.mapError(
-					toPersistenceSqlError(
-						"ProjectionThreadProposedPlanRepository.listByThreadId:query",
-					),
-				),
-			);
+  const listByThreadId: ProjectionThreadProposedPlanRepositoryShape["listByThreadId"] = (input) =>
+    listProjectionThreadProposedPlanRows(input).pipe(
+      Effect.mapError(
+        toPersistenceSqlError("ProjectionThreadProposedPlanRepository.listByThreadId:query"),
+      ),
+    );
 
-	const deleteByThreadId: ProjectionThreadProposedPlanRepositoryShape["deleteByThreadId"] =
-		(input) =>
-			deleteProjectionThreadProposedPlanRows(input).pipe(
-				Effect.mapError(
-					toPersistenceSqlError(
-						"ProjectionThreadProposedPlanRepository.deleteByThreadId:query",
-					),
-				),
-			);
+  const deleteByThreadId: ProjectionThreadProposedPlanRepositoryShape["deleteByThreadId"] = (
+    input,
+  ) =>
+    deleteProjectionThreadProposedPlanRows(input).pipe(
+      Effect.mapError(
+        toPersistenceSqlError("ProjectionThreadProposedPlanRepository.deleteByThreadId:query"),
+      ),
+    );
 
-	return {
-		upsert,
-		listByThreadId,
-		hasActionableByThreadId,
-		getByPlanId,
-		deleteByThreadId,
-	} satisfies ProjectionThreadProposedPlanRepositoryShape;
+  return {
+    upsert,
+    listByThreadId,
+    hasActionableByThreadId,
+    getByPlanId,
+    deleteByThreadId,
+  } satisfies ProjectionThreadProposedPlanRepositoryShape;
 });
 
 export const ProjectionThreadProposedPlanRepositoryLive = Layer.effect(
-	ProjectionThreadProposedPlanRepository,
-	makeProjectionThreadProposedPlanRepository,
+  ProjectionThreadProposedPlanRepository,
+  makeProjectionThreadProposedPlanRepository,
 );

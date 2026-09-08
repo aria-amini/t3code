@@ -69,33 +69,31 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 }`;
 
 module.exports = function withIosSceneLifecycle(config) {
-	config = withInfoPlist(config, (nextConfig) => {
-		nextConfig.modResults.UIApplicationSceneManifest = {
-			UIApplicationSupportsMultipleScenes: false,
-			UISceneConfigurations: {
-				UIWindowSceneSessionRoleApplication: [
-					{
-						UISceneConfigurationName: "Default Configuration",
-						UISceneDelegateClassName: "$(PRODUCT_MODULE_NAME).SceneDelegate",
-					},
-				],
-			},
-		};
+  config = withInfoPlist(config, (nextConfig) => {
+    nextConfig.modResults.UIApplicationSceneManifest = {
+      UIApplicationSupportsMultipleScenes: false,
+      UISceneConfigurations: {
+        UIWindowSceneSessionRoleApplication: [
+          {
+            UISceneConfigurationName: "Default Configuration",
+            UISceneDelegateClassName: "$(PRODUCT_MODULE_NAME).SceneDelegate",
+          },
+        ],
+      },
+    };
 
-		return nextConfig;
-	});
+    return nextConfig;
+  });
 
-	return withAppDelegate(config, (nextConfig) => {
-		if (nextConfig.modResults.language !== "swift") {
-			throw new Error(
-				"The iOS scene lifecycle plugin requires a Swift AppDelegate.",
-			);
-		}
+  return withAppDelegate(config, (nextConfig) => {
+    if (nextConfig.modResults.language !== "swift") {
+      throw new Error("The iOS scene lifecycle plugin requires a Swift AppDelegate.");
+    }
 
-		if (!nextConfig.modResults.contents.includes("class SceneDelegate:")) {
-			nextConfig.modResults.contents += SCENE_DELEGATE;
-		}
+    if (!nextConfig.modResults.contents.includes("class SceneDelegate:")) {
+      nextConfig.modResults.contents += SCENE_DELEGATE;
+    }
 
-		return nextConfig;
-	});
+    return nextConfig;
+  });
 };

@@ -7,23 +7,21 @@ import * as IpcChannels from "../channels.ts";
 import * as DesktopIpc from "../DesktopIpc.ts";
 
 export const setReady = DesktopIpc.makeIpcMethod({
-	channel: IpcChannels.DESKTOP_APP_ACTIVATION_READY_CHANNEL,
-	payload: Schema.Boolean,
-	result: Schema.Void,
-	handler: Effect.fn("desktop.ipc.appActivation.setReady")(function* (ready) {
-		const activation = yield* DesktopAppActivation.DesktopAppActivation;
-		yield* activation.setRendererReady(ready);
-	}),
+  channel: IpcChannels.DESKTOP_APP_ACTIVATION_READY_CHANNEL,
+  payload: Schema.Boolean,
+  result: Schema.Void,
+  handler: Effect.fn("desktop.ipc.appActivation.setReady")(function* (ready) {
+    const activation = yield* DesktopAppActivation.DesktopAppActivation;
+    yield* activation.setRendererReady(ready);
+  }),
 });
 
 export const complete = DesktopIpc.makeIpcMethod({
-	channel: IpcChannels.DESKTOP_APP_ACTIVATION_COMPLETE_CHANNEL,
-	payload: DesktopAppActivationResponse,
-	result: Schema.Void,
-	handler: Effect.fn("desktop.ipc.appActivation.complete")(
-		function* (response) {
-			const activation = yield* DesktopAppActivation.DesktopAppActivation;
-			yield* activation.complete(response);
-		},
-	),
+  channel: IpcChannels.DESKTOP_APP_ACTIVATION_COMPLETE_CHANNEL,
+  payload: DesktopAppActivationResponse,
+  result: Schema.Void,
+  handler: Effect.fn("desktop.ipc.appActivation.complete")(function* (response) {
+    const activation = yield* DesktopAppActivation.DesktopAppActivation;
+    yield* activation.complete(response);
+  }),
 });

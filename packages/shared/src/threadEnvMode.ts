@@ -10,11 +10,11 @@ import type { ThreadEnvMode } from "@t3tools/contracts";
  * platforms cannot disagree on the order.
  */
 export function resolveDefaultThreadEnvMode(sources: {
-	readonly projectSetting: ThreadEnvMode | null | undefined;
-	readonly projectFile: ThreadEnvMode | null | undefined;
-	readonly globalDefault: ThreadEnvMode;
+  readonly projectSetting: ThreadEnvMode | null | undefined;
+  readonly projectFile: ThreadEnvMode | null | undefined;
+  readonly globalDefault: ThreadEnvMode;
 }): ThreadEnvMode {
-	return sources.projectSetting ?? sources.projectFile ?? sources.globalDefault;
+  return sources.projectSetting ?? sources.projectFile ?? sources.globalDefault;
 }
 
 /**
@@ -24,13 +24,13 @@ export function resolveDefaultThreadEnvMode(sources: {
  * draft's workspace selection) — it could differ from the final value.
  */
 export function isDefaultThreadEnvModeSettled(sources: {
-	readonly explicitMode: ThreadEnvMode | undefined;
-	readonly projectSetting: ThreadEnvMode | null | undefined;
-	readonly projectFilePending: boolean;
+  readonly explicitMode: ThreadEnvMode | undefined;
+  readonly projectSetting: ThreadEnvMode | null | undefined;
+  readonly projectFilePending: boolean;
 }): boolean {
-	return (
-		sources.explicitMode !== undefined ||
-		sources.projectSetting != null ||
-		!sources.projectFilePending
-	);
+  return (
+    sources.explicitMode !== undefined ||
+    sources.projectSetting != null ||
+    !sources.projectFilePending
+  );
 }

@@ -6,122 +6,114 @@ import * as NodeTimersPromises from "node:timers/promises";
 const defaultTcpHosts = ["127.0.0.1", "localhost", "::1"];
 
 async function fileExists(filePath) {
-	try {
-		await NodeFSP.access(filePath);
-		return true;
-	} catch {
-		return false;
-	}
+  try {
+    await NodeFSP.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function tcpPortIsReady({ host, port, connectTimeoutMs = 500 }) {
-	return new Promise((resolveReady) => {
-		const socket = NodeNet.createConnection({ host, port });
-		let settled = false;
+  return new Promise((resolveReady) => {
+    const socket = NodeNet.createConnection({ host, port });
+    let settled = false;
 
-		const finish = (ready) => {
-			if (settled) {
-				return;
-			}
+    const finish = (ready) => {
+      if (settled) {
+        return;
+      }
 
-			settled = true;
-			socket.removeAllListeners();
-			socket.destroy();
-			resolveReady(ready);
-		};
+      settled = true;
+      socket.removeAllListeners();
+      socket.destroy();
+      resolveReady(ready);
+    };
 
-		socket.once("connect", () => {
-			finish(true);
-		});
-		socket.once("timeout", () => {
-			finish(false);
-		});
-		socket.once("error", () => {
-			finish(false);
-		});
-		socket.setTimeout(connectTimeoutMs);
-	});
+    socket.once("connect", () => {
+      finish(true);
+    });
+    socket.once("timeout", () => {
+      finish(false);
+    });
+    socket.once("error", () => {
+      finish(false);
+    });
+    socket.setTimeout(connectTimeoutMs);
+  });
 }
 
-async function resolvePendingResources({
-	baseDir,
-	files,
-	tcpPort,
-	tcpHosts,
-	connectTimeoutMs,
-}) {
-	const pendingFiles = [];
+async function resolvePendingResources({ baseDir, files, tcpPort, tcpHosts, connectTimeoutMs }) {
+  const pendingFiles = [];
 
-	for (const relativeFilePath of files) {
-		const ready = await fileExists(NodePath.resolve(baseDir, relativeFilePath));
-		if (!ready) {
-			pendingFiles.push(relativeFilePath);
-		}
-	}
+  for (const relativeFilePath of files) {
+    const ready = await fileExists(NodePath.resolve(baseDir, relativeFilePath));
+    if (!ready) {
+      pendingFiles.push(relativeFilePath);
+    }
+  }
 
-	let tcpReady = false;
-	for (const host of tcpHosts) {
-		tcpReady = await tcpPortIsReady({
-			host,
-			port: tcpPort,
-			connectTimeoutMs,
-		});
-		if (tcpReady) {
-			break;
-		}
-	}
+  let tcpReady = false;
+  for (const host of tcpHosts) {
+    tcpReady = await tcpPortIsReady({
+      host,
+      port: tcpPort,
+      connectTimeoutMs,
+    });
+    if (tcpReady) {
+      break;
+    }
+  }
 
-	return {
-		pendingFiles,
-		tcpReady,
-	};
+  return {
+    pendingFiles,
+    tcpReady,
+  };
 }
 
 export async function waitForResources({
-	baseDir,
-	files = [],
-	intervalMs = 100,
-	timeoutMs = 120_000,
-	tcpHost,
-	tcpPort,
-	connectTimeoutMs = 500,
+  baseDir,
+  files = [],
+  intervalMs = 100,
+  timeoutMs = 120_000,
+  tcpHost,
+  tcpPort,
+  connectTimeoutMs = 500,
 }) {
-	if (!Number.isInteger(tcpPort) || tcpPort <= 0) {
-		throw new TypeError("waitForResources requires a positive integer tcpPort");
-	}
+  if (!Number.isInteger(tcpPort) || tcpPort <= 0) {
+    throw new TypeError("waitForResources requires a positive integer tcpPort");
+  }
 
-	const startedAt = Date.now();
-	const tcpHosts = tcpHost ? [tcpHost] : defaultTcpHosts;
+  const startedAt = Date.now();
+  const tcpHosts = tcpHost ? [tcpHost] : defaultTcpHosts;
 
-	while (true) {
-		const { pendingFiles, tcpReady } = await resolvePendingResources({
-			baseDir,
-			files,
-			tcpPort,
-			tcpHosts,
-			connectTimeoutMs,
-		});
+  while (true) {
+    const { pendingFiles, tcpReady } = await resolvePendingResources({
+      baseDir,
+      files,
+      tcpPort,
+      tcpHosts,
+      connectTimeoutMs,
+    });
 
-		if (pendingFiles.length === 0 && tcpReady) {
-			return;
-		}
+    if (pendingFiles.length === 0 && tcpReady) {
+      return;
+    }
 
-		if (Date.now() - startedAt >= timeoutMs) {
-			const pendingResources = [];
-			if (!tcpReady) {
-				pendingResources.push(
-					tcpHost ? `tcp:${tcpHost}:${tcpPort}` : `tcp:${tcpPort}`,
-				);
-			}
-			for (const filePath of pendingFiles) {
-				pendingResources.push(`file:${filePath}`);
-			}
+    if (Date.now() - startedAt >= timeoutMs) {
+      const pendingResources = [];
+      if (!tcpReady) {
+        pendingResources.push(tcpHost ? `tcp:${tcpHost}:${tcpPort}` : `tcp:${tcpPort}`);
+      }
+      for (const filePath of pendingFiles) {
+        pendingResources.push(`file:${filePath}`);
+      }
 
-			throw new Error(
-				`Timed out waiting for desktop dev resources after ${timeoutMs}ms: ${pendingResources.join(", ")}`,
-			);
-		}
+      throw new Error(
+        `Timed out waiting for desktop dev resources after ${timeoutMs}ms: ${pendingResources.join(", ")}`,
+      );
+    }
 
-		await NodeTimersPromises.setTimeout(intervalMs);
-	}
+    await NodeTimersPromises.setTimeout(intervalMs);
+  }
 }

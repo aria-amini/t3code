@@ -2,17 +2,14 @@ import type { PullRequestComment, PullRequestDetail } from "@t3tools/contracts";
 
 /** Only the parts of a detail either answer reads, so a caller can pass a whole detail view. */
 type EditingSubject = Pick<
-	PullRequestDetail,
-	"author" | "capabilities" | "viewer" | "viewerPermissions"
+  PullRequestDetail,
+  "author" | "capabilities" | "viewer" | "viewerPermissions"
 >;
 
 /** Hosts disagree about the case of a login and none of them treats two casings as two people. */
-function sameLogin(
-	one: string | null | undefined,
-	other: string | null | undefined,
-): boolean {
-	if (one == null || other == null) return false;
-	return one.trim().toLowerCase() === other.trim().toLowerCase();
+function sameLogin(one: string | null | undefined, other: string | null | undefined): boolean {
+  if (one == null || other == null) return false;
+  return one.trim().toLowerCase() === other.trim().toLowerCase();
 }
 
 /**
@@ -21,14 +18,12 @@ function sameLogin(
  * every host here grants with write access and withholds without it, so it stands in for the
  * permission none of them publishes by name.
  */
-export function canEditPullRequestChangeRequest(
-	detail: EditingSubject,
-): boolean {
-	if (detail.capabilities.edit?.changeRequest !== true) return false;
-	return (
-		sameLogin(detail.viewer, detail.author?.login) ||
-		detail.viewerPermissions.actions.includes("merge")
-	);
+export function canEditPullRequestChangeRequest(detail: EditingSubject): boolean {
+  if (detail.capabilities.edit?.changeRequest !== true) return false;
+  return (
+    sameLogin(detail.viewer, detail.author?.login) ||
+    detail.viewerPermissions.actions.includes("merge")
+  );
 }
 
 /**
@@ -37,11 +32,10 @@ export function canEditPullRequestChangeRequest(
  * a comment goes through.
  */
 export function canEditPullRequestComment(
-	detail: EditingSubject,
-	comment: Pick<PullRequestComment, "author" | "kind">,
+  detail: EditingSubject,
+  comment: Pick<PullRequestComment, "author" | "kind">,
 ): boolean {
-	if (detail.capabilities.edit?.comment !== true) return false;
-	if (comment.kind !== "issue-comment" && comment.kind !== "review-comment")
-		return false;
-	return sameLogin(detail.viewer, comment.author?.login);
+  if (detail.capabilities.edit?.comment !== true) return false;
+  if (comment.kind !== "issue-comment" && comment.kind !== "review-comment") return false;
+  return sameLogin(detail.viewer, comment.author?.login);
 }

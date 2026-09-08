@@ -6,19 +6,19 @@ import * as Layer from "effect/Layer";
 import { toPersistenceSqlError } from "../Errors.ts";
 
 import {
-	GetByCommandIdInput,
-	OrchestrationCommandReceipt,
-	OrchestrationCommandReceiptRepository,
-	type OrchestrationCommandReceiptRepositoryShape,
+  GetByCommandIdInput,
+  OrchestrationCommandReceipt,
+  OrchestrationCommandReceiptRepository,
+  type OrchestrationCommandReceiptRepositoryShape,
 } from "../Services/OrchestrationCommandReceipts.ts";
 
 const makeOrchestrationCommandReceiptRepository = Effect.gen(function* () {
-	const sql = yield* SqlClient.SqlClient;
+  const sql = yield* SqlClient.SqlClient;
 
-	const upsertReceiptRow = SqlSchema.void({
-		Request: OrchestrationCommandReceipt,
-		execute: (receipt) =>
-			sql`
+  const upsertReceiptRow = SqlSchema.void({
+    Request: OrchestrationCommandReceipt,
+    execute: (receipt) =>
+      sql`
         INSERT INTO orchestration_command_receipts (
           command_id,
           aggregate_kind,
@@ -46,13 +46,13 @@ const makeOrchestrationCommandReceiptRepository = Effect.gen(function* () {
           status = excluded.status,
           error = excluded.error
       `,
-	});
+  });
 
-	const findReceiptByCommandId = SqlSchema.findOneOption({
-		Request: GetByCommandIdInput,
-		Result: OrchestrationCommandReceipt,
-		execute: ({ commandId }) =>
-			sql`
+  const findReceiptByCommandId = SqlSchema.findOneOption({
+    Request: GetByCommandIdInput,
+    Result: OrchestrationCommandReceipt,
+    execute: ({ commandId }) =>
+      sql`
         SELECT
           command_id AS "commandId",
           aggregate_kind AS "aggregateKind",
@@ -64,36 +64,27 @@ const makeOrchestrationCommandReceiptRepository = Effect.gen(function* () {
         FROM orchestration_command_receipts
         WHERE command_id = ${commandId}
       `,
-	});
+  });
 
-	const upsert: OrchestrationCommandReceiptRepositoryShape["upsert"] = (
-		receipt,
-	) =>
-		upsertReceiptRow(receipt).pipe(
-			Effect.mapError(
-				toPersistenceSqlError(
-					"OrchestrationCommandReceiptRepository.upsert:query",
-				),
-			),
-		);
+  const upsert: OrchestrationCommandReceiptRepositoryShape["upsert"] = (receipt) =>
+    upsertReceiptRow(receipt).pipe(
+      Effect.mapError(toPersistenceSqlError("OrchestrationCommandReceiptRepository.upsert:query")),
+    );
 
-	const getByCommandId: OrchestrationCommandReceiptRepositoryShape["getByCommandId"] =
-		(input) =>
-			findReceiptByCommandId(input).pipe(
-				Effect.mapError(
-					toPersistenceSqlError(
-						"OrchestrationCommandReceiptRepository.getByCommandId:query",
-					),
-				),
-			);
+  const getByCommandId: OrchestrationCommandReceiptRepositoryShape["getByCommandId"] = (input) =>
+    findReceiptByCommandId(input).pipe(
+      Effect.mapError(
+        toPersistenceSqlError("OrchestrationCommandReceiptRepository.getByCommandId:query"),
+      ),
+    );
 
-	return {
-		upsert,
-		getByCommandId,
-	} satisfies OrchestrationCommandReceiptRepositoryShape;
+  return {
+    upsert,
+    getByCommandId,
+  } satisfies OrchestrationCommandReceiptRepositoryShape;
 });
 
 export const OrchestrationCommandReceiptRepositoryLive = Layer.effect(
-	OrchestrationCommandReceiptRepository,
-	makeOrchestrationCommandReceiptRepository,
+  OrchestrationCommandReceiptRepository,
+  makeOrchestrationCommandReceiptRepository,
 );

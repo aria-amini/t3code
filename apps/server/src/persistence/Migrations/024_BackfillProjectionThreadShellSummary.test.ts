@@ -9,15 +9,13 @@ import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
 const layer = it.layer(Layer.mergeAll(NodeSqliteClient.layerMemory()));
 
 layer("024_BackfillProjectionThreadShellSummary", (it) => {
-	it.effect(
-		"backfills thread shell summary fields and clears stale projected approvals",
-		() =>
-			Effect.gen(function* () {
-				const sql = yield* SqlClient.SqlClient;
+  it.effect("backfills thread shell summary fields and clears stale projected approvals", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
 
-				yield* runMigrations({ toMigrationInclusive: 23 });
+      yield* runMigrations({ toMigrationInclusive: 23 });
 
-				yield* sql`
+      yield* sql`
         INSERT INTO projection_threads (
           thread_id,
           project_id,
@@ -58,7 +56,7 @@ layer("024_BackfillProjectionThreadShellSummary", (it) => {
         )
       `;
 
-				yield* sql`
+      yield* sql`
         INSERT INTO projection_thread_messages (
           message_id,
           thread_id,
@@ -83,7 +81,7 @@ layer("024_BackfillProjectionThreadShellSummary", (it) => {
         )
       `;
 
-				yield* sql`
+      yield* sql`
         INSERT INTO projection_thread_activities (
           activity_id,
           thread_id,
@@ -131,7 +129,7 @@ layer("024_BackfillProjectionThreadShellSummary", (it) => {
           )
       `;
 
-				yield* sql`
+      yield* sql`
         INSERT INTO projection_thread_proposed_plans (
           plan_id,
           thread_id,
@@ -154,7 +152,7 @@ layer("024_BackfillProjectionThreadShellSummary", (it) => {
         )
       `;
 
-				yield* sql`
+      yield* sql`
         INSERT INTO projection_pending_approvals (
           request_id,
           thread_id,
@@ -175,14 +173,14 @@ layer("024_BackfillProjectionThreadShellSummary", (it) => {
         )
       `;
 
-				yield* runMigrations({ toMigrationInclusive: 24 });
+      yield* runMigrations({ toMigrationInclusive: 24 });
 
-				const threadRows = yield* sql<{
-					readonly latestUserMessageAt: string | null;
-					readonly pendingApprovalCount: number;
-					readonly pendingUserInputCount: number;
-					readonly hasActionableProposedPlan: number;
-				}>`
+      const threadRows = yield* sql<{
+        readonly latestUserMessageAt: string | null;
+        readonly pendingApprovalCount: number;
+        readonly pendingUserInputCount: number;
+        readonly hasActionableProposedPlan: number;
+      }>`
         SELECT
           latest_user_message_at AS "latestUserMessageAt",
           pending_approval_count AS "pendingApprovalCount",
@@ -191,31 +189,31 @@ layer("024_BackfillProjectionThreadShellSummary", (it) => {
         FROM projection_threads
         WHERE thread_id = 'thread-1'
       `;
-				assert.deepStrictEqual(threadRows, [
-					{
-						latestUserMessageAt: "2026-02-24T00:01:00.000Z",
-						pendingApprovalCount: 0,
-						pendingUserInputCount: 1,
-						hasActionableProposedPlan: 1,
-					},
-				]);
+      assert.deepStrictEqual(threadRows, [
+        {
+          latestUserMessageAt: "2026-02-24T00:01:00.000Z",
+          pendingApprovalCount: 0,
+          pendingUserInputCount: 1,
+          hasActionableProposedPlan: 1,
+        },
+      ]);
 
-				const approvalRows = yield* sql<{
-					readonly status: string;
-					readonly resolvedAt: string | null;
-				}>`
+      const approvalRows = yield* sql<{
+        readonly status: string;
+        readonly resolvedAt: string | null;
+      }>`
         SELECT
           status,
           resolved_at AS "resolvedAt"
         FROM projection_pending_approvals
         WHERE request_id = 'approval-1'
       `;
-				assert.deepStrictEqual(approvalRows, [
-					{
-						status: "resolved",
-						resolvedAt: "2026-02-24T00:03:00.000Z",
-					},
-				]);
-			}),
-	);
+      assert.deepStrictEqual(approvalRows, [
+        {
+          status: "resolved",
+          resolvedAt: "2026-02-24T00:03:00.000Z",
+        },
+      ]);
+    }),
+  );
 });

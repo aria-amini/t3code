@@ -42,10 +42,10 @@
  * @module provider/Layers/ProviderInstanceRegistryHydration
  */
 import {
-	defaultInstanceIdForDriver,
-	type ProviderInstanceConfig,
-	type ProviderInstanceConfigMap,
-	ServerSettings,
+  defaultInstanceIdForDriver,
+  type ProviderInstanceConfig,
+  type ProviderInstanceConfigMap,
+  ServerSettings,
 } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -71,38 +71,36 @@ import { ProviderInstanceRegistryMutableLayer } from "./ProviderInstanceRegistry
  * without layering.
  */
 export const deriveProviderInstanceConfigMap = (
-	settings: ServerSettings,
+  settings: ServerSettings,
 ): ProviderInstanceConfigMap => {
-	const merged: Record<string, ProviderInstanceConfig> = {
-		...settings.providerInstances,
-	};
+  const merged: Record<string, ProviderInstanceConfig> = { ...settings.providerInstances };
 
-	for (const driver of BUILT_IN_DRIVERS) {
-		const instanceId = defaultInstanceIdForDriver(driver.driverKind);
-		if (instanceId in merged) {
-			// Explicit `providerInstances` entry for this slot — user-authored
-			// config always wins over the legacy mirror.
-			continue;
-		}
+  for (const driver of BUILT_IN_DRIVERS) {
+    const instanceId = defaultInstanceIdForDriver(driver.driverKind);
+    if (instanceId in merged) {
+      // Explicit `providerInstances` entry for this slot — user-authored
+      // config always wins over the legacy mirror.
+      continue;
+    }
 
-		// Only built-in drivers have a legacy mirror; the registry's
-		// `providers` struct is keyed on the same literal slug as
-		// `driverKind`. Access is dynamic (the driver kind is a branded string),
-		// but it's constrained to `keyof settings.providers` by the union of
-		// built-in driver kinds.
-		const legacyKey = driver.driverKind as keyof ServerSettings["providers"];
-		const legacyConfig = settings.providers[legacyKey];
-		if (legacyConfig === undefined) {
-			continue;
-		}
+    // Only built-in drivers have a legacy mirror; the registry's
+    // `providers` struct is keyed on the same literal slug as
+    // `driverKind`. Access is dynamic (the driver kind is a branded string),
+    // but it's constrained to `keyof settings.providers` by the union of
+    // built-in driver kinds.
+    const legacyKey = driver.driverKind as keyof ServerSettings["providers"];
+    const legacyConfig = settings.providers[legacyKey];
+    if (legacyConfig === undefined) {
+      continue;
+    }
 
-		merged[instanceId] = {
-			driver: driver.driverKind,
-			config: legacyConfig,
-		};
-	}
+    merged[instanceId] = {
+      driver: driver.driverKind,
+      config: legacyConfig,
+    };
+  }
 
-	return merged as ProviderInstanceConfigMap;
+  return merged as ProviderInstanceConfigMap;
 };
 
 /**
@@ -117,26 +115,23 @@ export const deriveProviderInstanceConfigMap = (
  * tear-down, which logs and exits cleanly.
  */
 const SettingsWatcherLive = Layer.effectDiscard(
-	Effect.gen(function* () {
-		const mutator = yield* ProviderInstanceRegistryMutator;
-		const serverSettings = yield* ServerSettingsService;
-		const settingsChanges = yield* serverSettings.subscribeChanges;
-		yield* settingsChanges.pipe(
-			Stream.runForEach((next) =>
-				mutator
-					.reconcile(deriveProviderInstanceConfigMap(next))
-					.pipe(
-						Effect.catchCause((cause) =>
-							Effect.logError(
-								"ProviderInstanceRegistry reconcile failed",
-								cause,
-							),
-						),
-					),
-			),
-			Effect.forkScoped,
-		);
-	}),
+  Effect.gen(function* () {
+    const mutator = yield* ProviderInstanceRegistryMutator;
+    const serverSettings = yield* ServerSettingsService;
+    const settingsChanges = yield* serverSettings.subscribeChanges;
+    yield* settingsChanges.pipe(
+      Stream.runForEach((next) =>
+        mutator
+          .reconcile(deriveProviderInstanceConfigMap(next))
+          .pipe(
+            Effect.catchCause((cause) =>
+              Effect.logError("ProviderInstanceRegistry reconcile failed", cause),
+            ),
+          ),
+      ),
+      Effect.forkScoped,
+    );
+  }),
 );
 
 /**
@@ -156,30 +151,25 @@ const SettingsWatcherLive = Layer.effectDiscard(
  * it, so the visibility leak is harmless in practice.
  */
 export const ProviderInstanceRegistryHydrationLive: Layer.Layer<
-	ProviderInstanceRegistry,
-	never,
-	BuiltInDriversEnv | ServerSettingsService
+  ProviderInstanceRegistry,
+  never,
+  BuiltInDriversEnv | ServerSettingsService
 > = Layer.unwrap(
-	Effect.gen(function* () {
-		const serverSettings = yield* ServerSettingsService;
-		const initialSettings: ServerSettings | undefined =
-			yield* serverSettings.getSettings.pipe(
-				Effect.orElseSucceed(() => undefined),
-			);
-		const initialConfigMap =
-			initialSettings === undefined
-				? ({} as ProviderInstanceConfigMap)
-				: deriveProviderInstanceConfigMap(initialSettings);
+  Effect.gen(function* () {
+    const serverSettings = yield* ServerSettingsService;
+    const initialSettings: ServerSettings | undefined = yield* serverSettings.getSettings.pipe(
+      Effect.orElseSucceed(() => undefined),
+    );
+    const initialConfigMap =
+      initialSettings === undefined
+        ? ({} as ProviderInstanceConfigMap)
+        : deriveProviderInstanceConfigMap(initialSettings);
 
-		const mutableLayer = ProviderInstanceRegistryMutableLayer({
-			drivers: BUILT_IN_DRIVERS,
-			configMap: initialConfigMap,
-		});
+    const mutableLayer = ProviderInstanceRegistryMutableLayer({
+      drivers: BUILT_IN_DRIVERS,
+      configMap: initialConfigMap,
+    });
 
-		return SettingsWatcherLive.pipe(Layer.provideMerge(mutableLayer));
-	}),
-) as Layer.Layer<
-	ProviderInstanceRegistry,
-	never,
-	BuiltInDriversEnv | ServerSettingsService
->;
+    return SettingsWatcherLive.pipe(Layer.provideMerge(mutableLayer));
+  }),
+) as Layer.Layer<ProviderInstanceRegistry, never, BuiltInDriversEnv | ServerSettingsService>;

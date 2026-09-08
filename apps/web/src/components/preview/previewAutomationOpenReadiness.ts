@@ -1,9 +1,9 @@
 import {
-	FILL_PREVIEW_VIEWPORT,
-	type PreviewAutomationOperation,
-	type PreviewAutomationOpenInput,
-	type PreviewSessionSnapshot,
-	type PreviewViewportSetting,
+  FILL_PREVIEW_VIEWPORT,
+  type PreviewAutomationOperation,
+  type PreviewAutomationOpenInput,
+  type PreviewSessionSnapshot,
+  type PreviewViewportSetting,
 } from "@t3tools/contracts";
 
 /**
@@ -13,9 +13,9 @@ import {
  * to be — deterministic beats incidental here.
  */
 export const DEFAULT_PREVIEW_AUTOMATION_VIEWPORT = {
-	_tag: "freeform",
-	width: 1280,
-	height: 800,
+  _tag: "freeform",
+  width: 1280,
+  height: 800,
 } as const satisfies PreviewViewportSetting;
 
 /**
@@ -24,35 +24,31 @@ export const DEFAULT_PREVIEW_AUTOMATION_VIEWPORT = {
  * happens when the agent said nothing either way.
  */
 export function shouldOpenPreviewMiniPlayer(
-	input: PreviewAutomationOpenInput,
-	autoShowFloatingPreview = true,
+  input: PreviewAutomationOpenInput,
+  autoShowFloatingPreview = true,
 ): boolean {
-	return input.open ?? input.show ?? autoShowFloatingPreview;
+  return input.open ?? input.show ?? autoShowFloatingPreview;
 }
 
 export function shouldAutoShowPreviewForAutomationUse(input: {
-	readonly operation: PreviewAutomationOperation;
-	readonly autoShowFloatingPreview: boolean;
-	readonly presentationSuppressed: boolean;
+  readonly operation: PreviewAutomationOperation;
+  readonly autoShowFloatingPreview: boolean;
+  readonly presentationSuppressed: boolean;
 }): boolean {
-	return (
-		input.operation !== "open" &&
-		input.autoShowFloatingPreview &&
-		!input.presentationSuppressed
-	);
+  return (
+    input.operation !== "open" && input.autoShowFloatingPreview && !input.presentationSuppressed
+  );
 }
 
-export function explicitlySuppressesPreviewMiniPlayer(
-	input: PreviewAutomationOpenInput,
-): boolean {
-	return (input.open ?? input.show) === false;
+export function explicitlySuppressesPreviewMiniPlayer(input: PreviewAutomationOpenInput): boolean {
+  return (input.open ?? input.show) === false;
 }
 
 export function previewAutomationOpenNeedsOverlay(
-	input: PreviewAutomationOpenInput,
-	snapshot: PreviewSessionSnapshot,
+  input: PreviewAutomationOpenInput,
+  snapshot: PreviewSessionSnapshot,
 ): boolean {
-	return input.url !== undefined || snapshot.navStatus._tag !== "Idle";
+  return input.url !== undefined || snapshot.navStatus._tag !== "Idle";
 }
 
 /**
@@ -63,11 +59,11 @@ export function previewAutomationOpenNeedsOverlay(
  * stated preference, which is where the agent fallback applies.
  */
 export function previewAutomationDefaultViewport(
-	reusedExistingTab: boolean,
-	snapshot: PreviewSessionSnapshot,
+  reusedExistingTab: boolean,
+  snapshot: PreviewSessionSnapshot,
 ): PreviewViewportSetting | null {
-	const viewport = snapshot.viewport ?? FILL_PREVIEW_VIEWPORT;
-	return !reusedExistingTab && viewport._tag === "fill"
-		? DEFAULT_PREVIEW_AUTOMATION_VIEWPORT
-		: null;
+  const viewport = snapshot.viewport ?? FILL_PREVIEW_VIEWPORT;
+  return !reusedExistingTab && viewport._tag === "fill"
+    ? DEFAULT_PREVIEW_AUTOMATION_VIEWPORT
+    : null;
 }

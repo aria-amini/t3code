@@ -20,10 +20,10 @@ Do not switch to global browser skills, Chrome, Node REPL browser automation, st
  * the only browser automation it still has.
  */
 const browserToolInstructions = (browserToolsAvailable: boolean): string =>
-	browserToolsAvailable ? T3_CODE_BROWSER_TOOL_INSTRUCTIONS : "";
+  browserToolsAvailable ? T3_CODE_BROWSER_TOOL_INSTRUCTIONS : "";
 
 const codexPlanModeDeveloperInstructions = (
-	browserToolsAvailable: boolean,
+  browserToolsAvailable: boolean,
 ): string => `<collaboration_mode># Plan Mode (Conversational)
 
 You work in 3 phases, and you should *chat your way* to a great plan before finalizing it. A great plan is very detailed-intent- and implementation-wise-so that it can be handed to another engineer or agent to be implemented right away. It must be **decision complete**, where the implementer does not need to make any decisions.
@@ -156,7 +156,7 @@ ${browserToolInstructions(browserToolsAvailable)}
 </collaboration_mode>`;
 
 const codexDefaultModeDeveloperInstructions = (
-	browserToolsAvailable: boolean,
+  browserToolsAvailable: boolean,
 ): string => `<collaboration_mode># Collaboration Mode: Default
 
 You are now in Default mode. Any previous instructions for other modes (e.g. Plan mode) are no longer active.
@@ -172,25 +172,25 @@ ${browserToolInstructions(browserToolsAvailable)}
 </collaboration_mode>`;
 
 export interface CodexRuntimeInfo {
-	readonly model: string;
-	readonly reasoningEffort: string;
+  readonly model: string;
+  readonly reasoningEffort: string;
 }
 
 export function buildCodexDeveloperInstructions(
-	interactionMode: ProviderInteractionMode,
-	runtime: CodexRuntimeInfo,
-	/**
-	 * Whether the `t3-code` MCP server is attached to this turn. Callers derive
-	 * it from the session's actual MCP configuration rather than re-reading the
-	 * setting, so the prompt cannot claim tools the turn doesn't have.
-	 */
-	browserToolsAvailable = true,
+  interactionMode: ProviderInteractionMode,
+  runtime: CodexRuntimeInfo,
+  /**
+   * Whether the `t3-code` MCP server is attached to this turn. Callers derive
+   * it from the session's actual MCP configuration rather than re-reading the
+   * setting, so the prompt cannot claim tools the turn doesn't have.
+   */
+  browserToolsAvailable = true,
 ): string {
-	const base =
-		interactionMode === "plan"
-			? codexPlanModeDeveloperInstructions(browserToolsAvailable)
-			: codexDefaultModeDeveloperInstructions(browserToolsAvailable);
-	return `${base}
+  const base =
+    interactionMode === "plan"
+      ? codexPlanModeDeveloperInstructions(browserToolsAvailable)
+      : codexDefaultModeDeveloperInstructions(browserToolsAvailable);
+  return `${base}
 
 ${buildRuntimeInstructions({ harness: "Codex", ...runtime })}`;
 }

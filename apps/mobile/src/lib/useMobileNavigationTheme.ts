@@ -11,21 +11,21 @@ import { useUniwindTheme } from "./useUniwindTheme";
  * publishes this matching navigation palette through React.
  */
 export function useMobileNavigationTheme(): Theme {
-	const { themeAppearance: appearance } = useAppearancePreferences();
-	const variables = useUniwindTheme();
-	return useMemo(() => {
-		const base = appearance === "dark" ? DarkTheme : DefaultTheme;
-		return {
-			...base,
-			colors: {
-				...base.colors,
-				primary: variables["--color-primary"],
-				background: variables["--color-screen"],
-				card: variables["--color-sheet-solid"],
-				text: variables["--color-foreground"],
-				border: variables["--color-header-border"],
-				notification: variables["--color-danger-foreground"],
-			},
-		};
-	}, [appearance, variables]);
+  const { themeAppearance: appearance } = useAppearancePreferences();
+  const variables = useUniwindTheme();
+  return useMemo(() => {
+    const base = appearance === "dark" ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        primary: variables["--color-primary"],
+        background: variables["--color-screen"],
+        card: variables["--color-sheet-solid"],
+        text: variables["--color-foreground"],
+        border: variables["--color-header-border"],
+        notification: variables["--color-danger-foreground"],
+      },
+    };
+  }, [appearance, variables]);
 }

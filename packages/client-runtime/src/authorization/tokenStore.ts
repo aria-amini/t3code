@@ -9,39 +9,30 @@ import * as Schema from "effect/Schema";
 import type { ConnectionAttemptError } from "../connection/model.ts";
 
 export class RemoteDpopAccessToken extends Schema.Class<RemoteDpopAccessToken>(
-	"@t3tools/client-runtime/authorization/RemoteDpopAccessToken",
+  "@t3tools/client-runtime/authorization/RemoteDpopAccessToken",
 )({
-	environmentId: EnvironmentId,
-	accountId: Schema.optionalKey(Schema.String),
-	label: Schema.String,
-	endpoint: RelayManagedEndpoint,
-	accessToken: Schema.String,
-	expiresAtEpochMs: Schema.Number,
-	dpopThumbprint: Schema.String,
+  environmentId: EnvironmentId,
+  accountId: Schema.optionalKey(Schema.String),
+  label: Schema.String,
+  endpoint: RelayManagedEndpoint,
+  accessToken: Schema.String,
+  expiresAtEpochMs: Schema.Number,
+  dpopThumbprint: Schema.String,
 }) {}
 
 export class RemoteDpopAccessTokenStore extends Context.Service<
-	RemoteDpopAccessTokenStore,
-	{
-		readonly get: (
-			environmentId: EnvironmentId,
-		) => Effect.Effect<
-			Option.Option<RemoteDpopAccessToken>,
-			ConnectionAttemptError
-		>;
-		readonly put: (
-			token: RemoteDpopAccessToken,
-		) => Effect.Effect<void, ConnectionAttemptError>;
-		readonly remove: (
-			environmentId: EnvironmentId,
-		) => Effect.Effect<void, ConnectionAttemptError>;
-	}
->()(
-	"@t3tools/client-runtime/authorization/tokenStore/RemoteDpopAccessTokenStore",
-) {}
+  RemoteDpopAccessTokenStore,
+  {
+    readonly get: (
+      environmentId: EnvironmentId,
+    ) => Effect.Effect<Option.Option<RemoteDpopAccessToken>, ConnectionAttemptError>;
+    readonly put: (token: RemoteDpopAccessToken) => Effect.Effect<void, ConnectionAttemptError>;
+    readonly remove: (environmentId: EnvironmentId) => Effect.Effect<void, ConnectionAttemptError>;
+  }
+>()("@t3tools/client-runtime/authorization/tokenStore/RemoteDpopAccessTokenStore") {}
 
 export const make = (service: RemoteDpopAccessTokenStore["Service"]) =>
-	RemoteDpopAccessTokenStore.of(service);
+  RemoteDpopAccessTokenStore.of(service);
 
 export const layer = (service: RemoteDpopAccessTokenStore["Service"]) =>
-	Layer.succeed(RemoteDpopAccessTokenStore, make(service));
+  Layer.succeed(RemoteDpopAccessTokenStore, make(service));

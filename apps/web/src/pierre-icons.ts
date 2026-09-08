@@ -1,13 +1,13 @@
 import {
-	createFileTreeIconResolver,
-	getBuiltInSpriteSheet,
-	type FileTreeIcons,
+  createFileTreeIconResolver,
+  getBuiltInSpriteSheet,
+  type FileTreeIcons,
 } from "@pierre/trees";
 import { VIDEO_FILE_EXTENSIONS } from "@t3tools/shared/video";
 
 export interface PierreIconResolution {
-	name: string;
-	token?: string;
+  name: string;
+  token?: string;
 }
 
 const PIERRE_ICON_SPRITE_ID = "t3code-pierre-file-icon-sprite";
@@ -46,89 +46,83 @@ const T3_FILE_ICON_SPRITE = `
 </svg>`;
 
 export const T3_PIERRE_ICONS = {
-	set: "complete",
-	colored: true,
-	spriteSheet: T3_FILE_ICON_SPRITE,
-	byFileName: {
-		"package.json": "t3-file-icon-package-json",
-		"tsconfig.json": "t3-file-icon-tsconfig",
-		"agents.md": "t3-file-icon-agents",
-		"claude.md": "t3-file-icon-claude",
-		"readme.md": "t3-file-icon-readme",
-		"pnpm-lock.yaml": "t3-file-icon-pnpm",
-		"pnpm-workspace.yaml": "t3-file-icon-pnpm",
-	},
-	byFileExtension: Object.fromEntries(
-		VIDEO_FILE_EXTENSIONS.map((extension) => [extension, "t3-file-icon-video"]),
-	),
+  set: "complete",
+  colored: true,
+  spriteSheet: T3_FILE_ICON_SPRITE,
+  byFileName: {
+    "package.json": "t3-file-icon-package-json",
+    "tsconfig.json": "t3-file-icon-tsconfig",
+    "agents.md": "t3-file-icon-agents",
+    "claude.md": "t3-file-icon-claude",
+    "readme.md": "t3-file-icon-readme",
+    "pnpm-lock.yaml": "t3-file-icon-pnpm",
+    "pnpm-workspace.yaml": "t3-file-icon-pnpm",
+  },
+  byFileExtension: Object.fromEntries(
+    VIDEO_FILE_EXTENSIONS.map((extension) => [extension, "t3-file-icon-video"]),
+  ),
 } satisfies FileTreeIcons;
 
 const completeIconResolver = createFileTreeIconResolver(T3_PIERRE_ICONS);
 
 const LANGUAGE_EXTENSION_ALIASES: Record<string, string> = {
-	bash: "sh",
-	csharp: "cs",
-	dockerfile: "dockerfile",
-	javascript: "js",
-	jsx: "jsx",
-	markdown: "md",
-	mdx: "mdx",
-	plaintext: "txt",
-	python: "py",
-	ruby: "rb",
-	rust: "rs",
-	shell: "sh",
-	shellscript: "sh",
-	swift: "swift",
-	typescript: "ts",
-	tsx: "tsx",
-	yaml: "yml",
+  bash: "sh",
+  csharp: "cs",
+  dockerfile: "dockerfile",
+  javascript: "js",
+  jsx: "jsx",
+  markdown: "md",
+  mdx: "mdx",
+  plaintext: "txt",
+  python: "py",
+  ruby: "rb",
+  rust: "rs",
+  shell: "sh",
+  shellscript: "sh",
+  swift: "swift",
+  typescript: "ts",
+  tsx: "tsx",
+  yaml: "yml",
 };
 
 export function basenameOfPath(pathValue: string): string {
-	const slashIndex = pathValue.lastIndexOf("/");
-	return slashIndex === -1 ? pathValue : pathValue.slice(slashIndex + 1);
+  const slashIndex = pathValue.lastIndexOf("/");
+  return slashIndex === -1 ? pathValue : pathValue.slice(slashIndex + 1);
 }
 
-export function inferEntryKindFromPath(
-	pathValue: string,
-): "file" | "directory" {
-	const base = basenameOfPath(pathValue);
-	if (base.startsWith(".") && !base.slice(1).includes(".")) return "directory";
-	return base.includes(".") ? "file" : "directory";
+export function inferEntryKindFromPath(pathValue: string): "file" | "directory" {
+  const base = basenameOfPath(pathValue);
+  if (base.startsWith(".") && !base.slice(1).includes(".")) return "directory";
+  return base.includes(".") ? "file" : "directory";
 }
 
 export function syntheticFileNameForLanguageId(languageId: string): string {
-	const normalized = languageId.toLowerCase();
-	return `file.${LANGUAGE_EXTENSION_ALIASES[normalized] ?? normalized}`;
+  const normalized = languageId.toLowerCase();
+  return `file.${LANGUAGE_EXTENSION_ALIASES[normalized] ?? normalized}`;
 }
 
 export function resolvePierreIconForEntry(
-	pathValue: string,
-	kind: "file" | "directory",
+  pathValue: string,
+  kind: "file" | "directory",
 ): PierreIconResolution | null {
-	if (kind === "directory") return null;
-	return completeIconResolver.resolveIcon("file-tree-icon-file", pathValue);
+  if (kind === "directory") return null;
+  return completeIconResolver.resolveIcon("file-tree-icon-file", pathValue);
 }
 
 export function hasSpecificPierreIconForFileName(fileName: string): boolean {
-	return resolvePierreIconForEntry(fileName, "file")?.token !== "default";
+  return resolvePierreIconForEntry(fileName, "file")?.token !== "default";
 }
 
 export function ensurePierreIconSprite(): void {
-	if (
-		typeof document === "undefined" ||
-		document.getElementById(PIERRE_ICON_SPRITE_ID)
-	)
-		return;
-	const container = document.createElement("div");
-	container.id = PIERRE_ICON_SPRITE_ID;
-	container.setAttribute("aria-hidden", "true");
-	container.style.position = "absolute";
-	container.style.width = "0";
-	container.style.height = "0";
-	container.style.overflow = "hidden";
-	container.style.pointerEvents = "none";
-	container.innerHTML = `${getBuiltInSpriteSheet("complete")}${T3_FILE_ICON_SPRITE}`;
-	document.body.prepend(container);
+  if (typeof document === "undefined" || document.getElementById(PIERRE_ICON_SPRITE_ID)) return;
+  const container = document.createElement("div");
+  container.id = PIERRE_ICON_SPRITE_ID;
+  container.setAttribute("aria-hidden", "true");
+  container.style.position = "absolute";
+  container.style.width = "0";
+  container.style.height = "0";
+  container.style.overflow = "hidden";
+  container.style.pointerEvents = "none";
+  container.innerHTML = `${getBuiltInSpriteSheet("complete")}${T3_FILE_ICON_SPRITE}`;
+  document.body.prepend(container);
 }

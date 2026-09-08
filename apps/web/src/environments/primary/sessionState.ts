@@ -8,35 +8,30 @@ import { useCallback } from "react";
 import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { fetchSessionState } from "./auth";
 
-const primarySessionStateAtom = Atom.make(
-	Effect.promise(fetchSessionState),
-).pipe(
-	Atom.swr({ staleTime: 5_000, revalidateOnMount: true }),
-	Atom.setIdleTTL(5 * 60_000),
-	Atom.withLabel("primary-environment:session"),
+const primarySessionStateAtom = Atom.make(Effect.promise(fetchSessionState)).pipe(
+  Atom.swr({ staleTime: 5_000, revalidateOnMount: true }),
+  Atom.setIdleTTL(5 * 60_000),
+  Atom.withLabel("primary-environment:session"),
 );
 
 function refreshPrimarySessionState(): void {
-	appAtomRegistry.refresh(primarySessionStateAtom);
+  appAtomRegistry.refresh(primarySessionStateAtom);
 }
 
 export function usePrimarySessionState() {
-	const result = useAtomValue(primarySessionStateAtom);
-	const refresh = useCallback(() => {
-		refreshPrimarySessionState();
-	}, []);
-	let error: string | null = null;
-	if (result._tag === "Failure") {
-		const cause = Cause.squash(result.cause);
-		error =
-			cause instanceof Error
-				? cause.message
-				: "Could not read environment session.";
-	}
-	return {
-		data: Option.getOrNull(AsyncResult.value(result)),
-		error,
-		isPending: result.waiting,
-		refresh,
-	};
+  const result = useAtomValue(primarySessionStateAtom);
+  const refresh = useCallback(() => {
+    refreshPrimarySessionState();
+  }, []);
+  let error: string | null = null;
+  if (result._tag === "Failure") {
+    const cause = Cause.squash(result.cause);
+    error = cause instanceof Error ? cause.message : "Could not read environment session.";
+  }
+  return {
+    data: Option.getOrNull(AsyncResult.value(result)),
+    error,
+    isPending: result.waiting,
+    refresh,
+  };
 }

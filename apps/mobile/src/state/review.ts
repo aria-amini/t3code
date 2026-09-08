@@ -2,6 +2,4 @@ import { createReviewEnvironmentAtoms } from "@t3tools/client-runtime/state/revi
 
 import { connectionAtomRuntime } from "../connection/runtime";
 
-export const reviewEnvironment = createReviewEnvironmentAtoms(
-	connectionAtomRuntime,
-);
+export const reviewEnvironment = createReviewEnvironmentAtoms(connectionAtomRuntime);

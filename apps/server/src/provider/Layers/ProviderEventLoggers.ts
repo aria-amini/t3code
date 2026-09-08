@@ -41,11 +41,11 @@ import * as EventNdjsonLogger from "./EventNdjsonLogger.ts";
  * field they need.
  */
 export class ProviderEventLoggers extends Context.Service<
-	ProviderEventLoggers,
-	{
-		readonly native: EventNdjsonLogger.EventNdjsonLogger | undefined;
-		readonly canonical: EventNdjsonLogger.EventNdjsonLogger | undefined;
-	}
+  ProviderEventLoggers,
+  {
+    readonly native: EventNdjsonLogger.EventNdjsonLogger | undefined;
+    readonly canonical: EventNdjsonLogger.EventNdjsonLogger | undefined;
+  }
 >()("t3/provider/Layers/ProviderEventLoggers") {}
 
 /**
@@ -54,8 +54,8 @@ export class ProviderEventLoggers extends Context.Service<
  * system while letting the runtime treat absence as a no-op.
  */
 export const NoOpProviderEventLoggers: ProviderEventLoggers["Service"] = {
-	native: undefined,
-	canonical: undefined,
+  native: undefined,
+  canonical: undefined,
 };
 
 /**
@@ -63,31 +63,28 @@ export const NoOpProviderEventLoggers: ProviderEventLoggers["Service"] = {
  * and downgraded to the no-op service so diagnostics never block startup.
  */
 export const make = Effect.gen(function* () {
-	const { providerEventLogPath } = yield* ServerConfig;
-	const attribution = yield* ResourceAttribution.ResourceAttribution;
-	const store = yield* EventNdjsonLogger.makeEventNdjsonLogStore(
-		providerEventLogPath,
-		{
-			attribution,
-		},
-	).pipe(
-		Effect.catch((error) =>
-			Effect.logWarning(error.message, { error }).pipe(
-				Effect.annotateLogs({ scope: "provider-observability" }),
-				Effect.as<EventNdjsonLogger.EventNdjsonLogStore | undefined>(undefined),
-			),
-		),
-	);
+  const { providerEventLogPath } = yield* ServerConfig;
+  const attribution = yield* ResourceAttribution.ResourceAttribution;
+  const store = yield* EventNdjsonLogger.makeEventNdjsonLogStore(providerEventLogPath, {
+    attribution,
+  }).pipe(
+    Effect.catch((error) =>
+      Effect.logWarning(error.message, { error }).pipe(
+        Effect.annotateLogs({ scope: "provider-observability" }),
+        Effect.as<EventNdjsonLogger.EventNdjsonLogStore | undefined>(undefined),
+      ),
+    ),
+  );
 
-	if (!store) {
-		return ProviderEventLoggers.of(NoOpProviderEventLoggers);
-	}
+  if (!store) {
+    return ProviderEventLoggers.of(NoOpProviderEventLoggers);
+  }
 
-	yield* Effect.addFinalizer(() => store.close());
-	return ProviderEventLoggers.of({
-		native: store.logger("native"),
-		canonical: store.logger("canonical"),
-	});
+  yield* Effect.addFinalizer(() => store.close());
+  return ProviderEventLoggers.of({
+    native: store.logger("native"),
+    canonical: store.logger("canonical"),
+  });
 });
 
 export const layer = Layer.effect(ProviderEventLoggers, make);

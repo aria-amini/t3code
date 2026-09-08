@@ -19,8 +19,8 @@ const decodeT3ProjectFile = Schema.decodeExit(T3ProjectFileFromJson);
  * mode) without surfacing decode errors to the user.
  */
 export function parseT3ProjectFile(contents: string): T3ProjectFile | null {
-	const decoded = decodeT3ProjectFile(contents);
-	return Exit.isSuccess(decoded) ? decoded.value : null;
+  const decoded = decodeT3ProjectFile(contents);
+  return Exit.isSuccess(decoded) ? decoded.value : null;
 }
 
 /**
@@ -30,14 +30,14 @@ export function parseT3ProjectFile(contents: string): T3ProjectFile | null {
  * editors get LSP support via a `$schema` reference.
  */
 export function buildT3ProjectFileJsonSchema(): Record<string, unknown> {
-	const document = Schema.toJsonSchemaDocument(T3ProjectFile);
-	const jsonSchema: Record<string, unknown> = {
-		$schema: "https://json-schema.org/draft/2020-12/schema",
-		$id: T3_PROJECT_FILE_SCHEMA_URL,
-		...document.schema,
-	};
-	if (document.definitions && Object.keys(document.definitions).length > 0) {
-		jsonSchema.$defs = document.definitions;
-	}
-	return jsonSchema;
+  const document = Schema.toJsonSchemaDocument(T3ProjectFile);
+  const jsonSchema: Record<string, unknown> = {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    $id: T3_PROJECT_FILE_SCHEMA_URL,
+    ...document.schema,
+  };
+  if (document.definitions && Object.keys(document.definitions).length > 0) {
+    jsonSchema.$defs = document.definitions;
+  }
+  return jsonSchema;
 }

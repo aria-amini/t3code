@@ -12,79 +12,74 @@ import * as Layer from "effect/Layer";
 import { relayDatabaseMode } from "./dbConfig.ts";
 
 export class RelayDb extends Context.Service<
-	RelayDb,
-	EffectPgDatabase & {
-		readonly $client: PgClient;
-	}
+  RelayDb,
+  EffectPgDatabase & {
+    readonly $client: PgClient;
+  }
 >()("t3code-relay/db/RelayDb") {}
 
 export class RelayTransactions extends Context.Service<
-	RelayTransactions,
-	{
-		readonly withTransaction: RelayDb["Service"]["$client"]["withTransaction"];
-	}
+  RelayTransactions,
+  {
+    readonly withTransaction: RelayDb["Service"]["$client"]["withTransaction"];
+  }
 >()("t3code-relay/db/RelayTransactions") {
-	static readonly layer = Layer.effect(
-		RelayTransactions,
-		Effect.gen(function* () {
-			const db = yield* RelayDb;
-			return RelayTransactions.of({
-				withTransaction: db.$client.withTransaction,
-			});
-		}),
-	);
+  static readonly layer = Layer.effect(
+    RelayTransactions,
+    Effect.gen(function* () {
+      const db = yield* RelayDb;
+      return RelayTransactions.of({
+        withTransaction: db.$client.withTransaction,
+      });
+    }),
+  );
 }
 
 export const PlanetscaleDatabase = Effect.gen(function* () {
-	const { stage } = yield* Alchemy.Stack;
-	const schema = yield* Drizzle.Schema("RelaySchema", {
-		schema: "./src/persistence/schema.ts",
-		out: "./migrations/postgres",
-		dialect: "postgres",
-	});
+  const { stage } = yield* Alchemy.Stack;
+  const schema = yield* Drizzle.Schema("RelaySchema", {
+    schema: "./src/persistence/schema.ts",
+    out: "./migrations/postgres",
+    dialect: "postgres",
+  });
 
-	const mode = relayDatabaseMode(stage);
-	const database =
-		mode === "shared-database"
-			? yield* Planetscale.PostgresDatabase("RelayPostgresDatabase", {
-					name: "t3coderelay",
-					region: { slug: "us-west" },
-					clusterSize: "PS_20",
-					migrationsDir: schema.out,
-					migrationsTable: "relay_migrations",
-					replicas: 2,
-				}).pipe(RemovalPolicy.retain())
-			: yield* Planetscale.PostgresDatabase.ref("RelayPostgresDatabase", {
-					stage: "prod",
-				});
-	const branch =
-		mode === "stage-branch"
-			? yield* Planetscale.PostgresBranch("RelayPostgresBranch", {
-					database,
-					migrationsDir: schema.out,
-					migrationsTable: "relay_migrations",
-				})
-			: undefined;
+  const mode = relayDatabaseMode(stage);
+  const database =
+    mode === "shared-database"
+      ? yield* Planetscale.PostgresDatabase("RelayPostgresDatabase", {
+          name: "t3coderelay",
+          region: { slug: "us-west" },
+          clusterSize: "PS_20",
+          migrations: { dir: schema.out, table: "relay_migrations" },
+          replicas: 2,
+        }).pipe(RemovalPolicy.retain())
+      : yield* Planetscale.PostgresDatabase.ref("RelayPostgresDatabase", {
+          stage: "prod",
+        });
+  const branch =
+    mode === "stage-branch"
+      ? yield* Planetscale.PostgresBranch("RelayPostgresBranch", {
+          database,
+          migrations: { dir: schema.out, table: "relay_migrations" },
+        })
+      : undefined;
 
-	const runtimeRole = yield* Planetscale.PostgresRole(
-		"RelayPostgresRuntimeRole",
-		{
-			database,
-			...(branch ? { branch } : {}),
-			inheritedRoles: ["pg_read_all_data", "pg_write_all_data"],
-		},
-	);
+  const runtimeRole = yield* Planetscale.PostgresRole("RelayPostgresRuntimeRole", {
+    database,
+    ...(branch ? { branch } : {}),
+    inheritedRoles: ["pg_read_all_data", "pg_write_all_data"],
+  });
 
-	return { branch, database, runtimeRole };
+  return { branch, database, runtimeRole };
 });
 
 export const RelayHyperdrive = Effect.gen(function* () {
-	const { runtimeRole } = yield* PlanetscaleDatabase;
-	return yield* Cloudflare.Hyperdrive.Connection("RelayHyperdrive", {
-		origin: runtimeRole.origin,
-		caching: {
-			disabled: true,
-		},
-		originConnectionLimit: 20,
-	});
+  const { runtimeRole } = yield* PlanetscaleDatabase;
+  return yield* Cloudflare.Hyperdrive.Connection("RelayHyperdrive", {
+    origin: runtimeRole.origin,
+    caching: {
+      disabled: true,
+    },
+    originConnectionLimit: 20,
+  });
 });

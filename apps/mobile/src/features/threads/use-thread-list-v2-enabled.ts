@@ -10,12 +10,10 @@ import { resolveThreadListV2Enabled } from "./threadListV2";
  * rather than the raw preference, which is undefined until explicitly chosen.
  */
 export function useThreadListV2Enabled(): boolean {
-	const preferencesResult = useAtomValue(mobilePreferencesAtom);
-	const loaded = AsyncResult.isSuccess(preferencesResult);
-	return resolveThreadListV2Enabled({
-		legacyPreference: loaded
-			? preferencesResult.value.legacyThreadListEnabled
-			: undefined,
-		preferencesLoaded: loaded,
-	});
+  const preferencesResult = useAtomValue(mobilePreferencesAtom);
+  const loaded = AsyncResult.isSuccess(preferencesResult);
+  return resolveThreadListV2Enabled({
+    legacyPreference: loaded ? preferencesResult.value.legacyThreadListEnabled : undefined,
+    preferencesLoaded: loaded,
+  });
 }

@@ -13,9 +13,9 @@ import { getMobileThemeRuntimeVariables } from "./mobileThemeVariables";
  * ScopedTheme instead of subscribing every consumer to CSS-variable updates.
  */
 export function useUniwindTheme(): MobileThemeVariables {
-	const { themeAppearance, themeId } = useAppearancePreferences();
-	return useMemo(
-		() => getMobileThemeRuntimeVariables(themeId, themeAppearance),
-		[themeAppearance, themeId],
-	);
+  const { themeAppearance, themeId } = useAppearancePreferences();
+  return useMemo(
+    () => getMobileThemeRuntimeVariables(themeId, themeAppearance),
+    [themeAppearance, themeId],
+  );
 }

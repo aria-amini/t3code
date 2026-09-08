@@ -3,8 +3,7 @@ const path = require("node:path");
 
 const { withDangerousMod } = require("expo/config-plugins");
 
-const MARKER =
-	"# t3code: repair cached CocoaPods UUID allocation before SPM integration";
+const MARKER = "# t3code: repair cached CocoaPods UUID allocation before SPM integration";
 const UUID_REPAIR = `${MARKER}
     pods_project = installer.pods_project
     existing_uuids = pods_project.objects.map(&:uuid)
@@ -27,32 +26,27 @@ const UUID_REPAIR = `${MARKER}
 `;
 
 module.exports = function withIosCocoaPodsUuidCache(config) {
-	return withDangerousMod(config, [
-		"ios",
-		(nextConfig) => {
-			const podfilePath = path.join(
-				nextConfig.modRequest.platformProjectRoot,
-				"Podfile",
-			);
-			const podfile = fs.readFileSync(podfilePath, "utf8");
+  return withDangerousMod(config, [
+    "ios",
+    (nextConfig) => {
+      const podfilePath = path.join(nextConfig.modRequest.platformProjectRoot, "Podfile");
+      const podfile = fs.readFileSync(podfilePath, "utf8");
 
-			if (podfile.includes(MARKER)) {
-				return nextConfig;
-			}
+      if (podfile.includes(MARKER)) {
+        return nextConfig;
+      }
 
-			const postInstallStart = "post_install do |installer|\n";
-			if (!podfile.includes(postInstallStart)) {
-				throw new Error(
-					"Unable to repair CocoaPods UUID allocation: post_install is missing.",
-				);
-			}
+      const postInstallStart = "post_install do |installer|\n";
+      if (!podfile.includes(postInstallStart)) {
+        throw new Error("Unable to repair CocoaPods UUID allocation: post_install is missing.");
+      }
 
-			fs.writeFileSync(
-				podfilePath,
-				podfile.replace(postInstallStart, `${postInstallStart}${UUID_REPAIR}`),
-				"utf8",
-			);
-			return nextConfig;
-		},
-	]);
+      fs.writeFileSync(
+        podfilePath,
+        podfile.replace(postInstallStart, `${postInstallStart}${UUID_REPAIR}`),
+        "utf8",
+      );
+      return nextConfig;
+    },
+  ]);
 };

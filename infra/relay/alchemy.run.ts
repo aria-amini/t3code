@@ -13,38 +13,38 @@ import { ManagedEndpointZone, RelayApiZone } from "./src/zone.ts";
 import ApiLive, { Api } from "./src/worker.ts";
 
 export default Alchemy.Stack(
-	"T3CodeRelay",
-	{
-		providers: Layer.mergeAll(
-			Axiom.providers(),
-			Cloudflare.providers(),
-			Drizzle.providers(),
-			Planetscale.providers(),
-		),
-		state: Cloudflare.state(),
-	},
-	Effect.gen(function* () {
-		const db = yield* RelayDb.PlanetscaleDatabase;
-		const hyperdrive = yield* RelayDb.RelayHyperdrive;
-		const managedEndpointZone = yield* ManagedEndpointZone.pipe(Effect.orDie);
-		const relayApiZone = yield* RelayApiZone.pipe(Effect.orDie);
-		const observability = yield* RelayObservability;
-		const api = yield* Api;
+  "T3CodeRelay",
+  {
+    providers: Layer.mergeAll(
+      Axiom.providers(),
+      Cloudflare.providers(),
+      Drizzle.providers(),
+      Planetscale.providers(),
+    ),
+    state: Cloudflare.state(),
+  },
+  Effect.gen(function* () {
+    const db = yield* RelayDb.PlanetscaleDatabase;
+    const hyperdrive = yield* RelayDb.RelayHyperdrive;
+    const managedEndpointZone = yield* ManagedEndpointZone.pipe(Effect.orDie);
+    const relayApiZone = yield* RelayApiZone.pipe(Effect.orDie);
+    const observability = yield* RelayObservability;
+    const api = yield* Api;
 
-		return {
-			databaseName: db.database.name,
-			databaseBranchName: db.branch?.name ?? "main",
-			hyperdriveName: hyperdrive.name,
-			workerName: api.workerName,
-			url: api.url,
-			relayApiZoneId: relayApiZone.zoneId,
-			managedEndpointZoneId: managedEndpointZone.zoneId,
-			mobileTracingUrl: observability.traces.otelTracesEndpoint,
-			mobileTracingDataset: observability.traces.name,
-			mobileTracingToken: observability.mobileIngestToken.token,
-			clientTracingUrl: observability.traces.otelTracesEndpoint,
-			clientTracingDataset: observability.traces.name,
-			clientTracingToken: observability.clientIngestToken.token,
-		};
-	}).pipe(Effect.provide(ApiLive)),
+    return {
+      databaseName: db.database.name,
+      databaseBranchName: db.branch?.name ?? "main",
+      hyperdriveName: hyperdrive.name,
+      workerName: api.workerName,
+      url: api.url,
+      relayApiZoneId: relayApiZone.zoneId,
+      managedEndpointZoneId: managedEndpointZone.zoneId,
+      mobileTracingUrl: observability.traces.otelTracesEndpoint,
+      mobileTracingDataset: observability.traces.name,
+      mobileTracingToken: observability.mobileIngestToken.token,
+      clientTracingUrl: observability.traces.otelTracesEndpoint,
+      clientTracingDataset: observability.traces.name,
+      clientTracingToken: observability.clientIngestToken.token,
+    };
+  }).pipe(Effect.provide(ApiLive)),
 );

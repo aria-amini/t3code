@@ -7,7 +7,7 @@ import { Command, Flag, GlobalFlag, Prompt } from "effect/unstable/cli";
 
 import packageJson from "../../package.json" with { type: "json" };
 import * as BootService from "../cloud/bootService.ts";
-import { compareExactServiceVersions } from "../cloud/serviceProtocol.ts";
+import { compareForkServiceVersions } from "../cloud/forkServiceVersions.ts";
 import type * as ServerConfig from "../config.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import { projectLocationFlags, resolveCliAuthConfig } from "./config.ts";
@@ -50,7 +50,7 @@ export const reconcileService = Effect.fn("cli.service.reconcile")(
 		if (
 			status.installedVersion !== undefined &&
 			options?.allowDowngrade !== true &&
-			compareExactServiceVersions(
+			compareForkServiceVersions(
 				packageJson.version,
 				status.installedVersion,
 			) < 0
@@ -87,7 +87,7 @@ export function formatServiceStatus(
 	if (
 		!status.current &&
 		status.installedVersion !== undefined &&
-		compareExactServiceVersions(status.installedVersion, cliVersion) > 0
+		compareForkServiceVersions(status.installedVersion, cliVersion) > 0
 	) {
 		return [
 			"T3 Code service",
@@ -243,7 +243,7 @@ export const offerServiceDuringOnboarding = Effect.gen(function* () {
 	if (
 		installed &&
 		status.installedVersion !== undefined &&
-		compareExactServiceVersions(status.installedVersion, packageJson.version) >
+		compareForkServiceVersions(status.installedVersion, packageJson.version) >
 			0
 	) {
 		yield* Console.log(

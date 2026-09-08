@@ -4,6 +4,7 @@ import {
 	forkRuntimeFromAssets,
 	resolveForkUpdateRequest,
 } from "./forkRuntimeChannel.ts";
+import { compareForkServiceVersions } from "./forkServiceVersions.ts";
 
 const RELEASE_URL = (version: string) =>
 	`https://github.com/aria-amini/t3code/releases/download/fork-runtime/t3-${version}.tgz`;
@@ -29,6 +30,21 @@ describe("forkRuntimeFromAssets", () => {
 			version: "0.0.40-fork.1",
 			packageSpec: RELEASE_URL("0.0.40-fork.1"),
 		});
+	});
+});
+
+describe("compareForkServiceVersions", () => {
+	it("ranks a fork build above the plain release of the same core", () => {
+		expect(compareForkServiceVersions("0.0.40-fork.2", "0.0.40")).toBeGreaterThan(0);
+		expect(compareForkServiceVersions("0.0.40", "0.0.40-fork.2")).toBeLessThan(0);
+	});
+
+	it("keeps exact ordering in every other combination", () => {
+		expect(compareForkServiceVersions("0.0.40-fork.2", "0.0.40-fork.1")).toBeGreaterThan(0);
+		expect(compareForkServiceVersions("0.0.40", "0.0.39")).toBeGreaterThan(0);
+		expect(compareForkServiceVersions("0.0.39-fork.3", "0.0.40")).toBeLessThan(0);
+		expect(compareForkServiceVersions("0.0.40", "0.0.40")).toBe(0);
+		expect(compareForkServiceVersions("0.0.40-fork.2", "0.0.40-fork.2")).toBe(0);
 	});
 });
 

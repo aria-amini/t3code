@@ -16,14 +16,13 @@ import type {
 	ServiceState,
 	ServiceUpdateRecord,
 } from "./cloud/serviceProtocol.ts";
+import { compareForkServiceVersions } from "./cloud/forkServiceVersions.ts";
 import {
-	compareExactServiceVersions,
 	decodeServiceLauncherChildMessage,
 	isExactServiceVersion,
 	parseServiceState,
 	SERVICE_LAUNCHER_CONTEXT_ENV,
-	SERVICE_LAUNCHER_PROTOCOL,
-	SERVICE_STATE_FILE,
+	SERVICE_LAUNCHER_PROTOCOL,	SERVICE_STATE_FILE,
 	SERVICE_STOP_MARKER_FILE,
 } from "./cloud/serviceProtocol.ts";
 import { isEntrypoint } from "./entrypoint.ts";
@@ -533,7 +532,7 @@ export class Launcher {
 			return;
 		}
 		if (
-			compareExactServiceVersions(message.targetVersion, child.version) <= 0
+			compareForkServiceVersions(message.targetVersion, child.version) <= 0
 		) {
 			await reject("Remote updates must select a newer server version.");
 			return;

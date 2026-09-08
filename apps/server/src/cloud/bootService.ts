@@ -24,12 +24,12 @@ import {
 	SERVICE_LAUNCHER_FILE,
 	SERVICE_LAUNCHER_PROTOCOL,
 	SERVICE_STATE_FILE,
-	compareExactServiceVersions,
 	parseServiceState,
 	serviceStateActiveVersion,
 	serviceStateHasPendingUpdate,
 	type ServiceState,
 } from "./serviceProtocol.ts";
+import { compareForkServiceVersions } from "./forkServiceVersions.ts";
 
 const BOOT_SERVICE_NAME = "t3code";
 const BOOT_SERVICE_UNIT_FILE = `${BOOT_SERVICE_NAME}.service`;
@@ -824,7 +824,7 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
 					if (
 						installedVersion !== undefined &&
 						options?.allowDowngrade !== true &&
-						compareExactServiceVersions(input.cliVersion, installedVersion) < 0
+						compareForkServiceVersions(input.cliVersion, installedVersion) < 0
 					) {
 						return yield* new BootServiceDowngradeRefusedError({
 							installedVersion,

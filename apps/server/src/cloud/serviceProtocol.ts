@@ -1,4 +1,5 @@
 import type { ServerSelfUpdateOutcome } from "@t3tools/contracts";
+import { compareForkServiceVersions } from "./forkServiceVersions.ts";
 
 /** Protocol 2 snapshots SQLite before trials so migrations can be rolled back safely. */
 export const SERVICE_LAUNCHER_PROTOCOL = 2 as const;
@@ -168,7 +169,7 @@ export function decodeServiceState(value: unknown): ServiceState | undefined {
 		!isExactServiceVersion(value.activeVersion) ||
 		(value.update !== undefined && update === undefined) ||
 		(update !== undefined &&
-			compareExactServiceVersions(update.targetVersion, update.fromVersion) <=
+			compareForkServiceVersions(update.targetVersion, update.fromVersion) <=
 				0) ||
 		(update?.status === "pending" &&
 			update.fromVersion !== value.activeVersion) ||

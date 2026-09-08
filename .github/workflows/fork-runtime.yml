@@ -48,9 +48,9 @@ jobs:
             printf 'Expected one runtime package, found %s.\n' "${#assets[@]}" >&2
             exit 1
           fi
-          versioned="release/$(basename "${assets[0]}")"
-          mv "${assets[0]}" "$versioned"
-          cp "$versioned" release/t3-runtime.tgz
+          # Keep the versioned tarball for fork update channel discovery and a
+          # stable rolling name for pinners.
+          cp "${assets[0]}" release/t3-runtime.tgz
 
       - uses: actions/upload-artifact@v7
         with:

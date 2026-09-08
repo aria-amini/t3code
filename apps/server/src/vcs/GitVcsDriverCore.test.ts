@@ -32,8 +32,11 @@ import * as GitVcsDriver from "./GitVcsDriver.ts";
 const ServerConfigLayer = ServerConfig.layerTest(process.cwd(), {
 	prefix: "t3-git-vcs-driver-test-",
 });
+import * as VcsProcess from "./VcsProcess.ts";
+
 const TestLayer = GitVcsDriver.layer.pipe(
 	Layer.provide(ServerConfigLayer),
+	Layer.provide(VcsProcess.layer),
 	Layer.provideMerge(NodeServices.layer),
 );
 
@@ -228,6 +231,7 @@ it.effect(
 		);
 		const layer = GitVcsDriver.layer.pipe(
 			Layer.provide(ServerConfigLayer),
+			Layer.provide(VcsProcess.layer),
 			Layer.provideMerge(nodeServicesLayer),
 		);
 

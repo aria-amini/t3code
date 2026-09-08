@@ -36,6 +36,7 @@ jobs:
           cp -a apps/web/dist apps/server/dist/client
           runtime_dir="$RUNNER_TEMP/t3-runtime"
           vp dlx pnpm@11.10.0 --filter t3 deploy --prod --legacy "$runtime_dir"
+          node scripts/rewrite-runtime-manifest.ts "$runtime_dir"
           mkdir release
           (
             cd "$runtime_dir"

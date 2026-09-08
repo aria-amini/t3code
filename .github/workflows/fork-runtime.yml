@@ -69,6 +69,7 @@ jobs:
       - name: Publish rolling runtime
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           if ! gh release view fork-runtime >/dev/null 2>&1; then
             gh release create fork-runtime --target "$GITHUB_SHA" --prerelease --title "Fork runtime"

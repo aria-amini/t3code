@@ -13,21 +13,22 @@ import { PLAN_IMPLEMENTATION_PROMPT_PREFIX } from "../../proposedPlan";
  */
 
 const CLAUDE_ULTRATHINK_PREFIX = "Ultrathink:\n";
-const REVIEW_COMMENT_BLOCK_PATTERN = /<review_comment\b[^>]*>[\s\S]*?<\/review_comment>/g;
+const REVIEW_COMMENT_BLOCK_PATTERN =
+	/<review_comment\b[^>]*>[\s\S]*?<\/review_comment>/g;
 
 /** Text sent in place of an empty prompt when a message is attachments only. */
 export const ATTACHMENT_ONLY_BOOTSTRAP_PROMPT =
-  "[User attached one or more files without additional text. Respond using the conversation context and the attached files.]";
+	"[User attached one or more files without additional text. Respond using the conversation context and the attached files.]";
 
 export interface ComposerPromptHistoryMessage {
-  readonly id: string;
-  readonly role: string;
-  readonly text: string;
+	readonly id: string;
+	readonly role: string;
+	readonly text: string;
 }
 
 export interface ComposerPromptHistoryEntry {
-  readonly id: string;
-  readonly prompt: string;
+	readonly id: string;
+	readonly prompt: string;
 }
 
 /**
@@ -38,8 +39,8 @@ export interface ComposerPromptHistoryEntry {
  * sent and browsing is over.
  */
 export interface ComposerPromptHistoryPosition {
-  readonly entryId: string;
-  readonly recalled: string;
+	readonly entryId: string;
+	readonly recalled: string;
 }
 
 /**
@@ -48,17 +49,17 @@ export interface ComposerPromptHistoryPosition {
  * newest entry with matching text.
  */
 function findActive(
-  entries: ReadonlyArray<ComposerPromptHistoryEntry>,
-  position: ComposerPromptHistoryPosition,
+	entries: ReadonlyArray<ComposerPromptHistoryEntry>,
+	position: ComposerPromptHistoryPosition,
 ): number {
-  const byId = entries.findIndex((entry) => entry.id === position.entryId);
-  if (byId >= 0) return byId;
-  return entries.findLastIndex((entry) => entry.prompt === position.recalled);
+	const byId = entries.findIndex((entry) => entry.id === position.entryId);
+	if (byId >= 0) return byId;
+	return entries.findLastIndex((entry) => entry.prompt === position.recalled);
 }
 
 export interface ComposerPromptHistoryStep {
-  readonly position: ComposerPromptHistoryPosition | null;
-  readonly prompt: string;
+	readonly position: ComposerPromptHistoryPosition | null;
+	readonly prompt: string;
 }
 
 /**
@@ -67,13 +68,15 @@ export interface ComposerPromptHistoryStep {
  * so any review comment block the user typed earlier stays byte-for-byte.
  */
 function stripTrailingReviewComments(prompt: string): string {
-  let cut = prompt.length;
-  for (const match of [...prompt.matchAll(REVIEW_COMMENT_BLOCK_PATTERN)].toReversed()) {
-    const blockEnd = match.index + match[0].length;
-    if (prompt.slice(blockEnd, cut).trim().length > 0) break;
-    cut = match.index;
-  }
-  return cut === prompt.length ? prompt : prompt.slice(0, cut).trimEnd();
+	let cut = prompt.length;
+	for (const match of [
+		...prompt.matchAll(REVIEW_COMMENT_BLOCK_PATTERN),
+	].toReversed()) {
+		const blockEnd = match.index + match[0].length;
+		if (prompt.slice(blockEnd, cut).trim().length > 0) break;
+		cut = match.index;
+	}
+	return cut === prompt.length ? prompt : prompt.slice(0, cut).trimEnd();
 }
 
 /**
@@ -85,27 +88,30 @@ function stripTrailingReviewComments(prompt: string): string {
  * headers look like `Terminal 1 lines 12-13`.
  */
 function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function stripInlineTerminalLabels(prompt: string, headers: ReadonlyArray<string>): string {
-  let result = prompt;
-  for (const header of headers) {
-    const match = /^(.+?) lines? (\d+(?:-\d+)?)$/.exec(header);
-    if (!match) continue;
-    const label = `@${match[1]!.trim().toLowerCase().replace(/\s+/g, "-")}:${match[2]}`;
-    // Whole label only: `@terminal-1:4` must not match inside `@terminal-1:40`
-    // or `@terminal-1:4-12`.
-    const labelPattern = new RegExp(`${escapeRegExp(label)}(?![\\d-])`);
-    const index = result.search(labelPattern);
-    if (index < 0) continue;
-    let end = index + label.length;
-    let start = index;
-    if (result[end] === " ") end += 1;
-    else if (result[start - 1] === " ") start -= 1;
-    result = result.slice(0, start) + result.slice(end);
-  }
-  return result;
+function stripInlineTerminalLabels(
+	prompt: string,
+	headers: ReadonlyArray<string>,
+): string {
+	let result = prompt;
+	for (const header of headers) {
+		const match = /^(.+?) lines? (\d+(?:-\d+)?)$/.exec(header);
+		if (!match) continue;
+		const label = `@${match[1]!.trim().toLowerCase().replace(/\s+/g, "-")}:${match[2]}`;
+		// Whole label only: `@terminal-1:4` must not match inside `@terminal-1:40`
+		// or `@terminal-1:4-12`.
+		const labelPattern = new RegExp(`${escapeRegExp(label)}(?![\\d-])`);
+		const index = result.search(labelPattern);
+		if (index < 0) continue;
+		let end = index + label.length;
+		let start = index;
+		if (result[end] === " ") end += 1;
+		else if (result[start - 1] === " ") start -= 1;
+		result = result.slice(0, start) + result.slice(end);
+	}
+	return result;
 }
 
 /**
@@ -115,47 +121,47 @@ function stripInlineTerminalLabels(prompt: string, headers: ReadonlyArray<string
  * never carries stale context from another turn.
  */
 export function recallableComposerPrompt(messageText: string): string {
-  let prompt = messageText.trim();
-  if (prompt.startsWith(CLAUDE_ULTRATHINK_PREFIX)) {
-    prompt = prompt.slice(CLAUDE_ULTRATHINK_PREFIX.length);
-  }
+	let prompt = messageText.trim();
+	if (prompt.startsWith(CLAUDE_ULTRATHINK_PREFIX)) {
+		prompt = prompt.slice(CLAUDE_ULTRATHINK_PREFIX.length);
+	}
 
-  while (prompt.length > 0) {
-    const withoutReviewComments = stripTrailingReviewComments(prompt);
-    if (withoutReviewComments !== prompt) {
-      prompt = withoutReviewComments;
-      continue;
-    }
-    const previewAnnotation = extractTrailingPreviewAnnotation(prompt);
-    if (previewAnnotation.annotation) {
-      prompt = previewAnnotation.promptText;
-      continue;
-    }
-    const elementContexts = extractTrailingElementContexts(prompt);
-    if (elementContexts.contextCount > 0) {
-      prompt = elementContexts.promptText;
-      continue;
-    }
-    const terminalContexts = extractTrailingTerminalContexts(prompt);
-    if (terminalContexts.contextCount > 0) {
-      prompt = stripInlineTerminalLabels(
-        terminalContexts.promptText,
-        terminalContexts.contexts.map((context) => context.header),
-      );
-      continue;
-    }
-    break;
-  }
+	while (prompt.length > 0) {
+		const withoutReviewComments = stripTrailingReviewComments(prompt);
+		if (withoutReviewComments !== prompt) {
+			prompt = withoutReviewComments;
+			continue;
+		}
+		const previewAnnotation = extractTrailingPreviewAnnotation(prompt);
+		if (previewAnnotation.annotation) {
+			prompt = previewAnnotation.promptText;
+			continue;
+		}
+		const elementContexts = extractTrailingElementContexts(prompt);
+		if (elementContexts.contextCount > 0) {
+			prompt = elementContexts.promptText;
+			continue;
+		}
+		const terminalContexts = extractTrailingTerminalContexts(prompt);
+		if (terminalContexts.contextCount > 0) {
+			prompt = stripInlineTerminalLabels(
+				terminalContexts.promptText,
+				terminalContexts.contexts.map((context) => context.header),
+			);
+			continue;
+		}
+		break;
+	}
 
-  // App-composed sends are not text the user typed, so they are not history.
-  const trimmed = prompt.trim();
-  if (
-    trimmed === ATTACHMENT_ONLY_BOOTSTRAP_PROMPT ||
-    trimmed.startsWith(PLAN_IMPLEMENTATION_PROMPT_PREFIX)
-  ) {
-    return "";
-  }
-  return trimmed;
+	// App-composed sends are not text the user typed, so they are not history.
+	const trimmed = prompt.trim();
+	if (
+		trimmed === ATTACHMENT_ONLY_BOOTSTRAP_PROMPT ||
+		trimmed.startsWith(PLAN_IMPLEMENTATION_PROMPT_PREFIX)
+	) {
+		return "";
+	}
+	return trimmed;
 }
 
 /**
@@ -164,21 +170,21 @@ export function recallableComposerPrompt(messageText: string): string {
  * are skipped.
  */
 export function buildComposerPromptHistoryEntries(
-  messages: ReadonlyArray<ComposerPromptHistoryMessage>,
+	messages: ReadonlyArray<ComposerPromptHistoryMessage>,
 ): ComposerPromptHistoryEntry[] {
-  const entries: ComposerPromptHistoryEntry[] = [];
-  for (const message of messages) {
-    if (message.role !== "user") continue;
-    const prompt = recallableComposerPrompt(message.text);
-    if (prompt.length === 0) continue;
-    const previous = entries[entries.length - 1];
-    if (previous && previous.prompt === prompt) {
-      entries[entries.length - 1] = { id: message.id, prompt };
-      continue;
-    }
-    entries.push({ id: message.id, prompt });
-  }
-  return entries;
+	const entries: ComposerPromptHistoryEntry[] = [];
+	for (const message of messages) {
+		if (message.role !== "user") continue;
+		const prompt = recallableComposerPrompt(message.text);
+		if (prompt.length === 0) continue;
+		const previous = entries[entries.length - 1];
+		if (previous && previous.prompt === prompt) {
+			entries[entries.length - 1] = { id: message.id, prompt };
+			continue;
+		}
+		entries.push({ id: message.id, prompt });
+	}
+	return entries;
 }
 
 /**
@@ -189,24 +195,33 @@ export function buildComposerPromptHistoryEntries(
  * from scratch on the next backward step.
  */
 export function stepComposerPromptHistory(input: {
-  readonly direction: "backward" | "forward";
-  readonly entries: ReadonlyArray<ComposerPromptHistoryEntry>;
-  readonly position: ComposerPromptHistoryPosition | null;
-  readonly currentPrompt: string;
+	readonly direction: "backward" | "forward";
+	readonly entries: ReadonlyArray<ComposerPromptHistoryEntry>;
+	readonly position: ComposerPromptHistoryPosition | null;
+	readonly currentPrompt: string;
 }): ComposerPromptHistoryStep | null {
-  const { entries, position, currentPrompt } = input;
-  const activeIndex =
-    position && position.recalled === currentPrompt ? findActive(entries, position) : -1;
+	const { entries, position, currentPrompt } = input;
+	const activeIndex =
+		position && position.recalled === currentPrompt
+			? findActive(entries, position)
+			: -1;
 
-  if (input.direction === "backward") {
-    if (activeIndex < 0 && currentPrompt.length > 0) return null;
-    const entry = entries[activeIndex < 0 ? entries.length - 1 : activeIndex - 1];
-    if (!entry) return null;
-    return { position: { entryId: entry.id, recalled: entry.prompt }, prompt: entry.prompt };
-  }
+	if (input.direction === "backward") {
+		if (activeIndex < 0 && currentPrompt.length > 0) return null;
+		const entry =
+			entries[activeIndex < 0 ? entries.length - 1 : activeIndex - 1];
+		if (!entry) return null;
+		return {
+			position: { entryId: entry.id, recalled: entry.prompt },
+			prompt: entry.prompt,
+		};
+	}
 
-  if (activeIndex < 0) return null;
-  const entry = entries[activeIndex + 1];
-  if (!entry) return { position: null, prompt: "" };
-  return { position: { entryId: entry.id, recalled: entry.prompt }, prompt: entry.prompt };
+	if (activeIndex < 0) return null;
+	const entry = entries[activeIndex + 1];
+	if (!entry) return { position: null, prompt: "" };
+	return {
+		position: { entryId: entry.id, recalled: entry.prompt },
+		prompt: entry.prompt,
+	};
 }

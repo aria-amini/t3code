@@ -3,6 +3,6 @@ import * as Layer from "effect/Layer";
 import * as Headers from "effect/unstable/http/Headers";
 
 export const httpHeaderRedactionLayer = Layer.effect(
-  Headers.CurrentRedactedNames,
-  Effect.map(Headers.CurrentRedactedNames, (names) => [...names, "dpop"]),
+	Headers.CurrentRedactedNames,
+	Effect.map(Headers.CurrentRedactedNames, (names) => [...names, "dpop"]),
 );

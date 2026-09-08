@@ -9,8 +9,8 @@ import * as SqlClient from "effect/unstable/sql/SqlClient";
  * With this index the candidates scan is genuinely bounded by the page size.
  */
 export default Effect.gen(function* () {
-  const sql = yield* SqlClient.SqlClient;
-  yield* sql`
+	const sql = yield* SqlClient.SqlClient;
+	yield* sql`
     CREATE INDEX IF NOT EXISTS idx_projection_turns_thread_keyset
     ON projection_turns(thread_id, requested_at, turn_id)
   `;

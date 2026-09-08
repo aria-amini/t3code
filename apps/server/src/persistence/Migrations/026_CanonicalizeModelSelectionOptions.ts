@@ -26,9 +26,9 @@ import * as SqlClient from "effect/unstable/sql/SqlClient";
  *     (project.created | project.meta-updated)
  */
 export default Effect.gen(function* () {
-  const sql = yield* SqlClient.SqlClient;
+	const sql = yield* SqlClient.SqlClient;
 
-  yield* sql`
+	yield* sql`
     UPDATE projection_threads
     SET model_selection_json = json_set(
       model_selection_json,
@@ -54,7 +54,7 @@ export default Effect.gen(function* () {
       AND json_type(model_selection_json, '$.options') = 'object'
   `;
 
-  yield* sql`
+	yield* sql`
     UPDATE projection_projects
     SET default_model_selection_json = json_set(
       default_model_selection_json,
@@ -80,7 +80,7 @@ export default Effect.gen(function* () {
       AND json_type(default_model_selection_json, '$.options') = 'object'
   `;
 
-  yield* sql`
+	yield* sql`
     UPDATE orchestration_events
     SET payload_json = json_set(
       payload_json,
@@ -110,7 +110,7 @@ export default Effect.gen(function* () {
       AND json_type(payload_json, '$.modelSelection.options') = 'object'
   `;
 
-  yield* sql`
+	yield* sql`
     UPDATE orchestration_events
     SET payload_json = json_set(
       payload_json,

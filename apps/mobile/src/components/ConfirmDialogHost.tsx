@@ -5,13 +5,13 @@ import { cn } from "../lib/cn";
 import { AppText } from "./AppText";
 
 export type ConfirmDialogRequest = {
-  readonly title: string;
-  readonly message?: string;
-  readonly cancelText?: string;
-  readonly confirmText: string;
-  readonly destructive?: boolean;
-  readonly onConfirm: () => void;
-  readonly onCancel?: () => void;
+	readonly title: string;
+	readonly message?: string;
+	readonly cancelText?: string;
+	readonly confirmText: string;
+	readonly destructive?: boolean;
+	readonly onConfirm: () => void;
+	readonly onCancel?: () => void;
 };
 
 let presentRequest: ((request: ConfirmDialogRequest) => void) | null = null;
@@ -23,7 +23,7 @@ let presentRequest: ((request: ConfirmDialogRequest) => void) | null = null;
  * once. Requires ConfirmDialogHost to be mounted at the app root.
  */
 export function showConfirmDialog(request: ConfirmDialogRequest): void {
-  presentRequest?.(request);
+	presentRequest?.(request);
 }
 
 /**
@@ -33,74 +33,76 @@ export function showConfirmDialog(request: ConfirmDialogRequest): void {
  * button color and a dimmer message than the title.
  */
 export function ConfirmDialogHost() {
-  const [request, setRequest] = useState<ConfirmDialogRequest | null>(null);
-  useEffect(() => {
-    presentRequest = setRequest;
-    return () => {
-      presentRequest = null;
-    };
-  }, []);
+	const [request, setRequest] = useState<ConfirmDialogRequest | null>(null);
+	useEffect(() => {
+		presentRequest = setRequest;
+		return () => {
+			presentRequest = null;
+		};
+	}, []);
 
-  const handleCancel = useCallback(() => {
-    request?.onCancel?.();
-    setRequest(null);
-  }, [request]);
+	const handleCancel = useCallback(() => {
+		request?.onCancel?.();
+		setRequest(null);
+	}, [request]);
 
-  const handleConfirm = useCallback(() => {
-    request?.onConfirm();
-    setRequest(null);
-  }, [request]);
+	const handleConfirm = useCallback(() => {
+		request?.onConfirm();
+		setRequest(null);
+	}, [request]);
 
-  return (
-    <Modal
-      visible={request !== null}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      navigationBarTranslucent
-      onRequestClose={handleCancel}
-    >
-      {request === null ? null : (
-        <View className="flex-1 items-center justify-center bg-backdrop px-8">
-          <View className="w-full rounded-[24px] bg-card px-6 pb-4 pt-5">
-            <AppText className="text-lg font-t3-medium">{request.title}</AppText>
-            {request.message === undefined ? null : (
-              <AppText className="mt-2 text-sm text-foreground-secondary">
-                {request.message}
-              </AppText>
-            )}
-            <View className="mt-5 flex-row justify-end gap-1">
-              <View className="overflow-hidden rounded-full">
-                <Pressable
-                  accessibilityRole="button"
-                  className="min-h-10 items-center justify-center px-4 active:bg-subtle"
-                  onPress={handleCancel}
-                >
-                  <AppText className="text-base font-t3-medium">
-                    {request.cancelText ?? "Cancel"}
-                  </AppText>
-                </Pressable>
-              </View>
-              <View className="overflow-hidden rounded-full">
-                <Pressable
-                  accessibilityRole="button"
-                  className="min-h-10 items-center justify-center px-4 active:bg-subtle"
-                  onPress={handleConfirm}
-                >
-                  <AppText
-                    className={cn(
-                      "text-base font-t3-medium",
-                      request.destructive && "text-danger-foreground",
-                    )}
-                  >
-                    {request.confirmText}
-                  </AppText>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </View>
-      )}
-    </Modal>
-  );
+	return (
+		<Modal
+			visible={request !== null}
+			transparent
+			animationType="fade"
+			statusBarTranslucent
+			navigationBarTranslucent
+			onRequestClose={handleCancel}
+		>
+			{request === null ? null : (
+				<View className="flex-1 items-center justify-center bg-backdrop px-8">
+					<View className="w-full rounded-[24px] bg-card px-6 pb-4 pt-5">
+						<AppText className="text-lg font-t3-medium">
+							{request.title}
+						</AppText>
+						{request.message === undefined ? null : (
+							<AppText className="mt-2 text-sm text-foreground-secondary">
+								{request.message}
+							</AppText>
+						)}
+						<View className="mt-5 flex-row justify-end gap-1">
+							<View className="overflow-hidden rounded-full">
+								<Pressable
+									accessibilityRole="button"
+									className="min-h-10 items-center justify-center px-4 active:bg-subtle"
+									onPress={handleCancel}
+								>
+									<AppText className="text-base font-t3-medium">
+										{request.cancelText ?? "Cancel"}
+									</AppText>
+								</Pressable>
+							</View>
+							<View className="overflow-hidden rounded-full">
+								<Pressable
+									accessibilityRole="button"
+									className="min-h-10 items-center justify-center px-4 active:bg-subtle"
+									onPress={handleConfirm}
+								>
+									<AppText
+										className={cn(
+											"text-base font-t3-medium",
+											request.destructive && "text-danger-foreground",
+										)}
+									>
+										{request.confirmText}
+									</AppText>
+								</Pressable>
+							</View>
+						</View>
+					</View>
+				</View>
+			)}
+		</Modal>
+	);
 }

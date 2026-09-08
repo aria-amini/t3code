@@ -6,4 +6,6 @@
  * build where there's no Electron host.
  */
 export const previewBridge =
-  typeof window === "undefined" ? null : (window.desktopBridge?.preview ?? null);
+	typeof window === "undefined"
+		? null
+		: (window.desktopBridge?.preview ?? null);

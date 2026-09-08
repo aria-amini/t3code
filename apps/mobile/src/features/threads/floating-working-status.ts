@@ -6,60 +6,60 @@ import type { EnvironmentConnectionPhase } from "@t3tools/client-runtime/connect
  * another. The connection variant is tappable and triggers a reconnect.
  */
 export type FloatingWorkingStatus =
-  | { readonly kind: "working"; readonly startedAt: string }
-  | { readonly kind: "syncing"; readonly label: string }
-  | { readonly kind: "compacting" }
-  // A task whose thread the server has not created yet: the worktree may
-  // still be checking out, so there is no turn to time.
-  | { readonly kind: "preparing"; readonly label: string }
-  | {
-      readonly kind: "connection";
-      readonly tone: "reconnecting" | "unavailable";
-      readonly label: string;
-      readonly onPress: () => void;
-    };
+	| { readonly kind: "working"; readonly startedAt: string }
+	| { readonly kind: "syncing"; readonly label: string }
+	| { readonly kind: "compacting" }
+	// A task whose thread the server has not created yet: the worktree may
+	// still be checking out, so there is no turn to time.
+	| { readonly kind: "preparing"; readonly label: string }
+	| {
+			readonly kind: "connection";
+			readonly tone: "reconnecting" | "unavailable";
+			readonly label: string;
+			readonly onPress: () => void;
+	  };
 
 /**
  * The pill's connection variant, or null once the environment is connected and
  * the pill is free to report sync and working state instead.
  */
 export function connectionFloatingStatus(input: {
-  readonly connectionError: string | null;
-  readonly connectionState: EnvironmentConnectionPhase;
-  readonly environmentLabel: string | null;
-  readonly onReconnect: () => void;
+	readonly connectionError: string | null;
+	readonly connectionState: EnvironmentConnectionPhase;
+	readonly environmentLabel: string | null;
+	readonly onReconnect: () => void;
 }): FloatingWorkingStatus | null {
-  const environmentLabel = input.environmentLabel ?? "Environment";
-  const unavailable = (label: string): FloatingWorkingStatus => ({
-    kind: "connection",
-    tone: "unavailable",
-    label,
-    onPress: input.onReconnect,
-  });
+	const environmentLabel = input.environmentLabel ?? "Environment";
+	const unavailable = (label: string): FloatingWorkingStatus => ({
+		kind: "connection",
+		tone: "unavailable",
+		label,
+		onPress: input.onReconnect,
+	});
 
-  switch (input.connectionState) {
-    case "connecting":
-    case "reconnecting":
-      return {
-        kind: "connection",
-        tone: "reconnecting",
-        label:
-          input.connectionError === null
-            ? `Reconnecting to ${environmentLabel}...`
-            : `Failed to connect. Retrying ${environmentLabel}...`,
-        onPress: input.onReconnect,
-      };
-    case "offline":
-      return unavailable("You are offline");
-    case "error":
-      return unavailable(
-        input.connectionError
-          ? `Failed to connect to ${environmentLabel}: ${input.connectionError}`
-          : `Failed to connect to ${environmentLabel}`,
-      );
-    case "available":
-      return unavailable(`${environmentLabel} is not connected`);
-    case "connected":
-      return null;
-  }
+	switch (input.connectionState) {
+		case "connecting":
+		case "reconnecting":
+			return {
+				kind: "connection",
+				tone: "reconnecting",
+				label:
+					input.connectionError === null
+						? `Reconnecting to ${environmentLabel}...`
+						: `Failed to connect. Retrying ${environmentLabel}...`,
+				onPress: input.onReconnect,
+			};
+		case "offline":
+			return unavailable("You are offline");
+		case "error":
+			return unavailable(
+				input.connectionError
+					? `Failed to connect to ${environmentLabel}: ${input.connectionError}`
+					: `Failed to connect to ${environmentLabel}`,
+			);
+		case "available":
+			return unavailable(`${environmentLabel} is not connected`);
+		case "connected":
+			return null;
+	}
 }

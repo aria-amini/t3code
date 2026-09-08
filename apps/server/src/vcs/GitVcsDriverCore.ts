@@ -1358,7 +1358,10 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(
 			},
 		);
 		const resolveJjWorkingCopyBookmark = (cwd: string) =>
-			Cache.get(jjWorkingCopyBookmarkCache, normalizeRepositoryPathsCacheKey(cwd));
+			Cache.get(
+				jjWorkingCopyBookmarkCache,
+				normalizeRepositoryPathsCacheKey(cwd),
+			);
 
 		const defaultBranchCache = yield* Cache.makeWith(
 			(gitCommonDir: string) =>

@@ -13,16 +13,16 @@ const DESKTOP_LOCAL_BOOTSTRAP_POLL_MS = 2_000;
  * renderer consumer reads the same topology.
  */
 export function useDesktopLocalBootstraps(): ReadonlyArray<DesktopEnvironmentBootstrap> {
-  const [bootstraps, setBootstraps] = useState<ReadonlyArray<DesktopEnvironmentBootstrap>>(
-    readDesktopSecondaryBootstraps,
-  );
+	const [bootstraps, setBootstraps] = useState<
+		ReadonlyArray<DesktopEnvironmentBootstrap>
+	>(readDesktopSecondaryBootstraps);
 
-  useEffect(() => {
-    const read = () => setBootstraps(readDesktopSecondaryBootstraps());
-    read();
-    const interval = setInterval(read, DESKTOP_LOCAL_BOOTSTRAP_POLL_MS);
-    return () => clearInterval(interval);
-  }, []);
+	useEffect(() => {
+		const read = () => setBootstraps(readDesktopSecondaryBootstraps());
+		read();
+		const interval = setInterval(read, DESKTOP_LOCAL_BOOTSTRAP_POLL_MS);
+		return () => clearInterval(interval);
+	}, []);
 
-  return bootstraps;
+	return bootstraps;
 }

@@ -774,28 +774,29 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(
 		const createWorkspace: VcsDriver.VcsDriver["Service"]["createWorkspace"] = (
 			input: VcsCreateWorkspaceInput,
 		) =>
-			requireJjWorkspaceRepository("GitVcsDriver.createWorkspace", input.cwd).pipe(
+			requireJjWorkspaceRepository(
+				"GitVcsDriver.createWorkspace",
+				input.cwd,
+			).pipe(
 				Effect.andThen(jjWorkspaces.createWorkspace(input)),
 				// The git driver only routes here so jj workspaces behave as git
 				// worktrees. A jj build without git.auto-register-worktrees still
 				// creates the workspace but leaves no .git, which would silently
 				// degrade every git command in the workspace to "not a repository".
 				Effect.andThen((workspace) =>
-					fileSystem
-						.exists(path.join(workspace.path, ".git"))
-						.pipe(
-							Effect.orElseSucceed(() => false),
-							Effect.flatMap((hasGitMetadata) =>
-								hasGitMetadata
-									? Effect.succeed(workspace)
-									: new VcsUnsupportedOperationError({
-											operation: "GitVcsDriver.createWorkspace",
-											kind: "git",
-											detail:
-												"jj workspace creation did not register a git worktree (.git is missing); the installed jj build may not support git.auto-register-worktrees.",
-										}),
-							),
+					fileSystem.exists(path.join(workspace.path, ".git")).pipe(
+						Effect.orElseSucceed(() => false),
+						Effect.flatMap((hasGitMetadata) =>
+							hasGitMetadata
+								? Effect.succeed(workspace)
+								: new VcsUnsupportedOperationError({
+										operation: "GitVcsDriver.createWorkspace",
+										kind: "git",
+										detail:
+											"jj workspace creation did not register a git worktree (.git is missing); the installed jj build may not support git.auto-register-worktrees.",
+									}),
 						),
+					),
 				),
 			);
 
@@ -809,10 +810,10 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(
 		const removeWorkspace: VcsDriver.VcsDriver["Service"]["removeWorkspace"] = (
 			input: VcsRemoveWorkspaceInput,
 		) =>
-			requireJjWorkspaceRepository("GitVcsDriver.removeWorkspace", input.cwd).pipe(
-				Effect.andThen(jjWorkspaces.removeWorkspace(input)),
-			);
-
+			requireJjWorkspaceRepository(
+				"GitVcsDriver.removeWorkspace",
+				input.cwd,
+			).pipe(Effect.andThen(jjWorkspaces.removeWorkspace(input)));
 
 		const resolveHeadCommit = (cwd: string) =>
 			execute({
@@ -1170,8 +1171,7 @@ export const make = Effect.gen(function* () {
 			);
 			const name = (input.newRefName ?? input.refName).replace(/\//g, "-");
 			const repoName = path.basename(input.cwd);
-			const targetPath =
-				input.path ?? path.join(worktreesDir, repoName, name);
+			const targetPath = input.path ?? path.join(worktreesDir, repoName, name);
 			const workspace = yield* jjWorkspaces
 				.createWorkspace({
 					cwd: input.cwd,
@@ -1216,12 +1216,10 @@ export const make = Effect.gen(function* () {
 					input.newRefName,
 				]);
 			} else if (
-				(
-					yield* runWorkspaceGit(operation, workspace.path, [
-						"checkout",
-						input.refName,
-					])
-				).exitCode !== 0
+				(yield* runWorkspaceGit(operation, workspace.path, [
+					"checkout",
+					input.refName,
+				])).exitCode !== 0
 			) {
 				// -B re-points a stale branch left behind by a forgotten workspace
 				// with the same name.
@@ -1285,91 +1283,89 @@ export const make = Effect.gen(function* () {
 			};
 		});
 
-	const removeJjWorkspace: GitVcsDriver["Service"]["removeWorktree"] = Effect.fn(
-		"removeJjWorkspace",
-	)(function* (input) {
-		const operation = "GitVcsDriver.removeJjWorkspace";
-		const { workspaces } = yield* jjWorkspaces.listWorkspaces(input.cwd).pipe(
-			Effect.mapError(
-				(cause) =>
-					new GitCommandError({
-						operation,
-						command: "jj workspace list",
-						cwd: input.cwd,
-						detail: "jj workspace listing failed.",
-						cause,
-					}),
-			),
-		);
-		const targetPath = path.resolve(input.path);
-		const match = workspaces.find(
-			(workspace) => path.resolve(workspace.path) === targetPath,
-		);
-		if (!match) {
-			return yield* new GitCommandError({
-				operation,
-				command: "jj workspace list",
-				cwd: input.cwd,
-				detail: `No jj workspace is checked out at ${input.path}.`,
-			});
-		}
-		yield* jjWorkspaces
-			.removeWorkspace({
-				cwd: input.cwd,
-				name: match.name,
-				deleteDirectory: true,
-			})
-			.pipe(
+	const removeJjWorkspace: GitVcsDriver["Service"]["removeWorktree"] =
+		Effect.fn("removeJjWorkspace")(function* (input) {
+			const operation = "GitVcsDriver.removeJjWorkspace";
+			const { workspaces } = yield* jjWorkspaces.listWorkspaces(input.cwd).pipe(
 				Effect.mapError(
 					(cause) =>
 						new GitCommandError({
 							operation,
-							command: "jj workspace forget",
+							command: "jj workspace list",
 							cwd: input.cwd,
-							detail: "jj workspace removal failed.",
+							detail: "jj workspace listing failed.",
 							cause,
 						}),
 				),
 			);
-		// A forget can leave a stale entry behind; verify and retry once.
-		const afterForget = yield* jjWorkspaces
-			.listWorkspaces(input.cwd)
-			.pipe(Effect.orElseSucceed(() => null));
-		if (afterForget?.workspaces.some((w) => w.name === match.name)) {
+			const targetPath = path.resolve(input.path);
+			const match = workspaces.find(
+				(workspace) => path.resolve(workspace.path) === targetPath,
+			);
+			if (!match) {
+				return yield* new GitCommandError({
+					operation,
+					command: "jj workspace list",
+					cwd: input.cwd,
+					detail: `No jj workspace is checked out at ${input.path}.`,
+				});
+			}
 			yield* jjWorkspaces
 				.removeWorkspace({
 					cwd: input.cwd,
 					name: match.name,
 					deleteDirectory: true,
 				})
-				.pipe(Effect.catch(() => Effect.void));
-		}
-	});
-
-	const pruneJjWorkspaces: GitVcsDriver["Service"]["pruneWorktrees"] = Effect.fn(
-		"pruneJjWorkspaces",
-	)(function* (input) {
-		const operation = "GitVcsDriver.pruneJjWorkspaces";
-		const result = yield* jjWorkspaces
-			.listWorkspaces(input.cwd)
-			.pipe(Effect.orElseSucceed(() => null));
-		if (result === null) {
-			return;
-		}
-		for (const workspace of result.workspaces) {
-			if (workspace.name === "default") {
-				continue;
-			}
-			const exists = yield* fileSystem
-				.exists(workspace.path)
-				.pipe(Effect.orElseSucceed(() => true));
-			if (!exists) {
+				.pipe(
+					Effect.mapError(
+						(cause) =>
+							new GitCommandError({
+								operation,
+								command: "jj workspace forget",
+								cwd: input.cwd,
+								detail: "jj workspace removal failed.",
+								cause,
+							}),
+					),
+				);
+			// A forget can leave a stale entry behind; verify and retry once.
+			const afterForget = yield* jjWorkspaces
+				.listWorkspaces(input.cwd)
+				.pipe(Effect.orElseSucceed(() => null));
+			if (afterForget?.workspaces.some((w) => w.name === match.name)) {
 				yield* jjWorkspaces
-					.removeWorkspace({ cwd: input.cwd, name: workspace.name })
+					.removeWorkspace({
+						cwd: input.cwd,
+						name: match.name,
+						deleteDirectory: true,
+					})
 					.pipe(Effect.catch(() => Effect.void));
 			}
-		}
-	});
+		});
+
+	const pruneJjWorkspaces: GitVcsDriver["Service"]["pruneWorktrees"] =
+		Effect.fn("pruneJjWorkspaces")(function* (input) {
+			const operation = "GitVcsDriver.pruneJjWorkspaces";
+			const result = yield* jjWorkspaces
+				.listWorkspaces(input.cwd)
+				.pipe(Effect.orElseSucceed(() => null));
+			if (result === null) {
+				return;
+			}
+			for (const workspace of result.workspaces) {
+				if (workspace.name === "default") {
+					continue;
+				}
+				const exists = yield* fileSystem
+					.exists(workspace.path)
+					.pipe(Effect.orElseSucceed(() => true));
+				if (!exists) {
+					yield* jjWorkspaces
+						.removeWorkspace({ cwd: input.cwd, name: workspace.name })
+						.pipe(Effect.catch(() => Effect.void));
+				}
+			}
+		});
 
 	const routeToJjWorkspace = (cwd: string) =>
 		isColocatedJjRepository(cwd).pipe(Effect.orElseSucceed(() => false));

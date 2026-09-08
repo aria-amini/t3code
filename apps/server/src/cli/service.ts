@@ -40,7 +40,11 @@ export const reconcileService = Effect.fn("cli.service.reconcile")(
 	function* (options?: { readonly allowDowngrade?: boolean }) {
 		const service = yield* BootService.BootService;
 		const status = yield* service.status;
-		if (status.installed && status.current && process.env.T3_RUNTIME_PACKAGE === undefined) {
+		if (
+			status.installed &&
+			status.current &&
+			process.env.T3_RUNTIME_PACKAGE === undefined
+		) {
 			return { changed: false, status } satisfies ServiceReconcileResult;
 		}
 		if (

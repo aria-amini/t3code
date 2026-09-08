@@ -11,29 +11,30 @@ const POLL_INTERVAL_MS = 50;
 
 const requested = process.argv[2];
 if (!(SNAP_SHOT_MODIFIERS as readonly string[]).includes(requested ?? "")) {
-  process.exit(1);
+	process.exit(1);
 }
-const [left, right] = WINDOWS_MODIFIER_PAIR_VIRTUAL_KEYS[requested as SnapShotModifier];
+const [left, right] =
+	WINDOWS_MODIFIER_PAIR_VIRTUAL_KEYS[requested as SnapShotModifier];
 
 async function poll() {
-  const api = await loadWindowsForegroundApi();
-  let active = false;
-  process.send?.("ready");
-  const timer = setInterval(() => {
-    const pressed = api.isKeyDown(left) && api.isKeyDown(right);
-    if (pressed && !active) {
-      try {
-        process.send?.("trigger");
-      } catch {}
-    }
-    active = pressed;
-  }, POLL_INTERVAL_MS);
-  const shutdown = () => {
-    clearInterval(timer);
-    process.exit(0);
-  };
-  process.once("disconnect", shutdown);
-  process.once("SIGTERM", shutdown);
+	const api = await loadWindowsForegroundApi();
+	let active = false;
+	process.send?.("ready");
+	const timer = setInterval(() => {
+		const pressed = api.isKeyDown(left) && api.isKeyDown(right);
+		if (pressed && !active) {
+			try {
+				process.send?.("trigger");
+			} catch {}
+		}
+		active = pressed;
+	}, POLL_INTERVAL_MS);
+	const shutdown = () => {
+		clearInterval(timer);
+		process.exit(0);
+	};
+	process.once("disconnect", shutdown);
+	process.once("SIGTERM", shutdown);
 }
 
 void poll().catch(() => process.exit(1));

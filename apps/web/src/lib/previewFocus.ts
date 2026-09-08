@@ -7,9 +7,9 @@
  * `preview.focusUrl` to only fire while the preview owns focus.
  */
 export function isPreviewFocused(): boolean {
-  const activeElement = document.activeElement;
-  if (!(activeElement instanceof HTMLElement)) return false;
-  if (!activeElement.isConnected) return false;
-  if (activeElement.tagName.toLowerCase() === "webview") return true;
-  return activeElement.closest("[data-preview-panel-mode]") !== null;
+	const activeElement = document.activeElement;
+	if (!(activeElement instanceof HTMLElement)) return false;
+	if (!activeElement.isConnected) return false;
+	if (activeElement.tagName.toLowerCase() === "webview") return true;
+	return activeElement.closest("[data-preview-panel-mode]") !== null;
 }

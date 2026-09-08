@@ -1,20 +1,25 @@
 import type { SelectableMarkdownTextProps } from "@t3tools/mobile-markdown-text/renderer";
 
-type MobileSelectableMarkdownTextProps = Omit<SelectableMarkdownTextProps, "highlightCode">;
+type MobileSelectableMarkdownTextProps = Omit<
+	SelectableMarkdownTextProps,
+	"highlightCode"
+>;
 
 export type {
-  MarkdownFileContextMenu,
-  MarkdownFileContextMenuAction,
-  MarkdownImageRenderer,
-  MarkdownImageRequest,
-  NativeMarkdownTextStyle,
-  SelectableMarkdownSkill,
+	MarkdownFileContextMenu,
+	MarkdownFileContextMenuAction,
+	MarkdownImageRenderer,
+	MarkdownImageRequest,
+	NativeMarkdownTextStyle,
+	SelectableMarkdownSkill,
 } from "@t3tools/mobile-markdown-text/types";
 
 export function hasNativeSelectableMarkdownText(): boolean {
-  return false;
+	return false;
 }
 
-export function SelectableMarkdownText(_props: MobileSelectableMarkdownTextProps) {
-  return null;
+export function SelectableMarkdownText(
+	_props: MobileSelectableMarkdownTextProps,
+) {
+	return null;
 }

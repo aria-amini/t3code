@@ -2,4 +2,6 @@ import { createAttachmentEnvironmentAtoms } from "@t3tools/client-runtime/state/
 
 import { connectionAtomRuntime } from "../connection/runtime";
 
-export const attachmentEnvironment = createAttachmentEnvironmentAtoms(connectionAtomRuntime);
+export const attachmentEnvironment = createAttachmentEnvironmentAtoms(
+	connectionAtomRuntime,
+);

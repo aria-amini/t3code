@@ -2,4 +2,6 @@ import { createOrchestrationEnvironmentAtoms } from "@t3tools/client-runtime/sta
 
 import { connectionAtomRuntime } from "../connection/runtime";
 
-export const orchestrationEnvironment = createOrchestrationEnvironmentAtoms(connectionAtomRuntime);
+export const orchestrationEnvironment = createOrchestrationEnvironmentAtoms(
+	connectionAtomRuntime,
+);

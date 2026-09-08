@@ -8,9 +8,9 @@ import * as SqlClient from "effect/unstable/sql/SqlClient";
 // decider stamped settledAt and occurred_at from the same clock read, which
 // is how an unrepaired automatic settlement is identified below.
 export default Effect.gen(function* () {
-  const sql = yield* SqlClient.SqlClient;
+	const sql = yield* SqlClient.SqlClient;
 
-  yield* sql`
+	yield* sql`
     WITH activity_timestamps AS (
       SELECT thread_id, created_at AS activity_at
       FROM projection_thread_messages

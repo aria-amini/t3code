@@ -5,13 +5,13 @@ import { Command, Flag } from "effect/unstable/cli";
 import { runServicePreflight } from "../cloud/servicePreflight.ts";
 
 export const servicePreflightCommand = Command.make("__service-preflight", {
-  databasePath: Flag.string("database-path"),
-  launcherProtocol: Flag.integer("launcher-protocol"),
+	databasePath: Flag.string("database-path"),
+	launcherProtocol: Flag.integer("launcher-protocol"),
 }).pipe(
-  Command.unlisted,
-  Command.withHandler(({ databasePath, launcherProtocol }) =>
-    Console.log(JSON.stringify(runServicePreflight({ databasePath, launcherProtocol }))).pipe(
-      Effect.asVoid,
-    ),
-  ),
+	Command.unlisted,
+	Command.withHandler(({ databasePath, launcherProtocol }) =>
+		Console.log(
+			JSON.stringify(runServicePreflight({ databasePath, launcherProtocol })),
+		).pipe(Effect.asVoid),
+	),
 );

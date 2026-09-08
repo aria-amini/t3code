@@ -10,20 +10,26 @@ import * as NodePath from "node:path";
  * rather than fail at setup. Probed once per process.
  */
 export const symlinksSupported: boolean = (() => {
-  let directory: string | undefined;
-  try {
-    directory = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-symlink-probe-"));
-    NodeFS.symlinkSync(NodePath.join(directory, "target"), NodePath.join(directory, "link"));
-    return true;
-  } catch {
-    return false;
-  } finally {
-    // Cleanup must not decide the answer: a transient EPERM/EBUSY on the
-    // probe directory would otherwise throw out of module initialisation.
-    try {
-      if (directory !== undefined) NodeFS.rmSync(directory, { recursive: true, force: true });
-    } catch {
-      // Leave the probe directory behind rather than fail every importer.
-    }
-  }
+	let directory: string | undefined;
+	try {
+		directory = NodeFS.mkdtempSync(
+			NodePath.join(NodeOS.tmpdir(), "t3-symlink-probe-"),
+		);
+		NodeFS.symlinkSync(
+			NodePath.join(directory, "target"),
+			NodePath.join(directory, "link"),
+		);
+		return true;
+	} catch {
+		return false;
+	} finally {
+		// Cleanup must not decide the answer: a transient EPERM/EBUSY on the
+		// probe directory would otherwise throw out of module initialisation.
+		try {
+			if (directory !== undefined)
+				NodeFS.rmSync(directory, { recursive: true, force: true });
+		} catch {
+			// Leave the probe directory behind rather than fail every importer.
+		}
+	}
 })();

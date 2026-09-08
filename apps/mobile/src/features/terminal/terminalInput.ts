@@ -7,8 +7,8 @@ export type HostPlatform = "mac" | "linux" | "windows" | "unknown";
 export const TERMINAL_WRITE_MAX_LENGTH = 65_536;
 
 export type ModifiedTerminalInput =
-  | { readonly kind: "write"; readonly data: string }
-  | { readonly kind: "paste" };
+	| { readonly kind: "write"; readonly data: string }
+	| { readonly kind: "paste" };
 
 // C0 controls other than tab, LF, and CR, plus DEL.
 // eslint-disable-next-line no-control-regex -- Pasted text must not carry raw terminal controls.
@@ -19,25 +19,25 @@ const UNSAFE_PASTE_BYTES = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
  * into the control byte a terminal expects.
  */
 export function applyCtrlModifier(input: string): string {
-  const firstCharacter = input[0];
-  if (!firstCharacter) {
-    return input;
-  }
+	const firstCharacter = input[0];
+	if (!firstCharacter) {
+		return input;
+	}
 
-  const lowerCharacter = firstCharacter.toLowerCase();
-  if (lowerCharacter >= "a" && lowerCharacter <= "z") {
-    return String.fromCharCode(lowerCharacter.charCodeAt(0) - 96);
-  }
+	const lowerCharacter = firstCharacter.toLowerCase();
+	if (lowerCharacter >= "a" && lowerCharacter <= "z") {
+		return String.fromCharCode(lowerCharacter.charCodeAt(0) - 96);
+	}
 
-  if (firstCharacter === "@") return "\u0000";
-  if (firstCharacter === "[") return "\u001b";
-  if (firstCharacter === "\\") return "\u001c";
-  if (firstCharacter === "]") return "\u001d";
-  if (firstCharacter === "^") return "\u001e";
-  if (firstCharacter === "_") return "\u001f";
-  if (firstCharacter === "?") return "\u007f";
+	if (firstCharacter === "@") return "\u0000";
+	if (firstCharacter === "[") return "\u001b";
+	if (firstCharacter === "\\") return "\u001c";
+	if (firstCharacter === "]") return "\u001d";
+	if (firstCharacter === "^") return "\u001e";
+	if (firstCharacter === "_") return "\u001f";
+	if (firstCharacter === "?") return "\u007f";
 
-  return input;
+	return input;
 }
 
 /**
@@ -50,19 +50,23 @@ export function applyCtrlModifier(input: string): string {
  * copied rather than the text on the phone.
  */
 export function resolveModifiedTerminalInput(input: {
-  readonly data: string;
-  readonly modifier: PendingModifier;
-  readonly hostPlatform: HostPlatform;
+	readonly data: string;
+	readonly modifier: PendingModifier;
+	readonly hostPlatform: HostPlatform;
 }): ModifiedTerminalInput {
-  const pasteModifier: PendingModifier = input.hostPlatform === "mac" ? "meta" : "ctrl";
-  if (input.modifier === pasteModifier && input.data.toLowerCase() === "v") {
-    return { kind: "paste" };
-  }
+	const pasteModifier: PendingModifier =
+		input.hostPlatform === "mac" ? "meta" : "ctrl";
+	if (input.modifier === pasteModifier && input.data.toLowerCase() === "v") {
+		return { kind: "paste" };
+	}
 
-  return {
-    kind: "write",
-    data: input.modifier === "ctrl" ? applyCtrlModifier(input.data) : `\u001b${input.data}`,
-  };
+	return {
+		kind: "write",
+		data:
+			input.modifier === "ctrl"
+				? applyCtrlModifier(input.data)
+				: `\u001b${input.data}`,
+	};
 }
 
 /**
@@ -74,7 +78,7 @@ export function resolveModifiedTerminalInput(input: {
  * wraps a paste in bracketed-paste markers.
  */
 export function encodeTerminalPaste(text: string): string {
-  return text.replace(UNSAFE_PASTE_BYTES, " ").replace(/\r\n|\n/g, "\r");
+	return text.replace(UNSAFE_PASTE_BYTES, " ").replace(/\r\n|\n/g, "\r");
 }
 
 /**
@@ -82,27 +86,29 @@ export function encodeTerminalPaste(text: string): string {
  * through a surrogate pair so every chunk stays valid UTF-16.
  */
 export function chunkTerminalWrite(data: string): ReadonlyArray<string> {
-  const chunks: string[] = [];
-  let start = 0;
-  while (start < data.length) {
-    let end = Math.min(start + TERMINAL_WRITE_MAX_LENGTH, data.length);
-    const last = data.charCodeAt(end - 1);
-    if (end < data.length && last >= 0xd800 && last <= 0xdbff) {
-      end -= 1;
-    }
-    chunks.push(data.slice(start, end));
-    start = end;
-  }
-  return chunks;
+	const chunks: string[] = [];
+	let start = 0;
+	while (start < data.length) {
+		let end = Math.min(start + TERMINAL_WRITE_MAX_LENGTH, data.length);
+		const last = data.charCodeAt(end - 1);
+		if (end < data.length && last >= 0xd800 && last <= 0xdbff) {
+			end -= 1;
+		}
+		chunks.push(data.slice(start, end));
+		start = end;
+	}
+	return chunks;
 }
 
 /**
  * Maps the OS reported by the environment descriptor onto the toolbar's host
  * layout. Returns null for "unknown" so callers can fall back to a weaker signal.
  */
-export function hostPlatformFromOs(os: ExecutionEnvironmentPlatformOs | null): HostPlatform | null {
-  if (os === "darwin") return "mac";
-  if (os === "linux") return "linux";
-  if (os === "windows") return "windows";
-  return null;
+export function hostPlatformFromOs(
+	os: ExecutionEnvironmentPlatformOs | null,
+): HostPlatform | null {
+	if (os === "darwin") return "mac";
+	if (os === "linux") return "linux";
+	if (os === "windows") return "windows";
+	return null;
 }

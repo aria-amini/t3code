@@ -2,9 +2,9 @@ import * as SqlClient from "effect/unstable/sql/SqlClient";
 import * as Effect from "effect/Effect";
 
 export default Effect.gen(function* () {
-  const sql = yield* SqlClient.SqlClient;
+	const sql = yield* SqlClient.SqlClient;
 
-  yield* sql`
+	yield* sql`
     CREATE TABLE IF NOT EXISTS orchestration_events (
       sequence INTEGER PRIMARY KEY AUTOINCREMENT,
       event_id TEXT NOT NULL UNIQUE,
@@ -22,22 +22,22 @@ export default Effect.gen(function* () {
     )
   `;
 
-  yield* sql`
+	yield* sql`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_orch_events_stream_version
     ON orchestration_events(aggregate_kind, stream_id, stream_version)
   `;
 
-  yield* sql`
+	yield* sql`
     CREATE INDEX IF NOT EXISTS idx_orch_events_stream_sequence
     ON orchestration_events(aggregate_kind, stream_id, sequence)
   `;
 
-  yield* sql`
+	yield* sql`
     CREATE INDEX IF NOT EXISTS idx_orch_events_command_id
     ON orchestration_events(command_id)
   `;
 
-  yield* sql`
+	yield* sql`
     CREATE INDEX IF NOT EXISTS idx_orch_events_correlation_id
     ON orchestration_events(correlation_id)
   `;

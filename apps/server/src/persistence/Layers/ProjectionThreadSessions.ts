@@ -6,20 +6,20 @@ import * as Layer from "effect/Layer";
 import { toPersistenceSqlError } from "../Errors.ts";
 
 import {
-  ProjectionThreadSession,
-  ProjectionThreadSessionRepository,
-  type ProjectionThreadSessionRepositoryShape,
-  DeleteProjectionThreadSessionInput,
-  GetProjectionThreadSessionInput,
+	ProjectionThreadSession,
+	ProjectionThreadSessionRepository,
+	type ProjectionThreadSessionRepositoryShape,
+	DeleteProjectionThreadSessionInput,
+	GetProjectionThreadSessionInput,
 } from "../Services/ProjectionThreadSessions.ts";
 
 const makeProjectionThreadSessionRepository = Effect.gen(function* () {
-  const sql = yield* SqlClient.SqlClient;
+	const sql = yield* SqlClient.SqlClient;
 
-  const upsertProjectionThreadSessionRow = SqlSchema.void({
-    Request: ProjectionThreadSession,
-    execute: (row) =>
-      sql`
+	const upsertProjectionThreadSessionRow = SqlSchema.void({
+		Request: ProjectionThreadSession,
+		execute: (row) =>
+			sql`
         INSERT INTO projection_thread_sessions (
           thread_id,
           status,
@@ -50,13 +50,13 @@ const makeProjectionThreadSessionRepository = Effect.gen(function* () {
           last_error = excluded.last_error,
           updated_at = excluded.updated_at
       `,
-  });
+	});
 
-  const getProjectionThreadSessionRow = SqlSchema.findOneOption({
-    Request: GetProjectionThreadSessionInput,
-    Result: ProjectionThreadSession,
-    execute: ({ threadId }) =>
-      sql`
+	const getProjectionThreadSessionRow = SqlSchema.findOneOption({
+		Request: GetProjectionThreadSessionInput,
+		Result: ProjectionThreadSession,
+		execute: ({ threadId }) =>
+			sql`
         SELECT
           thread_id AS "threadId",
           status,
@@ -69,44 +69,52 @@ const makeProjectionThreadSessionRepository = Effect.gen(function* () {
         FROM projection_thread_sessions
         WHERE thread_id = ${threadId}
       `,
-  });
+	});
 
-  const deleteProjectionThreadSessionRow = SqlSchema.void({
-    Request: DeleteProjectionThreadSessionInput,
-    execute: ({ threadId }) =>
-      sql`
+	const deleteProjectionThreadSessionRow = SqlSchema.void({
+		Request: DeleteProjectionThreadSessionInput,
+		execute: ({ threadId }) =>
+			sql`
         DELETE FROM projection_thread_sessions
         WHERE thread_id = ${threadId}
       `,
-  });
+	});
 
-  const upsert: ProjectionThreadSessionRepositoryShape["upsert"] = (row) =>
-    upsertProjectionThreadSessionRow(row).pipe(
-      Effect.mapError(toPersistenceSqlError("ProjectionThreadSessionRepository.upsert:query")),
-    );
+	const upsert: ProjectionThreadSessionRepositoryShape["upsert"] = (row) =>
+		upsertProjectionThreadSessionRow(row).pipe(
+			Effect.mapError(
+				toPersistenceSqlError("ProjectionThreadSessionRepository.upsert:query"),
+			),
+		);
 
-  const getByThreadId: ProjectionThreadSessionRepositoryShape["getByThreadId"] = (input) =>
-    getProjectionThreadSessionRow(input).pipe(
-      Effect.mapError(
-        toPersistenceSqlError("ProjectionThreadSessionRepository.getByThreadId:query"),
-      ),
-    );
+	const getByThreadId: ProjectionThreadSessionRepositoryShape["getByThreadId"] =
+		(input) =>
+			getProjectionThreadSessionRow(input).pipe(
+				Effect.mapError(
+					toPersistenceSqlError(
+						"ProjectionThreadSessionRepository.getByThreadId:query",
+					),
+				),
+			);
 
-  const deleteByThreadId: ProjectionThreadSessionRepositoryShape["deleteByThreadId"] = (input) =>
-    deleteProjectionThreadSessionRow(input).pipe(
-      Effect.mapError(
-        toPersistenceSqlError("ProjectionThreadSessionRepository.deleteByThreadId:query"),
-      ),
-    );
+	const deleteByThreadId: ProjectionThreadSessionRepositoryShape["deleteByThreadId"] =
+		(input) =>
+			deleteProjectionThreadSessionRow(input).pipe(
+				Effect.mapError(
+					toPersistenceSqlError(
+						"ProjectionThreadSessionRepository.deleteByThreadId:query",
+					),
+				),
+			);
 
-  return {
-    upsert,
-    getByThreadId,
-    deleteByThreadId,
-  } satisfies ProjectionThreadSessionRepositoryShape;
+	return {
+		upsert,
+		getByThreadId,
+		deleteByThreadId,
+	} satisfies ProjectionThreadSessionRepositoryShape;
 });
 
 export const ProjectionThreadSessionRepositoryLive = Layer.effect(
-  ProjectionThreadSessionRepository,
-  makeProjectionThreadSessionRepository,
+	ProjectionThreadSessionRepository,
+	makeProjectionThreadSessionRepository,
 );

@@ -14,7 +14,11 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
-import { cookieScope, snapshotCookieDatabase, type ImportedCookie } from "./CookieDatabase.ts";
+import {
+	cookieScope,
+	snapshotCookieDatabase,
+	type ImportedCookie,
+} from "./CookieDatabase.ts";
 
 /**
  * Mirrors `ChromiumCookieReadError` so both engines fail with a tagged error
@@ -26,21 +30,21 @@ import { cookieScope, snapshotCookieDatabase, type ImportedCookie } from "./Cook
  * was. `BrowserImport` supplies the user-facing reason when it maps the union.
  */
 export class FirefoxCookieReadError extends Schema.TaggedError<FirefoxCookieReadError>()(
-  "FirefoxCookieReadError",
-  {
-    /**
-     * Which database the read was for. Firefox keeps one per profile, so
-     * without it a failure cannot be traced back to the profile that caused
-     * it.
-     */
-    cookieDatabasePath: Schema.String,
-    /** Always present: every construction site wraps a real failure. */
-    cause: Schema.Defect(),
-  },
+	"FirefoxCookieReadError",
+	{
+		/**
+		 * Which database the read was for. Firefox keeps one per profile, so
+		 * without it a failure cannot be traced back to the profile that caused
+		 * it.
+		 */
+		cookieDatabasePath: Schema.String,
+		/** Always present: every construction site wraps a real failure. */
+		cause: Schema.Defect(),
+	},
 ) {
-  override get message(): string {
-    return `Could not read Firefox cookies at ${this.cookieDatabasePath}.`;
-  }
+	override get message(): string {
+		return `Could not read Firefox cookies at ${this.cookieDatabasePath}.`;
+	}
 }
 
 /**
@@ -69,31 +73,32 @@ const FIREFOX_RAW_SAMESITE_FIRST_SCHEMA = 10;
 const FIREFOX_RAW_SAMESITE_LAST_SCHEMA = 14;
 
 const sameSiteFromColumn = (
-  value: number | null,
-  rawValue: number | null,
+	value: number | null,
+	rawValue: number | null,
 ): ImportedCookie["sameSite"] => {
-  // Schema 9 added the column with no default, so older rows carry NULL.
-  if (value === null) return "unspecified";
-  if (value === SAMESITE_LAX && rawValue === SAMESITE_NONE) return "unspecified";
-  if (value === SAMESITE_NONE) return "no_restriction";
-  if (value === SAMESITE_LAX) return "lax";
-  if (value === SAMESITE_STRICT) return "strict";
-  return "unspecified";
+	// Schema 9 added the column with no default, so older rows carry NULL.
+	if (value === null) return "unspecified";
+	if (value === SAMESITE_LAX && rawValue === SAMESITE_NONE)
+		return "unspecified";
+	if (value === SAMESITE_NONE) return "no_restriction";
+	if (value === SAMESITE_LAX) return "lax";
+	if (value === SAMESITE_STRICT) return "strict";
+	return "unspecified";
 };
 
 const CookieRow = Schema.Struct({
-  host: Schema.String,
-  name: Schema.String,
-  value: Schema.String,
-  path: Schema.String,
-  // UNIX-epoch based, unlike Chromium's 1601-based microseconds — but the
-  // unit depends on the schema version; see `expiryToSeconds`.
-  expiry: Schema.Number,
-  isSecure: Schema.Number,
-  isHttpOnly: Schema.Number,
-  sameSite: Schema.NullOr(Schema.Number),
-  // Present only for schemas 10–14; selected as NULL elsewhere.
-  rawSameSite: Schema.NullOr(Schema.Number),
+	host: Schema.String,
+	name: Schema.String,
+	value: Schema.String,
+	path: Schema.String,
+	// UNIX-epoch based, unlike Chromium's 1601-based microseconds — but the
+	// unit depends on the schema version; see `expiryToSeconds`.
+	expiry: Schema.Number,
+	isSecure: Schema.Number,
+	isHttpOnly: Schema.Number,
+	sameSite: Schema.NullOr(Schema.Number),
+	// Present only for schemas 10–14; selected as NULL elsewhere.
+	rawSameSite: Schema.NullOr(Schema.Number),
 });
 const decodeCookieRows = Schema.decodeUnknownEffect(Schema.Array(CookieRow));
 
@@ -107,63 +112,78 @@ const decodeCookieRows = Schema.decodeUnknownEffect(Schema.Array(CookieRow));
 const FIREFOX_EXPIRY_MILLISECONDS_SCHEMA = 16;
 
 const UserVersionRow = Schema.Struct({ user_version: Schema.Number });
-const decodeUserVersion = Schema.decodeUnknownEffect(Schema.Array(UserVersionRow));
+const decodeUserVersion = Schema.decodeUnknownEffect(
+	Schema.Array(UserVersionRow),
+);
 
-const expiryToSeconds = (expiry: number, schemaVersion: number): number | undefined => {
-  if (expiry <= 0) return undefined;
-  return schemaVersion >= FIREFOX_EXPIRY_MILLISECONDS_SCHEMA ? Math.floor(expiry / 1000) : expiry;
+const expiryToSeconds = (
+	expiry: number,
+	schemaVersion: number,
+): number | undefined => {
+	if (expiry <= 0) return undefined;
+	return schemaVersion >= FIREFOX_EXPIRY_MILLISECONDS_SCHEMA
+		? Math.floor(expiry / 1000)
+		: expiry;
 };
 
-export const readFirefoxCookies = Effect.fn("FirefoxCookies.readFirefoxCookies")(function* (
-  cookieDatabasePath: string,
-) {
-  const snapshotPath = yield* snapshotCookieDatabase(cookieDatabasePath).pipe(
-    Effect.mapError((cause) => new FirefoxCookieReadError({ cookieDatabasePath, cause })),
-  );
+export const readFirefoxCookies = Effect.fn(
+	"FirefoxCookies.readFirefoxCookies",
+)(function* (cookieDatabasePath: string) {
+	const snapshotPath = yield* snapshotCookieDatabase(cookieDatabasePath).pipe(
+		Effect.mapError(
+			(cause) => new FirefoxCookieReadError({ cookieDatabasePath, cause }),
+		),
+	);
 
-  const { rows, schemaVersion } = yield* Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient;
-    const [versionRow] = yield* decodeUserVersion(yield* sql`pragma user_version`);
-    const schemaVersion = versionRow?.user_version ?? 0;
-    const hasRawSameSite =
-      schemaVersion >= FIREFOX_RAW_SAMESITE_FIRST_SCHEMA &&
-      schemaVersion <= FIREFOX_RAW_SAMESITE_LAST_SCHEMA;
-    // Only the default container. Firefox isolates cookies per container and
-    // per private window via `originAttributes` (`^userContextId=2`,
-    // `^privateBrowsingId=1`); Electron has no equivalent, so importing them
-    // all would collapse several identities onto one host/name/path and hand
-    // the profile an arbitrary container's session.
-    const raw = hasRawSameSite
-      ? yield* sql`
+	const { rows, schemaVersion } = yield* Effect.gen(function* () {
+		const sql = yield* SqlClient.SqlClient;
+		const [versionRow] = yield* decodeUserVersion(
+			yield* sql`pragma user_version`,
+		);
+		const schemaVersion = versionRow?.user_version ?? 0;
+		const hasRawSameSite =
+			schemaVersion >= FIREFOX_RAW_SAMESITE_FIRST_SCHEMA &&
+			schemaVersion <= FIREFOX_RAW_SAMESITE_LAST_SCHEMA;
+		// Only the default container. Firefox isolates cookies per container and
+		// per private window via `originAttributes` (`^userContextId=2`,
+		// `^privateBrowsingId=1`); Electron has no equivalent, so importing them
+		// all would collapse several identities onto one host/name/path and hand
+		// the profile an arbitrary container's session.
+		const raw = hasRawSameSite
+			? yield* sql`
           select host, name, value, path, expiry, isSecure, isHttpOnly, sameSite, rawSameSite
             from moz_cookies
            where originAttributes = ''
         `
-      : yield* sql`
+			: yield* sql`
           select host, name, value, path, expiry, isSecure, isHttpOnly, sameSite,
                  null as rawSameSite
             from moz_cookies
            where originAttributes = ''
         `;
-    return { rows: yield* decodeCookieRows(raw), schemaVersion };
-  }).pipe(
-    Effect.provide(NodeSqliteClient.layer({ filename: snapshotPath, readonly: true })),
-    Effect.mapError((cause) => new FirefoxCookieReadError({ cookieDatabasePath, cause })),
-  );
+		return { rows: yield* decodeCookieRows(raw), schemaVersion };
+	}).pipe(
+		Effect.provide(
+			NodeSqliteClient.layer({ filename: snapshotPath, readonly: true }),
+		),
+		Effect.mapError(
+			(cause) => new FirefoxCookieReadError({ cookieDatabasePath, cause }),
+		),
+	);
 
-  return rows.map((row) => {
-    const secure = row.isSecure === 1;
-    const scope = cookieScope(row.host, row.path, secure);
-    return {
-      url: scope.url,
-      name: row.name,
-      value: row.value,
-      domain: scope.domain,
-      path: row.path,
-      secure,
-      httpOnly: row.isHttpOnly === 1,
-      expirationDate: expiryToSeconds(row.expiry, schemaVersion),
-      sameSite: sameSiteFromColumn(row.sameSite, row.rawSameSite),
-    } satisfies ImportedCookie;
-  });
+	return rows.map((row) => {
+		const secure = row.isSecure === 1;
+		const scope = cookieScope(row.host, row.path, secure);
+		return {
+			url: scope.url,
+			name: row.name,
+			value: row.value,
+			domain: scope.domain,
+			path: row.path,
+			secure,
+			httpOnly: row.isHttpOnly === 1,
+			expirationDate: expiryToSeconds(row.expiry, schemaVersion),
+			sameSite: sameSiteFromColumn(row.sameSite, row.rawSameSite),
+		} satisfies ImportedCookie;
+	});
 });

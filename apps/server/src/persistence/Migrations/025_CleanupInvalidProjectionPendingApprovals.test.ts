@@ -9,13 +9,15 @@ import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
 const layer = it.layer(Layer.mergeAll(NodeSqliteClient.layerMemory()));
 
 layer("025_CleanupInvalidProjectionPendingApprovals", (it) => {
-  it.effect("removes pending-approval rows that do not come from approval requests", () =>
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
+	it.effect(
+		"removes pending-approval rows that do not come from approval requests",
+		() =>
+			Effect.gen(function* () {
+				const sql = yield* SqlClient.SqlClient;
 
-      yield* runMigrations({ toMigrationInclusive: 24 });
+				yield* runMigrations({ toMigrationInclusive: 24 });
 
-      yield* sql`
+				yield* sql`
         INSERT INTO projection_threads (
           thread_id,
           project_id,
@@ -76,7 +78,7 @@ layer("025_CleanupInvalidProjectionPendingApprovals", (it) => {
           )
       `;
 
-      yield* sql`
+				yield* sql`
         INSERT INTO projection_thread_activities (
           activity_id,
           thread_id,
@@ -113,7 +115,7 @@ layer("025_CleanupInvalidProjectionPendingApprovals", (it) => {
           )
       `;
 
-      yield* sql`
+				yield* sql`
         INSERT INTO projection_pending_approvals (
           request_id,
           thread_id,
@@ -153,45 +155,45 @@ layer("025_CleanupInvalidProjectionPendingApprovals", (it) => {
           )
       `;
 
-      yield* runMigrations({ toMigrationInclusive: 25 });
+				yield* runMigrations({ toMigrationInclusive: 25 });
 
-      const approvalRows = yield* sql<{
-        readonly requestId: string;
-        readonly status: string;
-      }>`
+				const approvalRows = yield* sql<{
+					readonly requestId: string;
+					readonly status: string;
+				}>`
         SELECT
           request_id AS "requestId",
           status
         FROM projection_pending_approvals
         ORDER BY request_id ASC
       `;
-      assert.deepStrictEqual(approvalRows, [
-        {
-          requestId: "approval-valid",
-          status: "pending",
-        },
-      ]);
+				assert.deepStrictEqual(approvalRows, [
+					{
+						requestId: "approval-valid",
+						status: "pending",
+					},
+				]);
 
-      const threadCounts = yield* sql<{
-        readonly threadId: string;
-        readonly pendingApprovalCount: number;
-      }>`
+				const threadCounts = yield* sql<{
+					readonly threadId: string;
+					readonly pendingApprovalCount: number;
+				}>`
         SELECT
           thread_id AS "threadId",
           pending_approval_count AS "pendingApprovalCount"
         FROM projection_threads
         ORDER BY thread_id ASC
       `;
-      assert.deepStrictEqual(threadCounts, [
-        {
-          threadId: "thread-invalid",
-          pendingApprovalCount: 0,
-        },
-        {
-          threadId: "thread-valid",
-          pendingApprovalCount: 1,
-        },
-      ]);
-    }),
-  );
+				assert.deepStrictEqual(threadCounts, [
+					{
+						threadId: "thread-invalid",
+						pendingApprovalCount: 0,
+					},
+					{
+						threadId: "thread-valid",
+						pendingApprovalCount: 1,
+					},
+				]);
+			}),
+	);
 });

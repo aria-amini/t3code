@@ -6,10 +6,10 @@
  * @module providerInstanceDisplay
  */
 import {
-  defaultInstanceIdForDriver,
-  PROVIDER_DISPLAY_NAMES,
-  type ProviderDriverKind,
-  type ServerProvider,
+	defaultInstanceIdForDriver,
+	PROVIDER_DISPLAY_NAMES,
+	type ProviderDriverKind,
+	type ServerProvider,
 } from "@t3tools/contracts";
 
 /**
@@ -18,11 +18,11 @@ import {
  * "My Custom Instance".
  */
 function humanizeSlug(slug: string): string {
-  return slug
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/[_-]+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+	return slug
+		.replace(/([a-z])([A-Z])/g, "$1 $2")
+		.replace(/[_-]+/g, " ")
+		.trim()
+		.replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 /**
@@ -36,16 +36,18 @@ function humanizeSlug(slug: string): string {
  *   3. The snapshot's `displayName`, or the brand label from contracts.
  */
 export function resolveProviderInstanceDisplayName(
-  snapshot: Pick<ServerProvider, "instanceId" | "driver" | "displayName">,
+	snapshot: Pick<ServerProvider, "instanceId" | "driver" | "displayName">,
 ): string {
-  const trimmedSnapshotName = snapshot.displayName?.trim();
-  const kindLabel = PROVIDER_DISPLAY_NAMES[snapshot.driver] ?? humanizeSlug(snapshot.driver);
-  if (trimmedSnapshotName && trimmedSnapshotName !== kindLabel) return trimmedSnapshotName;
-  if (snapshot.instanceId !== defaultInstanceIdForDriver(snapshot.driver)) {
-    const humanized = humanizeSlug(snapshot.instanceId);
-    if (humanized.length > 0) return humanized;
-  }
-  return trimmedSnapshotName || kindLabel;
+	const trimmedSnapshotName = snapshot.displayName?.trim();
+	const kindLabel =
+		PROVIDER_DISPLAY_NAMES[snapshot.driver] ?? humanizeSlug(snapshot.driver);
+	if (trimmedSnapshotName && trimmedSnapshotName !== kindLabel)
+		return trimmedSnapshotName;
+	if (snapshot.instanceId !== defaultInstanceIdForDriver(snapshot.driver)) {
+		const humanized = humanizeSlug(snapshot.instanceId);
+		if (humanized.length > 0) return humanized;
+	}
+	return trimmedSnapshotName || kindLabel;
 }
 
 /**
@@ -54,20 +56,23 @@ export function resolveProviderInstanceDisplayName(
  * two words. Iterates by code point so an emoji never splits into surrogates.
  */
 export function providerInstanceInitials(label: string): string {
-  const words = label.replace(/[_-]+/g, " ").split(/\s+/u).filter(Boolean);
-  if (words.length === 0) return "";
-  if (words.length === 1) return Array.from(words[0]!).slice(0, 2).join("").toUpperCase();
-  return words
-    .slice(0, 2)
-    .map((word) => Array.from(word)[0]?.toUpperCase() ?? "")
-    .join("");
+	const words = label.replace(/[_-]+/g, " ").split(/\s+/u).filter(Boolean);
+	if (words.length === 0) return "";
+	if (words.length === 1)
+		return Array.from(words[0]!).slice(0, 2).join("").toUpperCase();
+	return words
+		.slice(0, 2)
+		.map((word) => Array.from(word)[0]?.toUpperCase() ?? "")
+		.join("");
 }
 
 /** Only `#rrggbb` accent colors render; anything else is treated as unset. */
-export function normalizeProviderAccentColor(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  if (!trimmed) return undefined;
-  return /^#[0-9a-fA-F]{6}$/u.test(trimmed) ? trimmed : undefined;
+export function normalizeProviderAccentColor(
+	value: string | undefined,
+): string | undefined {
+	const trimmed = value?.trim();
+	if (!trimmed) return undefined;
+	return /^#[0-9a-fA-F]{6}$/u.test(trimmed) ? trimmed : undefined;
 }
 
 /**
@@ -76,13 +81,17 @@ export function normalizeProviderAccentColor(value: string | undefined): string 
  * Shared by the composer trigger, the picker rail, and sidebar/thread rows.
  */
 export function shouldShowInstanceBadge(
-  entry: { readonly driverKind: ProviderDriverKind; readonly accentColor?: string | undefined },
-  entries: Iterable<{ readonly driverKind: ProviderDriverKind }>,
+	entry: {
+		readonly driverKind: ProviderDriverKind;
+		readonly accentColor?: string | undefined;
+	},
+	entries: Iterable<{ readonly driverKind: ProviderDriverKind }>,
 ): boolean {
-  if (entry.accentColor) return true;
-  let sharedDriverCount = 0;
-  for (const candidate of entries) {
-    if (candidate.driverKind === entry.driverKind && ++sharedDriverCount > 1) return true;
-  }
-  return false;
+	if (entry.accentColor) return true;
+	let sharedDriverCount = 0;
+	for (const candidate of entries) {
+		if (candidate.driverKind === entry.driverKind && ++sharedDriverCount > 1)
+			return true;
+	}
+	return false;
 }

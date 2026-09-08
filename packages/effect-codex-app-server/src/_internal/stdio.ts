@@ -10,54 +10,62 @@ import * as CodexError from "../errors.ts";
 
 const encoder = new TextEncoder();
 
-export const makeChildStdio = (handle: ChildProcessSpawner.ChildProcessHandle) =>
-  Stdio.make({
-    args: Effect.succeed([]),
-    stdin: handle.stdout,
-    stdout: () =>
-      Sink.mapInput(handle.stdin, (chunk: string | Uint8Array) =>
-        typeof chunk === "string" ? encoder.encode(chunk) : chunk,
-      ),
-    stderr: () => Sink.drain,
-  });
+export const makeChildStdio = (
+	handle: ChildProcessSpawner.ChildProcessHandle,
+) =>
+	Stdio.make({
+		args: Effect.succeed([]),
+		stdin: handle.stdout,
+		stdout: () =>
+			Sink.mapInput(handle.stdin, (chunk: string | Uint8Array) =>
+				typeof chunk === "string" ? encoder.encode(chunk) : chunk,
+			),
+		stderr: () => Sink.drain,
+	});
 
 export const makeInMemoryStdio = Effect.fn("makeInMemoryStdio")(function* () {
-  const input = yield* Queue.unbounded<Uint8Array, Cause.Done<void>>();
-  const output = yield* Queue.unbounded<string>();
-  const decoder = new TextDecoder();
+	const input = yield* Queue.unbounded<Uint8Array, Cause.Done<void>>();
+	const output = yield* Queue.unbounded<string>();
+	const decoder = new TextDecoder();
 
-  return {
-    stdio: Stdio.make({
-      args: Effect.succeed([]),
-      stdin: Stream.fromQueue(input),
-      stdout: () =>
-        Sink.forEach((chunk: string | Uint8Array) =>
-          Queue.offer(
-            output,
-            typeof chunk === "string" ? chunk : decoder.decode(chunk, { stream: true }),
-          ),
-        ),
-      stderr: () => Sink.drain,
-    }),
-    input,
-    output,
-  };
+	return {
+		stdio: Stdio.make({
+			args: Effect.succeed([]),
+			stdin: Stream.fromQueue(input),
+			stdout: () =>
+				Sink.forEach((chunk: string | Uint8Array) =>
+					Queue.offer(
+						output,
+						typeof chunk === "string"
+							? chunk
+							: decoder.decode(chunk, { stream: true }),
+					),
+				),
+			stderr: () => Sink.drain,
+		}),
+		input,
+		output,
+	};
 });
 
 type ChildProcessTerminationHandle = Pick<
-  ChildProcessSpawner.ChildProcessHandle,
-  "exitCode" | "pid"
+	ChildProcessSpawner.ChildProcessHandle,
+	"exitCode" | "pid"
 >;
 
 export const makeTerminationError = (
-  handle: ChildProcessTerminationHandle,
+	handle: ChildProcessTerminationHandle,
 ): Effect.Effect<CodexError.CodexAppServerError> =>
-  Effect.match(handle.exitCode, {
-    onFailure: (cause) =>
-      new CodexError.CodexAppServerTransportError({
-        operation: "read-process-exit-status",
-        pid: handle.pid,
-        cause,
-      }),
-    onSuccess: (code) => new CodexError.CodexAppServerProcessExitedError({ code, pid: handle.pid }),
-  });
+	Effect.match(handle.exitCode, {
+		onFailure: (cause) =>
+			new CodexError.CodexAppServerTransportError({
+				operation: "read-process-exit-status",
+				pid: handle.pid,
+				cause,
+			}),
+		onSuccess: (code) =>
+			new CodexError.CodexAppServerProcessExitedError({
+				code,
+				pid: handle.pid,
+			}),
+	});

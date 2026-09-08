@@ -1,7 +1,7 @@
 import {
-  HostProcessArchitecture,
-  HostProcessEnvironment,
-  HostProcessPlatform,
+	HostProcessArchitecture,
+	HostProcessEnvironment,
+	HostProcessPlatform,
 } from "@t3tools/shared/hostProcess";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -14,213 +14,242 @@ import * as Schema from "effect/Schema";
 import { ServerConfig } from "../config.ts";
 
 export class ResourceMonitorBinaryUnsupported extends Schema.TaggedError<ResourceMonitorBinaryUnsupported>()(
-  "ResourceMonitorBinaryUnsupported",
-  {
-    platform: Schema.String,
-    architecture: Schema.String,
-  },
+	"ResourceMonitorBinaryUnsupported",
+	{
+		platform: Schema.String,
+		architecture: Schema.String,
+	},
 ) {
-  override get message(): string {
-    return `Resource monitoring is unsupported on ${this.platform}/${this.architecture}.`;
-  }
+	override get message(): string {
+		return `Resource monitoring is unsupported on ${this.platform}/${this.architecture}.`;
+	}
 }
 
 export class ResourceMonitorBinaryNotFound extends Schema.TaggedError<ResourceMonitorBinaryNotFound>()(
-  "ResourceMonitorBinaryNotFound",
-  {
-    platform: Schema.String,
-    architecture: Schema.String,
-    candidates: Schema.Array(Schema.String),
-  },
+	"ResourceMonitorBinaryNotFound",
+	{
+		platform: Schema.String,
+		architecture: Schema.String,
+		candidates: Schema.Array(Schema.String),
+	},
 ) {
-  override get message(): string {
-    return `Resource monitor binary was not found for ${this.platform}/${this.architecture}.`;
-  }
+	override get message(): string {
+		return `Resource monitor binary was not found for ${this.platform}/${this.architecture}.`;
+	}
 }
 
 export class ResourceMonitorBinaryNotExecutable extends Schema.TaggedError<ResourceMonitorBinaryNotExecutable>()(
-  "ResourceMonitorBinaryNotExecutable",
-  {
-    path: Schema.String,
-    mode: Schema.Number,
-  },
+	"ResourceMonitorBinaryNotExecutable",
+	{
+		path: Schema.String,
+		mode: Schema.Number,
+	},
 ) {
-  override get message(): string {
-    return `Resource monitor binary at '${this.path}' is not executable.`;
-  }
+	override get message(): string {
+		return `Resource monitor binary at '${this.path}' is not executable.`;
+	}
 }
 
 export type ResourceMonitorBinaryError =
-  | ResourceMonitorBinaryUnsupported
-  | ResourceMonitorBinaryNotFound
-  | ResourceMonitorBinaryNotExecutable;
+	| ResourceMonitorBinaryUnsupported
+	| ResourceMonitorBinaryNotFound
+	| ResourceMonitorBinaryNotExecutable;
 
 export class ResourceMonitorBinary extends Context.Service<
-  ResourceMonitorBinary,
-  {
-    readonly resolve: Effect.Effect<string, ResourceMonitorBinaryError>;
-  }
+	ResourceMonitorBinary,
+	{
+		readonly resolve: Effect.Effect<string, ResourceMonitorBinaryError>;
+	}
 >()("t3/resourceTelemetry/ResourceMonitorBinary") {}
 
 function binaryName(platform: NodeJS.Platform): string {
-  return platform === "win32" ? "t3-resource-monitor.exe" : "t3-resource-monitor";
+	return platform === "win32"
+		? "t3-resource-monitor.exe"
+		: "t3-resource-monitor";
 }
 
 export type ResourceMonitorLinuxLibc = "gnu" | "musl";
 
 function detectResourceMonitorLinuxLibc(): ResourceMonitorLinuxLibc {
-  try {
-    const report = process.report?.getReport() as
-      | {
-          readonly header?: {
-            readonly glibcVersionRuntime?: unknown;
-          };
-        }
-      | undefined;
-    return typeof report?.header?.glibcVersionRuntime === "string" ? "gnu" : "musl";
-  } catch {
-    return "musl";
-  }
+	try {
+		const report = process.report?.getReport() as
+			| {
+					readonly header?: {
+						readonly glibcVersionRuntime?: unknown;
+					};
+			  }
+			| undefined;
+		return typeof report?.header?.glibcVersionRuntime === "string"
+			? "gnu"
+			: "musl";
+	} catch {
+		return "musl";
+	}
 }
 
-export const ResourceMonitorHostLinuxLibc = Context.Reference<ResourceMonitorLinuxLibc>(
-  "t3/resourceTelemetry/ResourceMonitorHostLinuxLibc",
-  {
-    defaultValue: detectResourceMonitorLinuxLibc,
-  },
-);
+export const ResourceMonitorHostLinuxLibc =
+	Context.Reference<ResourceMonitorLinuxLibc>(
+		"t3/resourceTelemetry/ResourceMonitorHostLinuxLibc",
+		{
+			defaultValue: detectResourceMonitorLinuxLibc,
+		},
+	);
 
 export function resourceMonitorPlatformKey(
-  platform: NodeJS.Platform,
-  architecture: NodeJS.Architecture,
+	platform: NodeJS.Platform,
+	architecture: NodeJS.Architecture,
 ): string | undefined {
-  if (
-    (platform !== "darwin" && platform !== "linux" && platform !== "win32") ||
-    (architecture !== "arm64" && architecture !== "x64")
-  ) {
-    return undefined;
-  }
-  return `${platform}-${architecture}`;
+	if (
+		(platform !== "darwin" && platform !== "linux" && platform !== "win32") ||
+		(architecture !== "arm64" && architecture !== "x64")
+	) {
+		return undefined;
+	}
+	return `${platform}-${architecture}`;
 }
 
 export function resourceMonitorRustTarget(
-  platform: NodeJS.Platform,
-  architecture: NodeJS.Architecture,
-  linuxLibc?: ResourceMonitorLinuxLibc,
+	platform: NodeJS.Platform,
+	architecture: NodeJS.Architecture,
+	linuxLibc?: ResourceMonitorLinuxLibc,
 ): string | undefined {
-  if (platform === "darwin") {
-    return architecture === "arm64"
-      ? "aarch64-apple-darwin"
-      : architecture === "x64"
-        ? "x86_64-apple-darwin"
-        : undefined;
-  }
-  if (platform === "linux") {
-    if (linuxLibc !== "gnu") {
-      return undefined;
-    }
-    return architecture === "arm64"
-      ? "aarch64-unknown-linux-gnu"
-      : architecture === "x64"
-        ? "x86_64-unknown-linux-gnu"
-        : undefined;
-  }
-  if (platform === "win32") {
-    return architecture === "arm64"
-      ? "aarch64-pc-windows-msvc"
-      : architecture === "x64"
-        ? "x86_64-pc-windows-msvc"
-        : undefined;
-  }
-  return undefined;
+	if (platform === "darwin") {
+		return architecture === "arm64"
+			? "aarch64-apple-darwin"
+			: architecture === "x64"
+				? "x86_64-apple-darwin"
+				: undefined;
+	}
+	if (platform === "linux") {
+		if (linuxLibc !== "gnu") {
+			return undefined;
+		}
+		return architecture === "arm64"
+			? "aarch64-unknown-linux-gnu"
+			: architecture === "x64"
+				? "x86_64-unknown-linux-gnu"
+				: undefined;
+	}
+	if (platform === "win32") {
+		return architecture === "arm64"
+			? "aarch64-pc-windows-msvc"
+			: architecture === "x64"
+				? "x86_64-pc-windows-msvc"
+				: undefined;
+	}
+	return undefined;
 }
 
-export const make = Effect.fn("resourceTelemetry.resourceMonitorBinary.make")(function* () {
-  const config = yield* ServerConfig;
-  const fileSystem = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const platform = yield* HostProcessPlatform;
-  const architecture = yield* HostProcessArchitecture;
-  const environment = yield* HostProcessEnvironment;
-  const linuxLibc = platform === "linux" ? yield* ResourceMonitorHostLinuxLibc : undefined;
-  const executableName = binaryName(platform);
-  const platformKey = resourceMonitorPlatformKey(platform, architecture);
-  const rustTarget = resourceMonitorRustTarget(platform, architecture, linuxLibc);
-  const overrideCandidates = [
-    environment.T3CODE_RESOURCE_MONITOR_PATH,
-    config.resourceMonitorPath,
-  ].filter((candidate): candidate is string => Boolean(candidate));
-  const bundledCandidates =
-    platformKey === undefined || rustTarget === undefined
-      ? []
-      : [
-          path.resolve(import.meta.dirname, "resource-monitor", platformKey, executableName),
-          path.resolve(import.meta.dirname, "resource-monitor", executableName),
-          path.resolve(import.meta.dirname, "../resource-monitor", executableName),
-          path.resolve(
-            import.meta.dirname,
-            "../../../../native/resource-monitor/target",
-            rustTarget,
-            "release",
-            executableName,
-          ),
-          path.resolve(
-            import.meta.dirname,
-            "../../../native/resource-monitor/target",
-            rustTarget,
-            "release",
-            executableName,
-          ),
-          path.resolve(
-            import.meta.dirname,
-            "../../../../native/resource-monitor/target/release",
-            executableName,
-          ),
-          path.resolve(
-            import.meta.dirname,
-            "../../../../native/resource-monitor/target/debug",
-            executableName,
-          ),
-        ];
-  if (overrideCandidates.length === 0 && bundledCandidates.length === 0) {
-    return ResourceMonitorBinary.of({
-      resolve: Effect.fail(
-        new ResourceMonitorBinaryUnsupported({
-          platform,
-          architecture,
-        }),
-      ),
-    });
-  }
+export const make = Effect.fn("resourceTelemetry.resourceMonitorBinary.make")(
+	function* () {
+		const config = yield* ServerConfig;
+		const fileSystem = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
+		const platform = yield* HostProcessPlatform;
+		const architecture = yield* HostProcessArchitecture;
+		const environment = yield* HostProcessEnvironment;
+		const linuxLibc =
+			platform === "linux" ? yield* ResourceMonitorHostLinuxLibc : undefined;
+		const executableName = binaryName(platform);
+		const platformKey = resourceMonitorPlatformKey(platform, architecture);
+		const rustTarget = resourceMonitorRustTarget(
+			platform,
+			architecture,
+			linuxLibc,
+		);
+		const overrideCandidates = [
+			environment.T3CODE_RESOURCE_MONITOR_PATH,
+			config.resourceMonitorPath,
+		].filter((candidate): candidate is string => Boolean(candidate));
+		const bundledCandidates =
+			platformKey === undefined || rustTarget === undefined
+				? []
+				: [
+						path.resolve(
+							import.meta.dirname,
+							"resource-monitor",
+							platformKey,
+							executableName,
+						),
+						path.resolve(
+							import.meta.dirname,
+							"resource-monitor",
+							executableName,
+						),
+						path.resolve(
+							import.meta.dirname,
+							"../resource-monitor",
+							executableName,
+						),
+						path.resolve(
+							import.meta.dirname,
+							"../../../../native/resource-monitor/target",
+							rustTarget,
+							"release",
+							executableName,
+						),
+						path.resolve(
+							import.meta.dirname,
+							"../../../native/resource-monitor/target",
+							rustTarget,
+							"release",
+							executableName,
+						),
+						path.resolve(
+							import.meta.dirname,
+							"../../../../native/resource-monitor/target/release",
+							executableName,
+						),
+						path.resolve(
+							import.meta.dirname,
+							"../../../../native/resource-monitor/target/debug",
+							executableName,
+						),
+					];
+		if (overrideCandidates.length === 0 && bundledCandidates.length === 0) {
+			return ResourceMonitorBinary.of({
+				resolve: Effect.fail(
+					new ResourceMonitorBinaryUnsupported({
+						platform,
+						architecture,
+					}),
+				),
+			});
+		}
 
-  const candidates = [...overrideCandidates, ...bundledCandidates];
+		const candidates = [...overrideCandidates, ...bundledCandidates];
 
-  const resolve: ResourceMonitorBinary["Service"]["resolve"] = Effect.gen(function* () {
-    for (const candidate of candidates) {
-      const exists = yield* fileSystem.exists(candidate).pipe(Effect.orElseSucceed(() => false));
-      if (!exists) continue;
+		const resolve: ResourceMonitorBinary["Service"]["resolve"] = Effect.gen(
+			function* () {
+				for (const candidate of candidates) {
+					const exists = yield* fileSystem
+						.exists(candidate)
+						.pipe(Effect.orElseSucceed(() => false));
+					if (!exists) continue;
 
-      if (platform !== "win32") {
-        const stat = yield* fileSystem.stat(candidate).pipe(Effect.option);
-        if (Option.isSome(stat) && (stat.value.mode & 0o111) === 0) {
-          return yield* new ResourceMonitorBinaryNotExecutable({
-            path: candidate,
-            mode: stat.value.mode,
-          });
-        }
-      }
+					if (platform !== "win32") {
+						const stat = yield* fileSystem.stat(candidate).pipe(Effect.option);
+						if (Option.isSome(stat) && (stat.value.mode & 0o111) === 0) {
+							return yield* new ResourceMonitorBinaryNotExecutable({
+								path: candidate,
+								mode: stat.value.mode,
+							});
+						}
+					}
 
-      return candidate;
-    }
+					return candidate;
+				}
 
-    return yield* new ResourceMonitorBinaryNotFound({
-      platform,
-      architecture,
-      candidates,
-    });
-  });
+				return yield* new ResourceMonitorBinaryNotFound({
+					platform,
+					architecture,
+					candidates,
+				});
+			},
+		);
 
-  return ResourceMonitorBinary.of({ resolve });
-});
+		return ResourceMonitorBinary.of({ resolve });
+	},
+);
 
 export const layer = Layer.effect(ResourceMonitorBinary, make());

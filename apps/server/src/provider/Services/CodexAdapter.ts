@@ -17,7 +17,7 @@ import type { ProviderAdapterShape } from "./ProviderAdapter.ts";
  * a branded driver kind as the nominal discriminant.
  */
 export interface CodexAdapterShape extends ProviderAdapterShape<ProviderAdapterError> {
-  readonly uploadFeedback: NonNullable<
-    ProviderAdapterShape<ProviderAdapterError>["uploadFeedback"]
-  >;
+	readonly uploadFeedback: NonNullable<
+		ProviderAdapterShape<ProviderAdapterError>["uploadFeedback"]
+	>;
 }

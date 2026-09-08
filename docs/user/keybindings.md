@@ -11,8 +11,8 @@ It is a JSON array of rules:
 
 ```json
 [
-  { "key": "mod+g", "command": "terminal.toggle" },
-  { "key": "mod+shift+g", "command": "terminal.new", "when": "terminalFocus" }
+	{ "key": "mod+g", "command": "terminal.toggle" },
+	{ "key": "mod+shift+g", "command": "terminal.new", "when": "terminalFocus" }
 ]
 ```
 
@@ -42,7 +42,11 @@ Available context keys are `terminalFocus`, `terminalOpen`, `previewFocus`,
 Combine keys with `!` for not, `&&` for and, `||` for or, and parentheses:
 
 ```json
-{ "key": "mod+j", "command": "terminal.toggle", "when": "terminalOpen && !terminalFocus" }
+{
+	"key": "mod+j",
+	"command": "terminal.toggle",
+	"when": "terminalOpen && !terminalFocus"
+}
 ```
 
 ## Precedence

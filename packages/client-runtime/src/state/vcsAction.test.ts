@@ -8,7 +8,10 @@ import {
 } from "@t3tools/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Cause from "effect/Cause";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -18,6 +21,7 @@ import { AsyncResult, Atom, AtomRegistry } from "effect/unstable/reactivity";
 
 import {
 	AVAILABLE_CONNECTION_STATE,
+	ConnectionTransientError,
 	PrimaryConnectionTarget,
 	type PreparedConnection,
 	type SupervisorConnectionState,
@@ -38,9 +42,11 @@ import {
 	getVcsActionTargetKey,
 	normalizeVcsActionProgressEvent,
 	parseVcsActionTargetKey,
+	settleVcsActionStateForExit,
 	VcsActionMissingTerminalEventError,
 	VcsActionRemoteFailureError,
 	VcsActionTargetKeyParseError,
+	VcsActionTransportLostError,
 	VcsActionUnavailableError,
 } from "./vcsAction.ts";
 import { vcsRefsCacheStateAtom } from "./vcsRefInvalidation.ts";
@@ -82,14 +88,17 @@ const target = new PrimaryConnectionTarget({
 	wsBaseUrl: "wss://environment.example.test",
 });
 
-function session(client: WsRpcProtocolClient): RpcSession {
+function session(
+	client: WsRpcProtocolClient,
+	closed: Effect.Effect<never, ConnectionTransientError> = Effect.never,
+): RpcSession {
 	return {
 		client,
 		initialConfig: Effect.never,
 		subscribeServerConfig: (input) => client.subscribeServerConfig(input),
 		ready: Effect.void,
 		probe: Effect.void,
-		closed: Effect.never,
+		closed,
 	};
 }
 
@@ -112,6 +121,73 @@ function cacheStore(onClearVcsRefs: (environmentId: EnvironmentId) => void) {
 		clearVcsRefs: (environmentId) =>
 			Effect.sync(() => onClearVcsRefs(environmentId)),
 		clear: () => Effect.void,
+	});
+}
+
+function makeStackedActionHarness(
+	client: WsRpcProtocolClient,
+	options: {
+		readonly onClearVcsRefs?: (environmentId: EnvironmentId) => void;
+		readonly sessionClosed?: Effect.Effect<never, ConnectionTransientError>;
+	} = {},
+) {
+	const connectionState: SupervisorConnectionState = {
+		...AVAILABLE_CONNECTION_STATE,
+		desired: true,
+		network: "online",
+		phase: "connected",
+		attempt: 1,
+		generation: 1,
+	};
+	return Effect.gen(function* () {
+		const supervisor = EnvironmentSupervisor.EnvironmentSupervisor.of({
+			target,
+			state: yield* SubscriptionRef.make(connectionState),
+			session: yield* SubscriptionRef.make(
+				Option.some(session(client, options.sessionClosed ?? Effect.never)),
+			),
+			prepared: yield* SubscriptionRef.make(Option.none<PreparedConnection>()),
+			connect: Effect.void,
+			disconnect: Effect.void,
+			retryNow: Effect.void,
+		} satisfies EnvironmentSupervisor.EnvironmentSupervisor["Service"]);
+		const run: EnvironmentRegistry.EnvironmentRegistry["Service"]["run"] = (
+			_environmentId,
+			effect,
+		) =>
+			Effect.provideService(
+				effect,
+				EnvironmentSupervisor.EnvironmentSupervisor,
+				supervisor,
+			);
+		const runStream: EnvironmentRegistry.EnvironmentRegistry["Service"]["runStream"] =
+			(_environmentId, stream) =>
+				Stream.provideService(
+					stream,
+					EnvironmentSupervisor.EnvironmentSupervisor,
+					supervisor,
+				);
+		const environmentRegistry = EnvironmentRegistry.EnvironmentRegistry.of({
+			run,
+			runStream,
+		} as unknown as EnvironmentRegistry.EnvironmentRegistry["Service"]);
+		const runtime = Atom.runtime(
+			Layer.merge(
+				Layer.succeed(
+					EnvironmentRegistry.EnvironmentRegistry,
+					environmentRegistry,
+				),
+				Layer.succeed(
+					Persistence.EnvironmentCacheStore,
+					cacheStore(options.onClearVcsRefs ?? (() => {})),
+				),
+			),
+		);
+		const registry = yield* Effect.acquireRelease(
+			Effect.sync(AtomRegistry.make),
+			(registry) => Effect.sync(() => registry.dispose()),
+		);
+		return { runtime, registry, supervisor };
 	});
 }
 
@@ -495,6 +571,55 @@ describe("vcsActionState", () => {
 		}),
 	);
 
+	it("resets running state when the stacked action exit is an interrupt", () => {
+		const running = beginVcsActionState({
+			operation: "run_change_request",
+			label: "Running source control action",
+			actionId,
+		});
+
+		expect(
+			settleVcsActionStateForExit(running, actionId, Exit.interrupt()),
+		).toEqual(EMPTY_VCS_ACTION_STATE);
+	});
+
+	it("retains the failure message when the stacked action exits with an error", () => {
+		const running = beginVcsActionState({
+			operation: "run_change_request",
+			label: "Running source control action",
+			actionId,
+		});
+		const failure = new Error("push rejected");
+
+		expect(
+			settleVcsActionStateForExit(running, actionId, Exit.fail(failure)),
+		).toMatchObject({
+			isRunning: false,
+			operation: "run_change_request",
+			actionId,
+			error: "push rejected",
+		});
+	});
+
+	it("ignores stacked action exits once another action owns the target", () => {
+		const running = beginVcsActionState({
+			operation: "run_change_request",
+			label: "Running source control action",
+			actionId,
+		});
+
+		expect(
+			settleVcsActionStateForExit(running, "newer-action", Exit.interrupt()),
+		).toBeNull();
+		expect(
+			settleVcsActionStateForExit(
+				EMPTY_VCS_ACTION_STATE,
+				actionId,
+				Exit.interrupt(),
+			),
+		).toBeNull();
+	});
+
 	it("keys mutation ownership by environment and cwd", () => {
 		const runtime = Atom.runtime(Layer.empty) as unknown as Atom.AtomRuntime<
 			| EnvironmentRegistry.EnvironmentRegistry
@@ -617,18 +742,74 @@ describe("vcsActionState", () => {
 	});
 
 	it.effect(
+		"fails a running stacked action when the session transport closes",
+		() =>
+			Effect.scoped(
+				Effect.gen(function* () {
+					const targetKey = { environmentId, cwd };
+					const started = yield* Deferred.make<void>();
+					const client = {
+						[WS_METHODS.gitRunStackedAction]: () =>
+							Stream.fromEffect(Deferred.succeed(started, undefined)).pipe(
+								Stream.flatMap(() => Stream.never),
+							),
+					} as unknown as WsRpcProtocolClient;
+					const sessionClosed = yield* Deferred.make<
+						never,
+						ConnectionTransientError
+					>();
+					const { runtime, registry } = yield* makeStackedActionHarness(
+						client,
+						{
+							sessionClosed: Deferred.await(sessionClosed),
+						},
+					);
+					const manager = createVcsActionManager(runtime);
+
+					const resultFiber = yield* Effect.forkScoped(
+						Effect.promise(() =>
+							manager
+								.runStackedAction(targetKey)
+								.run(registry, { actionId, action }),
+						),
+					);
+					yield* Deferred.await(started);
+					expect(registry.get(manager.stateAtom(targetKey)).isRunning).toBe(
+						true,
+					);
+
+					yield* Deferred.fail(
+						sessionClosed,
+						new ConnectionTransientError({
+							reason: "transport",
+							detail: "disconnected.",
+						}),
+					);
+
+					const result = yield* Fiber.join(resultFiber);
+					expect(AsyncResult.isFailure(result)).toBe(true);
+					if (AsyncResult.isFailure(result)) {
+						const error = Cause.squash(result.cause);
+						expect(error).toBeInstanceOf(VcsActionTransportLostError);
+						expect((error as Error).message).toBe(
+							"Source control action 'commit_push' lost its connection before it finished.",
+						);
+					}
+					expect(registry.get(manager.stateAtom(targetKey))).toMatchObject({
+						isRunning: false,
+						operation: "run_change_request",
+						error:
+							"Source control action 'commit_push' lost its connection before it finished.",
+					});
+				}),
+			),
+	);
+
+	it.effect(
 		"invalidates persisted refs after successful and failed stacked actions",
 		() =>
 			Effect.scoped(
 				Effect.gen(function* () {
-					const connectionState: SupervisorConnectionState = {
-						...AVAILABLE_CONNECTION_STATE,
-						desired: true,
-						network: "online",
-						phase: "connected",
-						attempt: 1,
-						generation: 1,
-					};
 					const targetKey = { environmentId, cwd };
 					const successfulActionId = "invalidate-success";
 					const failedActionId = "invalidate-failure";
@@ -667,56 +848,16 @@ describe("vcsActionState", () => {
 										}),
 									),
 					} as unknown as WsRpcProtocolClient;
-					const supervisor = EnvironmentSupervisor.EnvironmentSupervisor.of({
-						target,
-						state: yield* SubscriptionRef.make(connectionState),
-						session: yield* SubscriptionRef.make(Option.some(session(client))),
-						prepared: yield* SubscriptionRef.make(
-							Option.none<PreparedConnection>(),
-						),
-						connect: Effect.void,
-						disconnect: Effect.void,
-						retryNow: Effect.void,
-					} satisfies EnvironmentSupervisor.EnvironmentSupervisor["Service"]);
-					const run: EnvironmentRegistry.EnvironmentRegistry["Service"]["run"] =
-						(_environmentId, effect) =>
-							Effect.provideService(
-								effect,
-								EnvironmentSupervisor.EnvironmentSupervisor,
-								supervisor,
-							);
-					const runStream: EnvironmentRegistry.EnvironmentRegistry["Service"]["runStream"] =
-						(_environmentId, stream) =>
-							Stream.provideService(
-								stream,
-								EnvironmentSupervisor.EnvironmentSupervisor,
-								supervisor,
-							);
-					const environmentRegistry =
-						EnvironmentRegistry.EnvironmentRegistry.of({
-							run,
-							runStream,
-						} as unknown as EnvironmentRegistry.EnvironmentRegistry["Service"]);
 					const removed = new Array<string>();
-					const runtime = Atom.runtime(
-						Layer.merge(
-							Layer.succeed(
-								EnvironmentRegistry.EnvironmentRegistry,
-								environmentRegistry,
-							),
-							Layer.succeed(
-								Persistence.EnvironmentCacheStore,
-								cacheStore((removedEnvironmentId) => {
-									removed.push(`${removedEnvironmentId}:*`);
-								}),
-							),
-						),
+					const { runtime, registry } = yield* makeStackedActionHarness(
+						client,
+						{
+							onClearVcsRefs: (removedEnvironmentId) => {
+								removed.push(`${removedEnvironmentId}:*`);
+							},
+						},
 					);
 					const manager = createVcsActionManager(runtime);
-					const registry = yield* Effect.acquireRelease(
-						Effect.sync(AtomRegistry.make),
-						(registry) => Effect.sync(() => registry.dispose()),
-					);
 					const state = vcsRefsCacheStateAtom({ environmentId });
 
 					expect(registry.get(state).revision).toBe(0);

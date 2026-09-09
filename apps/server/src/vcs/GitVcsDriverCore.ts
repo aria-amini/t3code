@@ -56,6 +56,11 @@ const gitProcesses = Semaphore.makeUnsafe(8);
 // machine). Give it generous headroom while still bounding a genuinely hung git.
 const WORKTREE_ADD_TIMEOUT_MS = 300_000;
 const WORKTREE_REMOVE_TIMEOUT_MS = Duration.toMillis(Duration.minutes(5));
+
+// A push can legitimately run long, but a push waiting on an interactive
+// credential prompt never finishes on a headless host. A finite cap turns that
+// wedge into a failed action instead of a stacked action that hangs forever.
+const PUSH_TIMEOUT_MS = 15 * 60_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
 const OUTPUT_TRUNCATED_MARKER = "\n\n[truncated]";
 const PREPARED_COMMIT_PATCH_MAX_OUTPUT_BYTES = 49_000;
@@ -2391,7 +2396,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(
 							requestedRemoteName,
 							`HEAD:refs/heads/${publishBranch}`,
 						],
-						{ timeoutMs: null },
+						{ timeoutMs: PUSH_TIMEOUT_MS },
 					);
 					return {
 						status: "pushed" as const,
@@ -2467,7 +2472,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(
 							publishRemoteName,
 							`HEAD:refs/heads/${publishBranch}`,
 						],
-						{ timeoutMs: null },
+						{ timeoutMs: PUSH_TIMEOUT_MS },
 					);
 					return {
 						status: "pushed" as const,
@@ -2525,7 +2530,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(
 							"GitVcsDriver.pushCurrentBranch.pushOwnBranch",
 							cwd,
 							["push", "-u", remoteName, `HEAD:refs/heads/${publishBranch}`],
-							{ timeoutMs: null },
+							{ timeoutMs: PUSH_TIMEOUT_MS },
 						);
 						return {
 							status: "pushed" as const,
@@ -2543,7 +2548,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(
 							currentUpstream.remoteName,
 							`HEAD:refs/heads/${currentUpstream.branchName}`,
 						],
-						{ timeoutMs: null },
+						{ timeoutMs: PUSH_TIMEOUT_MS },
 					);
 					return {
 						status: "pushed" as const,
@@ -2554,7 +2559,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(
 				}
 
 				yield* runGit("GitVcsDriver.pushCurrentBranch.push", cwd, ["push"], {
-					timeoutMs: null,
+					timeoutMs: PUSH_TIMEOUT_MS,
 				});
 				return {
 					status: "pushed" as const,

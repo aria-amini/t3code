@@ -12,8 +12,11 @@ import {
 import * as Cause from "effect/Cause";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
+import * as SubscriptionRef from "effect/SubscriptionRef";
 import {
 	AsyncResult,
 	Atom,
@@ -21,6 +24,7 @@ import {
 } from "effect/unstable/reactivity";
 
 import type { EnvironmentRegistry } from "../connection/registry.ts";
+import { EnvironmentSupervisor } from "../connection/supervisor.ts";
 import { EnvironmentCacheStore } from "../platform/persistence.ts";
 import { runStream } from "../rpc/client.ts";
 import {
@@ -132,6 +136,20 @@ export class VcsActionMissingTerminalEventError extends Schema.TaggedError<VcsAc
 	}
 }
 
+export class VcsActionTransportLostError extends Schema.TaggedError<VcsActionTransportLostError>()(
+	"VcsActionTransportLostError",
+	{
+		actionId: Schema.String,
+		action: GitStackedAction,
+		environmentId: EnvironmentId,
+		cwd: Schema.String,
+	},
+) {
+	override get message(): string {
+		return `Source control action '${this.action}' lost its connection before it finished.`;
+	}
+}
+
 export class VcsActionTargetKeyParseError extends Schema.TaggedError<VcsActionTargetKeyParseError>()(
 	"VcsActionTargetKeyParseError",
 	{
@@ -147,6 +165,7 @@ export class VcsActionTargetKeyParseError extends Schema.TaggedError<VcsActionTa
 export const VcsActionExecutionError = Schema.Union([
 	VcsActionRemoteFailureError,
 	VcsActionMissingTerminalEventError,
+	VcsActionTransportLostError,
 ]);
 export type VcsActionExecutionError = typeof VcsActionExecutionError.Type;
 
@@ -238,6 +257,28 @@ function failVcsActionState(
 	};
 }
 
+export function settleVcsActionStateForExit(
+	current: VcsActionState,
+	actionId: string,
+	exit: Exit.Exit<GitRunStackedActionResult, unknown>,
+): VcsActionState | null {
+	if (
+		current.actionId !== actionId ||
+		!current.isRunning ||
+		Exit.isSuccess(exit)
+	) {
+		return null;
+	}
+	if (Cause.hasInterruptsOnly(exit.cause)) {
+		return EMPTY_VCS_ACTION_STATE;
+	}
+	return failVcsActionState(
+		"run_change_request",
+		actionId,
+		Cause.squash(exit.cause),
+	);
+}
+
 export function createVcsActionTransportId(
 	target: ResolvedVcsActionTarget,
 	actionId: string,
@@ -259,6 +300,35 @@ export function normalizeVcsActionProgressEvent(
 		...event,
 		actionId,
 	};
+}
+
+/**
+ * A stacked action rides one websocket session. A transport can die half-open
+ * without ever failing the in-flight progress stream, so when the session the
+ * action started on closes, fail the action instead of running forever.
+ */
+export function failVcsActionWhenSessionCloses<A, E, R>(
+	stream: Stream.Stream<A, E, R>,
+	error: VcsActionTransportLostError,
+): Stream.Stream<
+	A,
+	E | VcsActionTransportLostError,
+	R | EnvironmentSupervisor
+> {
+	return Stream.unwrap(
+		Effect.gen(function* () {
+			const supervisor = yield* EnvironmentSupervisor;
+			const session = Option.getOrUndefined(
+				yield* SubscriptionRef.get(supervisor.session),
+			);
+			const sessionLost = session
+				? Stream.fromEffect(Effect.ignore(session.closed)).pipe(
+						Stream.flatMap(() => Stream.fail(error)),
+					)
+				: Stream.fail(error);
+			return Stream.merge(stream, sessionLost, { haltStrategy: "either" });
+		}),
+	);
 }
 
 export function consumeVcsActionProgress<E, R>(
@@ -490,7 +560,15 @@ export function createVcsActionManager<R, E>(
 				return consumeVcsActionProgress(
 					runStreamInEnvironment(
 						target.environmentId,
-						runStream(WS_METHODS.gitRunStackedAction, rpcInput),
+						failVcsActionWhenSessionCloses(
+							runStream(WS_METHODS.gitRunStackedAction, rpcInput),
+							new VcsActionTransportLostError({
+								actionId: input.actionId,
+								action: input.action,
+								environmentId: target.environmentId,
+								cwd: target.cwd,
+							}),
+						),
 					),
 					{
 						target,
@@ -518,18 +596,15 @@ export function createVcsActionManager<R, E>(
 					},
 				).pipe(
 					Effect.ensuring(invalidateCachedVcsRefs(registry, target)),
-					Effect.tapError((error) =>
+					Effect.onExit((exit) =>
 						Effect.sync(() => {
-							const current = registry.get(stateAtom);
-							if (current.actionId === input.actionId && current.isRunning) {
-								registry.set(
-									stateAtom,
-									failVcsActionState(
-										"run_change_request",
-										input.actionId,
-										error,
-									),
-								);
+							const next = settleVcsActionStateForExit(
+								registry.get(stateAtom),
+								input.actionId,
+								exit,
+							);
+							if (next !== null) {
+								registry.set(stateAtom, next);
 							}
 						}),
 					),

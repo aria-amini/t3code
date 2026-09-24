@@ -240,7 +240,7 @@ export function isClaudeUltrathinkPrompt(
 
 /** Compare Codex model families without changing provider-owned dispatch identifiers. */
 export function codexModelFamily(slug: string): string {
-  return slug.startsWith("openai.gpt-") ? slug.slice("openai.".length) : slug;
+	return slug.startsWith("openai.gpt-") ? slug.slice("openai.".length) : slug;
 }
 
 export function normalizeModelSlug(

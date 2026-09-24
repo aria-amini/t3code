@@ -8,11 +8,11 @@ let delegate: Tracer.Tracer | null = null;
  * or at nothing while no exporter is configured.
  */
 export function setDelegate(next: Tracer.Tracer | null): void {
-  delegate = next;
+	delegate = next;
 }
 
 export function hasDelegate(): boolean {
-  return delegate !== null;
+	return delegate !== null;
 }
 
 /**
@@ -20,10 +20,10 @@ export function hasDelegate(): boolean {
  * client spans keep flowing to whatever exporter is configured later on.
  */
 export const layer = Layer.succeed(
-  Tracer.Tracer,
-  Tracer.make({
-    span(options) {
-      return delegate?.span(options) ?? new Tracer.NativeSpan(options);
-    },
-  }),
+	Tracer.Tracer,
+	Tracer.make({
+		span(options) {
+			return delegate?.span(options) ?? new Tracer.NativeSpan(options);
+		},
+	}),
 );

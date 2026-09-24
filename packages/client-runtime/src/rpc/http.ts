@@ -106,18 +106,18 @@ export const makeEnvironmentHttpApiClient = (httpBaseUrl: string) =>
 	});
 
 export const makeEnvironmentHttpApiGroupClient = <
-  Group extends keyof typeof EnvironmentHttpApi.groups,
+	Group extends keyof typeof EnvironmentHttpApi.groups,
 >(
-  httpBaseUrl: string,
-  group: Group,
+	httpBaseUrl: string,
+	group: Group,
 ) =>
-  Effect.flatMap(HttpClient.HttpClient, (httpClient) =>
-    HttpApiClient.group(EnvironmentHttpApi, {
-      httpClient,
-      group,
-      baseUrl: remoteApiBaseUrl(httpBaseUrl),
-    }),
-  );
+	Effect.flatMap(HttpClient.HttpClient, (httpClient) =>
+		HttpApiClient.group(EnvironmentHttpApi, {
+			httpClient,
+			group,
+			baseUrl: remoteApiBaseUrl(httpBaseUrl),
+		}),
+	);
 
 /** Contract-derived request URLs for authentication proofs, tracing, and structured errors. */
 export const makeEnvironmentHttpApiUrlBuilder = (httpBaseUrl: string) =>

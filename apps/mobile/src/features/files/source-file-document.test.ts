@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { boundedSelectableSourceTokens, prepareSourceFileDocument } from "./source-file-document";
+import {
+	boundedSelectableSourceTokens,
+	prepareSourceFileDocument,
+} from "./source-file-document";
 
 describe("prepareSourceFileDocument", () => {
 	it("normalizes and serializes source rows once for repeated consumers", () => {
@@ -22,12 +25,18 @@ describe("prepareSourceFileDocument", () => {
 });
 
 it("bounds selectable highlighting without allocating spans for huge files", () => {
-  const token = { content: "text", color: "#fff", fontStyle: null };
-  const small = [[token]];
-  expect(boundedSelectableSourceTokens(small)).toBe(small);
-  expect(boundedSelectableSourceTokens(null)).toBeNull();
-  expect(boundedSelectableSourceTokens(Array.from({ length: 20_000 }, () => [token]))).toBeNull();
-  expect(boundedSelectableSourceTokens([Array.from({ length: 2_000 }, () => token)])).toBeNull();
-  const longPlainText = "full contents\n".repeat(50_000);
-  expect(prepareSourceFileDocument(longPlainText).contents).toBe(longPlainText);
+	const token = { content: "text", color: "#fff", fontStyle: null };
+	const small = [[token]];
+	expect(boundedSelectableSourceTokens(small)).toBe(small);
+	expect(boundedSelectableSourceTokens(null)).toBeNull();
+	expect(
+		boundedSelectableSourceTokens(
+			Array.from({ length: 20_000 }, () => [token]),
+		),
+	).toBeNull();
+	expect(
+		boundedSelectableSourceTokens([Array.from({ length: 2_000 }, () => token)]),
+	).toBeNull();
+	const longPlainText = "full contents\n".repeat(50_000);
+	expect(prepareSourceFileDocument(longPlainText).contents).toBe(longPlainText);
 });

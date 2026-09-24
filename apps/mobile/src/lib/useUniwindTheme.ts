@@ -10,5 +10,5 @@ import type { MobileThemeVariables } from "./mobileTheme";
  * ScopedTheme instead of subscribing every consumer to CSS-variable updates.
  */
 export function useUniwindTheme(): MobileThemeVariables {
-  return useAppearancePreferences().themeVariables;
+	return useAppearancePreferences().themeVariables;
 }

@@ -15,48 +15,56 @@ const hostArch = NodeOS.arch();
 
 // The fixture executable uses a POSIX shebang. The wrapper itself also runs on Windows.
 it.skipIf(hostPlatform === "win32")(
-  "keeps service IPC, arguments, and termination connected",
-  async () => {
-    const root = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "t3-legacy-launcher-"));
-    const entry = NodePath.join(root, "node_modules/t3/dist/bin.mjs");
-    const executable = NodePath.join(
-      root,
-      `node_modules/@t3code/t3-${hostPlatform}-${hostArch}/t3`,
-    );
-    await NodeFSP.mkdir(NodePath.dirname(entry), { recursive: true });
-    await NodeFSP.mkdir(NodePath.dirname(executable), { recursive: true });
-    await NodeFSP.writeFile(
-      NodePath.join(NodePath.dirname(executable), "package.json"),
-      '{"type":"commonjs"}',
-    );
-    await NodeFSP.writeFile(entry, legacyCliLauncherScript());
-    await NodeFSP.writeFile(
-      executable,
-      `#!${process.execPath}
+	"keeps service IPC, arguments, and termination connected",
+	async () => {
+		const root = await NodeFSP.mkdtemp(
+			NodePath.join(NodeOS.tmpdir(), "t3-legacy-launcher-"),
+		);
+		const entry = NodePath.join(root, "node_modules/t3/dist/bin.mjs");
+		const executable = NodePath.join(
+			root,
+			`node_modules/@t3code/t3-${hostPlatform}-${hostArch}/t3`,
+		);
+		await NodeFSP.mkdir(NodePath.dirname(entry), { recursive: true });
+		await NodeFSP.mkdir(NodePath.dirname(executable), { recursive: true });
+		await NodeFSP.writeFile(
+			NodePath.join(NodePath.dirname(executable), "package.json"),
+			'{"type":"commonjs"}',
+		);
+		await NodeFSP.writeFile(entry, legacyCliLauncherScript());
+		await NodeFSP.writeFile(
+			executable,
+			`#!${process.execPath}
 process.on("SIGTERM", () => process.exit(23));
 process.on("message", message => process.send({ reply: message }));
 process.send({ args: process.argv.slice(2) });
 `,
-    );
-    await NodeFSP.chmod(executable, 0o755);
-    const child = NodeChildProcess.fork(entry, ["serve", "a path with spaces"], { silent: true });
-    try {
-      expect((await NodeEvents.EventEmitter.once(child, "message"))[0]).toEqual({
-        args: ["serve", "a path with spaces"],
-      });
-      const reply = NodeEvents.EventEmitter.once(child, "message");
-      child.send({ type: "trial-accepted" });
-      expect((await reply)[0]).toEqual({ reply: { type: "trial-accepted" } });
-      const exit = NodeEvents.EventEmitter.once(child, "exit");
-      child.kill("SIGTERM");
-      expect(await exit).toEqual([23, null]);
-    } finally {
-      if (child.exitCode === null && child.signalCode === null) {
-        const exit = NodeEvents.EventEmitter.once(child, "exit");
-        child.kill("SIGTERM");
-        await exit;
-      }
-      await NodeFSP.rm(root, { recursive: true, force: true });
-    }
-  },
+		);
+		await NodeFSP.chmod(executable, 0o755);
+		const child = NodeChildProcess.fork(
+			entry,
+			["serve", "a path with spaces"],
+			{ silent: true },
+		);
+		try {
+			expect((await NodeEvents.EventEmitter.once(child, "message"))[0]).toEqual(
+				{
+					args: ["serve", "a path with spaces"],
+				},
+			);
+			const reply = NodeEvents.EventEmitter.once(child, "message");
+			child.send({ type: "trial-accepted" });
+			expect((await reply)[0]).toEqual({ reply: { type: "trial-accepted" } });
+			const exit = NodeEvents.EventEmitter.once(child, "exit");
+			child.kill("SIGTERM");
+			expect(await exit).toEqual([23, null]);
+		} finally {
+			if (child.exitCode === null && child.signalCode === null) {
+				const exit = NodeEvents.EventEmitter.once(child, "exit");
+				child.kill("SIGTERM");
+				await exit;
+			}
+			await NodeFSP.rm(root, { recursive: true, force: true });
+		}
+	},
 );

@@ -8,14 +8,17 @@ import { createDebugLogger } from "../../lib/debugLog";
  * console to trace release/TestFlight builds.
  */
 const logger = createDebugLogger("terminal", {
-  enabledInDev: true,
-  legacyGlobalFlag: "__T3_TERMINAL_DEBUG__",
+	enabledInDev: true,
+	legacyGlobalFlag: "__T3_TERMINAL_DEBUG__",
 });
 
 export function isTerminalDebugEnabled(): boolean {
-  return logger.isEnabled();
+	return logger.isEnabled();
 }
 
-export function terminalDebugLog(message: string, data?: Record<string, unknown>): void {
-  logger.log(message, data);
+export function terminalDebugLog(
+	message: string,
+	data?: Record<string, unknown>,
+): void {
+	logger.log(message, data);
 }

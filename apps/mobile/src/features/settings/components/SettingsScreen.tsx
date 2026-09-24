@@ -9,29 +9,29 @@ import { MaterialScreenContent as SettingsScreenContent } from "../../../compone
 export { SettingsScreenContent };
 
 export function SettingsScreen(
-  props: Pick<ScreenHeaderProps, "title" | "actions" | "trailing"> & {
-    readonly children: ReactNode;
-    /** A native form sheet already owns its rounded outer frame. */
-    readonly formSheet?: boolean;
-  },
+	props: Pick<ScreenHeaderProps, "title" | "actions" | "trailing"> & {
+		readonly children: ReactNode;
+		/** A native form sheet already owns its rounded outer frame. */
+		readonly formSheet?: boolean;
+	},
 ) {
-  const navigation = useNavigation();
+	const navigation = useNavigation();
 
-  return (
-    <View collapsable={false} className="flex-1 bg-sheet">
-      <ScreenHeader
-        title={props.title}
-        actions={props.actions}
-        trailing={Platform.OS === "android" ? props.trailing : undefined}
-        sidebar={false}
-        onBack={() => navigation.goBack()}
-        hideBottomBorder={!props.formSheet}
-      />
-      {props.formSheet ? (
-        props.children
-      ) : (
-        <SettingsScreenContent>{props.children}</SettingsScreenContent>
-      )}
-    </View>
-  );
+	return (
+		<View collapsable={false} className="flex-1 bg-sheet">
+			<ScreenHeader
+				title={props.title}
+				actions={props.actions}
+				trailing={Platform.OS === "android" ? props.trailing : undefined}
+				sidebar={false}
+				onBack={() => navigation.goBack()}
+				hideBottomBorder={!props.formSheet}
+			/>
+			{props.formSheet ? (
+				props.children
+			) : (
+				<SettingsScreenContent>{props.children}</SettingsScreenContent>
+			)}
+		</View>
+	);
 }

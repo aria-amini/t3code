@@ -52,15 +52,15 @@ export function isFileDiffCollapsed(
  * toolbar last asked, and so keeps "collapse all" from ticking anything off.
  */
 export function toggleFileDiffFoldForViewed(
-  fileKey: string,
-  viewed: boolean,
-  foldOverride: DiffFoldOverride,
-  toggledFileKeys: ReadonlySet<string>,
+	fileKey: string,
+	viewed: boolean,
+	foldOverride: DiffFoldOverride,
+	toggledFileKeys: ReadonlySet<string>,
 ): ReadonlySet<string> {
-  if (isFileDiffCollapsed(fileKey, foldOverride, toggledFileKeys) === viewed)
-    return toggledFileKeys;
-  const next = new Set(toggledFileKeys);
-  if (next.has(fileKey)) next.delete(fileKey);
-  else next.add(fileKey);
-  return next;
+	if (isFileDiffCollapsed(fileKey, foldOverride, toggledFileKeys) === viewed)
+		return toggledFileKeys;
+	const next = new Set(toggledFileKeys);
+	if (next.has(fileKey)) next.delete(fileKey);
+	else next.add(fileKey);
+	return next;
 }

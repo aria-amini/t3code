@@ -7,19 +7,26 @@ import * as SourceControlRateLimit from "./SourceControlRateLimit.ts";
 const github = { provider: "github" as const, host: "github.com" };
 
 it.effect("isolates cooldowns for verified credentials on the same host", () =>
-  Effect.gen(function* () {
-    const limits = yield* SourceControlRateLimit.SourceControlRateLimit;
-    yield* limits
-      .recordRateLimit({ ...github, lease: 0 })
-      .pipe(Effect.provideService(SourceControlRateLimit.CredentialScope, "first"));
-    yield* limits
-      .check(github)
-      .pipe(Effect.provideService(SourceControlRateLimit.CredentialScope, "second"));
-    const error = yield* limits
-      .check(github)
-      .pipe(Effect.provideService(SourceControlRateLimit.CredentialScope, "first"), Effect.flip);
-    assert.strictEqual(error._tag, "SourceControlRateLimitPausedError");
-  }).pipe(Effect.provide(SourceControlRateLimit.layer)),
+	Effect.gen(function* () {
+		const limits = yield* SourceControlRateLimit.SourceControlRateLimit;
+		yield* limits
+			.recordRateLimit({ ...github, lease: 0 })
+			.pipe(
+				Effect.provideService(SourceControlRateLimit.CredentialScope, "first"),
+			);
+		yield* limits
+			.check(github)
+			.pipe(
+				Effect.provideService(SourceControlRateLimit.CredentialScope, "second"),
+			);
+		const error = yield* limits
+			.check(github)
+			.pipe(
+				Effect.provideService(SourceControlRateLimit.CredentialScope, "first"),
+				Effect.flip,
+			);
+		assert.strictEqual(error._tag, "SourceControlRateLimitPausedError");
+	}).pipe(Effect.provide(SourceControlRateLimit.layer)),
 );
 
 it("parses Retry-After seconds and HTTP dates", () => {

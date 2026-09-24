@@ -1,4 +1,6 @@
 {
-  "platforms": ["android"],
-  "android": { "modules": ["expo.modules.t3subscriptionwidget.T3SubscriptionWidgetModule"] }
+	"platforms": ["android"],
+	"android": {
+		"modules": ["expo.modules.t3subscriptionwidget.T3SubscriptionWidgetModule"]
+	}
 }

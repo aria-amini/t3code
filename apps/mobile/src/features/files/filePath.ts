@@ -1,6 +1,6 @@
 import {
-  isWorkspaceAudioPreviewPath,
-  isWorkspaceVideoPreviewPath,
+	isWorkspaceAudioPreviewPath,
+	isWorkspaceVideoPreviewPath,
 } from "@t3tools/shared/filePreview";
 
 export interface FileBreadcrumb {
@@ -114,7 +114,7 @@ export function isVideoPreviewFile(path: string): boolean {
 }
 
 export function isAudioPreviewFile(path: string): boolean {
-  return isWorkspaceAudioPreviewPath(path.split(/[?#]/, 1)[0] ?? "");
+	return isWorkspaceAudioPreviewPath(path.split(/[?#]/, 1)[0] ?? "");
 }
 
 export function isSvgImagePreviewFile(path: string): boolean {
@@ -145,12 +145,15 @@ export function fileBreadcrumbs(
  * The location line under a file's name: `project · parent/dir`. A host file outside the
  * workspace is not under the project, so it shows its directory alone.
  */
-export function fileHeaderSubtitle(projectName: string, relativePath: string): string {
-  const parentDir = relativePath.slice(
-    0,
-    Math.max(relativePath.lastIndexOf("/"), relativePath.lastIndexOf("\\"), 0),
-  );
-  return isAbsolutePath(relativePath)
-    ? parentDir
-    : [projectName, parentDir].filter(Boolean).join(" · ");
+export function fileHeaderSubtitle(
+	projectName: string,
+	relativePath: string,
+): string {
+	const parentDir = relativePath.slice(
+		0,
+		Math.max(relativePath.lastIndexOf("/"), relativePath.lastIndexOf("\\"), 0),
+	);
+	return isAbsolutePath(relativePath)
+		? parentDir
+		: [projectName, parentDir].filter(Boolean).join(" · ");
 }

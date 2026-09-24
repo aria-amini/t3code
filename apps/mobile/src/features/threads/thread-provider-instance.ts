@@ -59,23 +59,27 @@ export function resolveThreadProviderInstance(
  * until the instance behind the row actually changes.
  */
 export function createThreadRowProviderInstanceResolver(
-  serverConfigs: ReadonlyMap<EnvironmentId, ServerConfig>,
+	serverConfigs: ReadonlyMap<EnvironmentId, ServerConfig>,
 ): (thread: EnvironmentThreadShell) => ThreadRowProviderInstance | null {
-  const cache = new Map<string, ThreadRowProviderInstance | null>();
-  return (thread) => {
-    const instanceId = thread.session?.providerInstanceId ?? thread.modelSelection.instanceId;
-    const cacheKey = `${thread.environmentId}|${instanceId ?? ""}`;
-    const cached = cache.get(cacheKey);
-    if (cached !== undefined) return cached;
-    const resolved = resolveThreadProviderInstance(serverConfigs, thread);
-    cache.set(cacheKey, resolved);
-    return resolved;
-  };
+	const cache = new Map<string, ThreadRowProviderInstance | null>();
+	return (thread) => {
+		const instanceId =
+			thread.session?.providerInstanceId ?? thread.modelSelection.instanceId;
+		const cacheKey = `${thread.environmentId}|${instanceId ?? ""}`;
+		const cached = cache.get(cacheKey);
+		if (cached !== undefined) return cached;
+		const resolved = resolveThreadProviderInstance(serverConfigs, thread);
+		cache.set(cacheKey, resolved);
+		return resolved;
+	};
 }
 
 /** List-scoped wrapper: one cache per server-config generation. */
 export function useThreadRowProviderInstanceResolver(
-  serverConfigs: ReadonlyMap<EnvironmentId, ServerConfig>,
+	serverConfigs: ReadonlyMap<EnvironmentId, ServerConfig>,
 ): (thread: EnvironmentThreadShell) => ThreadRowProviderInstance | null {
-  return useMemo(() => createThreadRowProviderInstanceResolver(serverConfigs), [serverConfigs]);
+	return useMemo(
+		() => createThreadRowProviderInstanceResolver(serverConfigs),
+		[serverConfigs],
+	);
 }

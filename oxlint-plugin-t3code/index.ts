@@ -9,16 +9,16 @@ import noMobileUniwindThemeEscapeHatches from "./rules/no-mobile-uniwind-theme-e
 import noNativeTitleTooltip from "./rules/no-native-title-tooltip.ts";
 
 export default definePlugin({
-  meta: {
-    name: "t3code",
-  },
-  rules: {
-    "namespace-node-imports": namespaceNodeImports,
-    "no-global-process-runtime": noGlobalProcessRuntime,
-    "no-hermes-unsupported-apis": noHermesUnsupportedApis,
-    "no-inline-schema-compile": noInlineSchemaCompile,
-    "no-manual-effect-runtime-in-tests": noManualEffectRuntimeInTests,
-    "no-mobile-uniwind-theme-escape-hatches": noMobileUniwindThemeEscapeHatches,
-    "no-native-title-tooltip": noNativeTitleTooltip,
-  },
+	meta: {
+		name: "t3code",
+	},
+	rules: {
+		"namespace-node-imports": namespaceNodeImports,
+		"no-global-process-runtime": noGlobalProcessRuntime,
+		"no-hermes-unsupported-apis": noHermesUnsupportedApis,
+		"no-inline-schema-compile": noInlineSchemaCompile,
+		"no-manual-effect-runtime-in-tests": noManualEffectRuntimeInTests,
+		"no-mobile-uniwind-theme-escape-hatches": noMobileUniwindThemeEscapeHatches,
+		"no-native-title-tooltip": noNativeTitleTooltip,
+	},
 });

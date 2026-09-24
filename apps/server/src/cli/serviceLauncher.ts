@@ -14,14 +14,14 @@ import { main as runServiceLauncher } from "../serviceLauncher.ts";
  * interrupt the fiber and exit while the child is still being terminated.
  */
 export const serviceLauncherCommand = Command.make("__service-launcher").pipe(
-  Command.unlisted,
-  Command.withHandler(() =>
-    Effect.sync(() => {
-      runServiceLauncher().catch((cause: unknown) => {
-        const error = cause instanceof Error ? cause : new Error(String(cause));
-        process.stderr.write(`[service-launcher] ${error.message}\n`);
-        process.exitCode = 1;
-      });
-    }),
-  ),
+	Command.unlisted,
+	Command.withHandler(() =>
+		Effect.sync(() => {
+			runServiceLauncher().catch((cause: unknown) => {
+				const error = cause instanceof Error ? cause : new Error(String(cause));
+				process.stderr.write(`[service-launcher] ${error.message}\n`);
+				process.exitCode = 1;
+			});
+		}),
+	),
 );

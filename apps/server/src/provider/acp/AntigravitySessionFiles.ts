@@ -60,12 +60,16 @@ export const removeAntigravitySessionFiles = Effect.fn(
  * belongs to other programs and Windows does not lock data files, so sweeping
  * it could gut a live extraction.
  */
-export const removeAntigravityRuntimeTempDirs = Effect.fn("removeAntigravityRuntimeTempDirs")(
-  function* (tempDirectory: string) {
-    const fs = yield* FileSystem.FileSystem;
-    yield* fs.remove(tempDirectory, { recursive: true, force: true });
-  },
-  Effect.catch(() =>
-    Effect.logWarning("Could not remove leftover Antigravity runtime temp files."),
-  ),
+export const removeAntigravityRuntimeTempDirs = Effect.fn(
+	"removeAntigravityRuntimeTempDirs",
+)(
+	function* (tempDirectory: string) {
+		const fs = yield* FileSystem.FileSystem;
+		yield* fs.remove(tempDirectory, { recursive: true, force: true });
+	},
+	Effect.catch(() =>
+		Effect.logWarning(
+			"Could not remove leftover Antigravity runtime temp files.",
+		),
+	),
 );

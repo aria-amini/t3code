@@ -10,19 +10,23 @@ import { retainComposerAttachmentFile } from "./composerAttachmentFiles";
  * at module load; until then a release has nothing to retry, because no draft
  * store has loaded yet and there is nothing to clean.
  */
-type UnusedAttachmentHandler = (attachment: FileBackedComposerAttachment) => void;
+type UnusedAttachmentHandler = (
+	attachment: FileBackedComposerAttachment,
+) => void;
 
 let onAttachmentUnused: UnusedAttachmentHandler | null = null;
 
-export function registerComposerAttachmentUnusedHandler(handler: UnusedAttachmentHandler): void {
-  onAttachmentUnused = handler;
+export function registerComposerAttachmentUnusedHandler(
+	handler: UnusedAttachmentHandler,
+): void {
+	onAttachmentUnused = handler;
 }
 
 /** Keeps a native preview or upload readable until it finishes, then retries ownership cleanup. */
 export function retainComposerAttachmentFileForPreview(
-  attachment: FileBackedComposerAttachment,
+	attachment: FileBackedComposerAttachment,
 ): () => void {
-  return retainComposerAttachmentFile(attachment.fileUri, () => {
-    onAttachmentUnused?.(attachment);
-  });
+	return retainComposerAttachmentFile(attachment.fileUri, () => {
+		onAttachmentUnused?.(attachment);
+	});
 }

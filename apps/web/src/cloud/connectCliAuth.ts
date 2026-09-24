@@ -1,22 +1,29 @@
 import {
-  buildConnectClerkAuthorizeUrl,
-  connectLoopbackRedirectUri,
-  CONNECT_OAUTH_SCOPES,
-  type ConnectAuthorizeRequest,
+	buildConnectClerkAuthorizeUrl,
+	connectLoopbackRedirectUri,
+	CONNECT_OAUTH_SCOPES,
+	type ConnectAuthorizeRequest,
 } from "@t3tools/shared/connectAuth";
 import { clerkFrontendApiUrlFromPublishableKey } from "@t3tools/shared/relayAuth";
 
 import { isHostedStaticApp } from "../hostedPairing";
-import { hasCloudPublicConfig, resolveCloudPublicConfig, trimNonEmpty } from "./publicConfig";
+import {
+	hasCloudPublicConfig,
+	resolveCloudPublicConfig,
+	trimNonEmpty,
+} from "./publicConfig";
 
 function resolveConnectCliOAuthClientId(): string | null {
-  return trimNonEmpty(import.meta.env.VITE_CLERK_CLI_OAUTH_CLIENT_ID as string | undefined);
+	return trimNonEmpty(
+		import.meta.env.VITE_CLERK_CLI_OAUTH_CLIENT_ID as string | undefined,
+	);
 }
 
 export function hasConnectCliAuthConfig(): boolean {
-  return Boolean(
-    resolveCloudPublicConfig().clerkPublishableKey && resolveConnectCliOAuthClientId(),
-  );
+	return Boolean(
+		resolveCloudPublicConfig().clerkPublishableKey &&
+		resolveConnectCliOAuthClientId(),
+	);
 }
 
 /**
@@ -25,7 +32,9 @@ export function hasConnectCliAuthConfig(): boolean {
  * Clerk CLI OAuth client configured at build time.
  */
 export function connectCliAuthRoutesEnabled(): boolean {
-  return isHostedStaticApp() && hasCloudPublicConfig() && hasConnectCliAuthConfig();
+	return (
+		isHostedStaticApp() && hasCloudPublicConfig() && hasConnectCliAuthConfig()
+	);
 }
 
 /**
@@ -34,20 +43,22 @@ export function connectCliAuthRoutesEnabled(): boolean {
  * this page never sees it. Clerk enforces its registered redirect URI
  * allowlist either way.
  */
-export function buildConnectCliClerkAuthorizeUrl(request: ConnectAuthorizeRequest): string | null {
-  const { clerkPublishableKey } = resolveCloudPublicConfig();
-  const clientId = resolveConnectCliOAuthClientId();
-  if (!clerkPublishableKey || !clientId) {
-    return null;
-  }
-  return buildConnectClerkAuthorizeUrl({
-    authorizationEndpoint: `${clerkFrontendApiUrlFromPublishableKey(clerkPublishableKey)}/oauth/authorize`,
-    clientId,
-    redirectUri: connectLoopbackRedirectUri(request.loopbackPort),
-    scopes: CONNECT_OAUTH_SCOPES,
-    state: request.state,
-    challenge: request.challenge,
-  });
+export function buildConnectCliClerkAuthorizeUrl(
+	request: ConnectAuthorizeRequest,
+): string | null {
+	const { clerkPublishableKey } = resolveCloudPublicConfig();
+	const clientId = resolveConnectCliOAuthClientId();
+	if (!clerkPublishableKey || !clientId) {
+		return null;
+	}
+	return buildConnectClerkAuthorizeUrl({
+		authorizationEndpoint: `${clerkFrontendApiUrlFromPublishableKey(clerkPublishableKey)}/oauth/authorize`,
+		clientId,
+		redirectUri: connectLoopbackRedirectUri(request.loopbackPort),
+		scopes: CONNECT_OAUTH_SCOPES,
+		state: request.state,
+		challenge: request.challenge,
+	});
 }
 
 /**
@@ -61,8 +72,8 @@ export function buildConnectCliClerkAuthorizeUrl(request: ConnectAuthorizeReques
  * built, which only happens on a deployment without the CLI OAuth config.
  */
 export function connectCliSignInRedirectUrl(
-  request: ConnectAuthorizeRequest,
-  currentHref: string,
+	request: ConnectAuthorizeRequest,
+	currentHref: string,
 ): string {
-  return buildConnectCliClerkAuthorizeUrl(request) ?? currentHref;
+	return buildConnectCliClerkAuthorizeUrl(request) ?? currentHref;
 }

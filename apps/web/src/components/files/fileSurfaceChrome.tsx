@@ -14,7 +14,7 @@ import { cn } from "~/lib/utils";
  * not grow separate chrome.
  */
 export const FILE_SURFACE_SUBHEADER_CLASS =
-  "flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-border/60 bg-background px-3 in-data-[preview-panel-mode=inline]:mb-3 in-data-[preview-panel-mode=inline]:h-7 in-data-[preview-panel-mode=inline]:min-h-7 in-data-[preview-panel-mode=inline]:border-b-transparent";
+	"flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-border/60 bg-background px-3 in-data-[preview-panel-mode=inline]:mb-3 in-data-[preview-panel-mode=inline]:h-7 in-data-[preview-panel-mode=inline]:min-h-7 in-data-[preview-panel-mode=inline]:border-b-transparent";
 
 export const FILE_LINK_REVEAL_ATTRIBUTE = "data-file-link-reveal";
 
@@ -67,94 +67,94 @@ export const FILE_LINK_REVEAL_UNSAFE_CSS = `
  * because announcing it as an unpressed toggle tells a screen reader it has a state it has not.
  */
 export function FileSurfaceAction(props: {
-  readonly label: string;
-  readonly pressed?: boolean;
-  readonly disabled?: boolean;
-  readonly onPress: () => void;
-  readonly children: ReactNode;
+	readonly label: string;
+	readonly pressed?: boolean;
+	readonly disabled?: boolean;
+	readonly onPress: () => void;
+	readonly children: ReactNode;
 }) {
-  const pressed = props.pressed;
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          pressed === undefined ? (
-            <Button
-              type="button"
-              className="shrink-0"
-              disabled={props.disabled ?? false}
-              onClick={props.onPress}
-              aria-label={props.label}
-              variant="ghost"
-              size="icon-sm"
-            >
-              {props.children}
-            </Button>
-          ) : (
-            <Toggle
-              className="shrink-0"
-              pressed={pressed}
-              disabled={props.disabled ?? false}
-              onPressedChange={props.onPress}
-              aria-label={props.label}
-              variant="ghost"
-              size="sm"
-            >
-              {props.children}
-            </Toggle>
-          )
-        }
-      />
-      <TooltipPopup>{props.label}</TooltipPopup>
-    </Tooltip>
-  );
+	const pressed = props.pressed;
+	return (
+		<Tooltip>
+			<TooltipTrigger
+				render={
+					pressed === undefined ? (
+						<Button
+							type="button"
+							className="shrink-0"
+							disabled={props.disabled ?? false}
+							onClick={props.onPress}
+							aria-label={props.label}
+							variant="ghost"
+							size="icon-sm"
+						>
+							{props.children}
+						</Button>
+					) : (
+						<Toggle
+							className="shrink-0"
+							pressed={pressed}
+							disabled={props.disabled ?? false}
+							onPressedChange={props.onPress}
+							aria-label={props.label}
+							variant="ghost"
+							size="sm"
+						>
+							{props.children}
+						</Toggle>
+					)
+				}
+			/>
+			<TooltipPopup>{props.label}</TooltipPopup>
+		</Tooltip>
+	);
 }
 
 export function FileSurfaceNotice(props: { readonly children: ReactNode }) {
-  return (
-    <div
-      role="status"
-      className="shrink-0 border-b border-warning/20 bg-warning-surface px-3 py-1.5 text-[11px] text-warning-foreground"
-    >
-      {props.children}
-    </div>
-  );
+	return (
+		<div
+			role="status"
+			className="shrink-0 border-b border-warning/20 bg-warning-surface px-3 py-1.5 text-[11px] text-warning-foreground"
+		>
+			{props.children}
+		</div>
+	);
 }
 
 export function FileSurfaceLoading(props: { readonly className?: string }) {
-  return (
-    <div
-      role="status"
-      aria-label="Loading file"
-      className={cn(
-        "flex min-h-0 flex-1 items-center justify-center text-muted-foreground",
-        props.className,
-      )}
-    >
-      <Spinner size="lg" />
-    </div>
-  );
+	return (
+		<div
+			role="status"
+			aria-label="Loading file"
+			className={cn(
+				"flex min-h-0 flex-1 items-center justify-center text-muted-foreground",
+				props.className,
+			)}
+		>
+			<Spinner size="lg" />
+		</div>
+	);
 }
 
 export function FileSurfaceFailure(props: {
-  readonly message: string;
-  readonly onRetry?: () => void;
+	readonly message: string;
+	readonly onRetry?: () => void;
 }) {
-  return (
-    <div
-      role="alert"
-      className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center text-xs leading-relaxed"
-    >
-      <p className="text-destructive">{props.message}</p>
-      {props.onRetry ? (
-        <button
-          type="button"
-          onClick={props.onRetry}
-          className="rounded-md border border-input px-2.5 py-1 text-xs text-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          Try again
-        </button>
-      ) : null}
-    </div>
-  );
+	return (
+		<div
+			role="alert"
+			className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center text-xs leading-relaxed"
+		>
+			<p className="text-destructive">{props.message}</p>
+			{props.onRetry ? (
+				<button
+					type="button"
+					onClick={props.onRetry}
+					className="rounded-md border border-input px-2.5 py-1 text-xs text-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+				>
+					Try again
+				</button>
+			) : null}
+		</div>
+	);
 }

@@ -10,10 +10,12 @@ import { useScopedSettingsMixed } from "./useScopedSettings";
  * it on everywhere, the macOS mixed-checkbox convention.
  */
 export function ScopedSwitch({
-  settingKeys,
-  checked,
-  ...props
-}: ComponentProps<typeof Switch> & { settingKeys: readonly (keyof ServerSettings)[] }) {
-  const mixed = useScopedSettingsMixed(settingKeys);
-  return <Switch {...props} mixed={mixed} checked={mixed ? false : checked} />;
+	settingKeys,
+	checked,
+	...props
+}: ComponentProps<typeof Switch> & {
+	settingKeys: readonly (keyof ServerSettings)[];
+}) {
+	const mixed = useScopedSettingsMixed(settingKeys);
+	return <Switch {...props} mixed={mixed} checked={mixed ? false : checked} />;
 }

@@ -9,28 +9,30 @@ import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
 
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 
-const layer = it.layer(Layer.mergeAll(NodeSqliteClient.layer({ filename: ":memory:" })));
+const layer = it.layer(
+	Layer.mergeAll(NodeSqliteClient.layer({ filename: ":memory:" })),
+);
 
 interface PullRequestRow {
-  readonly threadId: string;
-  readonly host: string;
-  readonly repository: string;
-  readonly number: number;
-  readonly url: string;
-  readonly source: string;
-  readonly linkedAt: string;
-  readonly snapshotJson: string | null;
-  readonly stackJson: string | null;
+	readonly threadId: string;
+	readonly host: string;
+	readonly repository: string;
+	readonly number: number;
+	readonly url: string;
+	readonly source: string;
+	readonly linkedAt: string;
+	readonly snapshotJson: string | null;
+	readonly stackJson: string | null;
 }
 
 layer("050_ProjectionThreadPullRequests", (it) => {
-  it.effect("creates the link table and backfills legacy single links", () =>
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
+	it.effect("creates the link table and backfills legacy single links", () =>
+		Effect.gen(function* () {
+			const sql = yield* SqlClient.SqlClient;
 
-      yield* runMigrations({ toMigrationInclusive: 49 });
+			yield* runMigrations({ toMigrationInclusive: 49 });
 
-      yield* sql`
+			yield* sql`
         INSERT INTO projection_projects (
           project_id,
           title,
@@ -51,7 +53,7 @@ layer("050_ProjectionThreadPullRequests", (it) => {
         )
       `;
 
-      yield* sql`
+			yield* sql`
         INSERT INTO projection_threads (
           thread_id,
           project_id,
@@ -100,9 +102,9 @@ layer("050_ProjectionThreadPullRequests", (it) => {
           )
       `;
 
-      yield* runMigrations({ toMigrationInclusive: 50 });
+			yield* runMigrations({ toMigrationInclusive: 50 });
 
-      const rows = yield* sql<PullRequestRow>`
+			const rows = yield* sql<PullRequestRow>`
         SELECT
           thread_id AS "threadId",
           host,
@@ -117,68 +119,84 @@ layer("050_ProjectionThreadPullRequests", (it) => {
         ORDER BY thread_id ASC
       `;
 
-      assert.deepStrictEqual(rows, [
-        {
-          threadId: "thread-bad-url",
-          host: "unknown",
-          repository: "acme/widgets",
-          number: 7,
-          url: "not a url",
-          source: "manual",
-          linkedAt: "2026-03-03T00:00:00.000Z",
-          snapshotJson: null,
-          stackJson: null,
-        },
-        {
-          threadId: "thread-github",
-          host: "github.com",
-          repository: "pingdotgg/t3code",
-          number: 42,
-          url: "https://GitHub.com/pingdotgg/t3code/pull/42",
-          source: "manual",
-          linkedAt: "2026-03-02T00:00:00.000Z",
-          snapshotJson: null,
-          stackJson: null,
-        },
-      ]);
+			assert.deepStrictEqual(rows, [
+				{
+					threadId: "thread-bad-url",
+					host: "unknown",
+					repository: "acme/widgets",
+					number: 7,
+					url: "not a url",
+					source: "manual",
+					linkedAt: "2026-03-03T00:00:00.000Z",
+					snapshotJson: null,
+					stackJson: null,
+				},
+				{
+					threadId: "thread-github",
+					host: "github.com",
+					repository: "pingdotgg/t3code",
+					number: 42,
+					url: "https://GitHub.com/pingdotgg/t3code/pull/42",
+					source: "manual",
+					linkedAt: "2026-03-02T00:00:00.000Z",
+					snapshotJson: null,
+					stackJson: null,
+				},
+			]);
 
-      // The legacy column stays so a rollback keeps its data.
-      const columns = yield* sql<{ readonly name: string }>`
+			// The legacy column stays so a rollback keeps its data.
+			const columns = yield* sql<{ readonly name: string }>`
         PRAGMA table_info(projection_threads)
       `;
-      assert.ok(columns.some((column) => column.name === "linked_pull_request_json"));
+			assert.ok(
+				columns.some((column) => column.name === "linked_pull_request_json"),
+			);
 
-      const indexes = yield* sql<{ readonly name: string }>`
+			const indexes = yield* sql<{ readonly name: string }>`
         PRAGMA index_list(projection_thread_pull_requests)
       `;
-      assert.ok(indexes.some((index) => index.name === "idx_projection_thread_pull_requests_pr"));
-    }),
-  );
+			assert.ok(
+				indexes.some(
+					(index) => index.name === "idx_projection_thread_pull_requests_pr",
+				),
+			);
+		}),
+	);
 });
 
 it.layer(Layer.fresh(NodeSqliteClient.layer({ filename: ":memory:" })))(
-  "050 Azure legacy links",
-  (it) => {
-    it.effect("keeps legacy Azure repositories distinct across organizations", () =>
-      Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient;
-        yield* runMigrations({ toMigrationInclusive: 49 });
-        for (const organization of ["org-a", "org-b"]) {
-          yield* sql`
+	"050 Azure legacy links",
+	(it) => {
+		it.effect(
+			"keeps legacy Azure repositories distinct across organizations",
+			() =>
+				Effect.gen(function* () {
+					const sql = yield* SqlClient.SqlClient;
+					yield* runMigrations({ toMigrationInclusive: 49 });
+					for (const organization of ["org-a", "org-b"]) {
+						yield* sql`
           INSERT INTO projection_threads (thread_id, project_id, title, model_selection_json, linked_pull_request_json, created_at, updated_at)
           VALUES (${organization}, ${organization}, 'Azure', '{"instanceId":"codex","model":"gpt-5.4"}',
             ${encodeJson({ projectId: organization, repository: "web", number: 7, url: `https://dev.azure.com/${organization}/project/_git/web/pullrequest/7` })},
             '2026-03-01T00:00:00.000Z', '2026-03-01T00:00:00.000Z')
         `;
-        }
-        yield* runMigrations({ toMigrationInclusive: 50 });
-        const rows =
-          yield* sql`SELECT host, repository, number FROM projection_thread_pull_requests ORDER BY repository`;
-        assert.deepStrictEqual(rows, [
-          { host: "dev.azure.com", repository: "org-a/project/_git/web", number: 7 },
-          { host: "dev.azure.com", repository: "org-b/project/_git/web", number: 7 },
-        ]);
-      }),
-    );
-  },
+					}
+					yield* runMigrations({ toMigrationInclusive: 50 });
+					const rows =
+						yield* sql`SELECT host, repository, number FROM projection_thread_pull_requests ORDER BY repository`;
+					assert.deepStrictEqual(rows, [
+						{
+							host: "dev.azure.com",
+							repository: "org-a/project/_git/web",
+							number: 7,
+						},
+						{
+							host: "dev.azure.com",
+							repository: "org-b/project/_git/web",
+							number: 7,
+						},
+					]);
+				}),
+		);
+	},
 );

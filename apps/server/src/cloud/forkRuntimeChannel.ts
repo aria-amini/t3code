@@ -16,7 +16,8 @@ export const FORK_DOWNLOAD_BASE_URL =
 	"https://github.com/aria-amini/t3code/releases/download";
 const FORK_CHANNEL_TIMEOUT = Duration.seconds(10);
 const FORK_CHANNEL_CACHE_TTL = Duration.minutes(10);
-const FORK_ASSET_PATTERN = /^t3-(\d+\.\d+\.\d+-fork\.\d+)-linux-(?:x64|arm64)\.tar\.gz$/u;
+const FORK_ASSET_PATTERN =
+	/^t3-(\d+\.\d+\.\d+-fork\.\d+)-linux-(?:x64|arm64)\.tar\.gz$/u;
 
 export interface ForkRuntimeRelease {
 	readonly version: string;

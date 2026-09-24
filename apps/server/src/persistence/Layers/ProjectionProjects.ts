@@ -6,31 +6,35 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Struct from "effect/Struct";
 
-import { ModelSelection, ProjectIconOverride, ProjectScript } from "@t3tools/contracts";
+import {
+	ModelSelection,
+	ProjectIconOverride,
+	ProjectScript,
+} from "@t3tools/contracts";
 import { toPersistenceSqlError } from "../Errors.ts";
 import {
-  GetProjectionProjectInput,
-  ProjectionProject,
-  ProjectionProjectRepository,
-  type ProjectionProjectRepositoryShape,
+	GetProjectionProjectInput,
+	ProjectionProject,
+	ProjectionProjectRepository,
+	type ProjectionProjectRepositoryShape,
 } from "../Services/ProjectionProjects.ts";
 
 const ProjectionProjectDbRow = ProjectionProject.mapFields(
-  Struct.assign({
-    defaultModelSelection: Schema.NullOr(Schema.fromJsonString(ModelSelection)),
-    autoPull: Schema.Number,
-    projectIcon: Schema.NullOr(Schema.fromJsonString(ProjectIconOverride)),
-    scripts: Schema.fromJsonString(Schema.Array(ProjectScript)),
-  }),
+	Struct.assign({
+		defaultModelSelection: Schema.NullOr(Schema.fromJsonString(ModelSelection)),
+		autoPull: Schema.Number,
+		projectIcon: Schema.NullOr(Schema.fromJsonString(ProjectIconOverride)),
+		scripts: Schema.fromJsonString(Schema.Array(ProjectScript)),
+	}),
 );
 
 const makeProjectionProjectRepository = Effect.gen(function* () {
-  const sql = yield* SqlClient.SqlClient;
+	const sql = yield* SqlClient.SqlClient;
 
-  const upsertProjectionProjectRow = SqlSchema.void({
-    Request: ProjectionProject,
-    execute: (row) =>
-      sql`
+	const upsertProjectionProjectRow = SqlSchema.void({
+		Request: ProjectionProject,
+		execute: (row) =>
+			sql`
         INSERT INTO projection_projects (
           project_id,
           title,
@@ -73,13 +77,13 @@ const makeProjectionProjectRepository = Effect.gen(function* () {
           updated_at = excluded.updated_at,
           deleted_at = excluded.deleted_at
       `,
-  });
+	});
 
-  const getProjectionProjectRow = SqlSchema.findOneOption({
-    Request: GetProjectionProjectInput,
-    Result: ProjectionProjectDbRow,
-    execute: ({ projectId }) =>
-      sql`
+	const getProjectionProjectRow = SqlSchema.findOneOption({
+		Request: GetProjectionProjectInput,
+		Result: ProjectionProjectDbRow,
+		execute: ({ projectId }) =>
+			sql`
         SELECT
           project_id AS "projectId",
           title,
@@ -96,26 +100,32 @@ const makeProjectionProjectRepository = Effect.gen(function* () {
         FROM projection_projects
         WHERE project_id = ${projectId}
       `,
-  });
+	});
 
-  const upsert: ProjectionProjectRepositoryShape["upsert"] = (row) =>
-    upsertProjectionProjectRow(row).pipe(
-      Effect.mapError(toPersistenceSqlError("ProjectionProjectRepository.upsert:query")),
-    );
+	const upsert: ProjectionProjectRepositoryShape["upsert"] = (row) =>
+		upsertProjectionProjectRow(row).pipe(
+			Effect.mapError(
+				toPersistenceSqlError("ProjectionProjectRepository.upsert:query"),
+			),
+		);
 
-  const getById: ProjectionProjectRepositoryShape["getById"] = (input) =>
-    getProjectionProjectRow(input).pipe(
-      Effect.map(Option.map((row) => ({ ...row, autoPull: row.autoPull === 1 }))),
-      Effect.mapError(toPersistenceSqlError("ProjectionProjectRepository.getById:query")),
-    );
+	const getById: ProjectionProjectRepositoryShape["getById"] = (input) =>
+		getProjectionProjectRow(input).pipe(
+			Effect.map(
+				Option.map((row) => ({ ...row, autoPull: row.autoPull === 1 })),
+			),
+			Effect.mapError(
+				toPersistenceSqlError("ProjectionProjectRepository.getById:query"),
+			),
+		);
 
-  return {
-    upsert,
-    getById,
-  } satisfies ProjectionProjectRepositoryShape;
+	return {
+		upsert,
+		getById,
+	} satisfies ProjectionProjectRepositoryShape;
 });
 
 export const ProjectionProjectRepositoryLive = Layer.effect(
-  ProjectionProjectRepository,
-  makeProjectionProjectRepository,
+	ProjectionProjectRepository,
+	makeProjectionProjectRepository,
 );

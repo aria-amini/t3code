@@ -7,14 +7,23 @@ import {
 } from "./forkRuntimeChannel.ts";
 import { compareForkServiceVersions } from "./forkServiceVersions.ts";
 
-const asset = (name: string) => ({ name, browser_download_url: `https://x/${name}` });
+const asset = (name: string) => ({
+	name,
+	browser_download_url: `https://x/${name}`,
+});
 
 describe("forkRuntimeFromAssets", () => {
 	it("returns null when no fork runtime asset exists", () => {
 		expect(
 			forkRuntimeFromAssets([
-				{ name: "t3-runtime.tgz", browser_download_url: "https://x/t3-runtime.tgz" },
-				{ name: "t3-0.0.40.tgz", browser_download_url: "https://x/t3-0.0.40.tgz" },
+				{
+					name: "t3-runtime.tgz",
+					browser_download_url: "https://x/t3-runtime.tgz",
+				},
+				{
+					name: "t3-0.0.40.tgz",
+					browser_download_url: "https://x/t3-0.0.40.tgz",
+				},
 			]),
 		).toBeNull();
 		expect(forkRuntimeFromAssets([])).toBeNull();
@@ -30,22 +39,34 @@ describe("forkRuntimeFromAssets", () => {
 			version: "0.0.40-fork.1",
 			releaseBaseUrl: FORK_DOWNLOAD_BASE_URL,
 		});
-		expect(forkRuntimeFromAssets([asset("t3-0.0.40-fork.1-linux-x64.tar.gz")])).toBeNull();
+		expect(
+			forkRuntimeFromAssets([asset("t3-0.0.40-fork.1-linux-x64.tar.gz")]),
+		).toBeNull();
 	});
 });
 
 describe("compareForkServiceVersions", () => {
 	it("ranks a fork build above the plain release of the same core", () => {
-		expect(compareForkServiceVersions("0.0.40-fork.2", "0.0.40")).toBeGreaterThan(0);
-		expect(compareForkServiceVersions("0.0.40", "0.0.40-fork.2")).toBeLessThan(0);
+		expect(
+			compareForkServiceVersions("0.0.40-fork.2", "0.0.40"),
+		).toBeGreaterThan(0);
+		expect(compareForkServiceVersions("0.0.40", "0.0.40-fork.2")).toBeLessThan(
+			0,
+		);
 	});
 
 	it("keeps exact ordering in every other combination", () => {
-		expect(compareForkServiceVersions("0.0.40-fork.2", "0.0.40-fork.1")).toBeGreaterThan(0);
+		expect(
+			compareForkServiceVersions("0.0.40-fork.2", "0.0.40-fork.1"),
+		).toBeGreaterThan(0);
 		expect(compareForkServiceVersions("0.0.40", "0.0.39")).toBeGreaterThan(0);
-		expect(compareForkServiceVersions("0.0.39-fork.3", "0.0.40")).toBeLessThan(0);
+		expect(compareForkServiceVersions("0.0.39-fork.3", "0.0.40")).toBeLessThan(
+			0,
+		);
 		expect(compareForkServiceVersions("0.0.40", "0.0.40")).toBe(0);
-		expect(compareForkServiceVersions("0.0.40-fork.2", "0.0.40-fork.2")).toBe(0);
+		expect(compareForkServiceVersions("0.0.40-fork.2", "0.0.40-fork.2")).toBe(
+			0,
+		);
 	});
 });
 
@@ -69,7 +90,11 @@ describe("resolveForkUpdateRequest", () => {
 				requestedVersion: "0.0.40",
 				channel,
 			}),
-		).toEqual({ action: "redirect", targetVersion: "0.0.40-fork.1", releaseBaseUrl: channel.releaseBaseUrl });
+		).toEqual({
+			action: "redirect",
+			targetVersion: "0.0.40-fork.1",
+			releaseBaseUrl: channel.releaseBaseUrl,
+		});
 	});
 
 	it("redirects when the fork runtime is newer than the requested core", () => {
@@ -95,7 +120,11 @@ describe("resolveForkUpdateRequest", () => {
 				requestedVersion: "0.0.40-fork.1",
 				channel,
 			}),
-		).toEqual({ action: "redirect", targetVersion: "0.0.40-fork.1", releaseBaseUrl: channel.releaseBaseUrl });
+		).toEqual({
+			action: "redirect",
+			targetVersion: "0.0.40-fork.1",
+			releaseBaseUrl: channel.releaseBaseUrl,
+		});
 	});
 
 	it("blocks a fork target the channel does not carry", () => {

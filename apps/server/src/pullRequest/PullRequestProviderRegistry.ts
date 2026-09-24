@@ -21,23 +21,27 @@ import * as GitLabPullRequestProvider from "./GitLabPullRequestProvider.ts";
 import type { PullRequestProviderApi } from "./PullRequestProvider.ts";
 
 export class PullRequestProviderRegistry extends Context.Service<
-  PullRequestProviderRegistry,
-  {
-    /** Null for a host with no implementation, which the service reports as unsupported. */
-    readonly get: (kind: SourceControlProviderKind) => PullRequestProviderApi | null;
-    readonly kinds: ReadonlyArray<SourceControlProviderKind>;
-  }
+	PullRequestProviderRegistry,
+	{
+		/** Null for a host with no implementation, which the service reports as unsupported. */
+		readonly get: (
+			kind: SourceControlProviderKind,
+		) => PullRequestProviderApi | null;
+		readonly kinds: ReadonlyArray<SourceControlProviderKind>;
+	}
 >()("t3/pullRequest/PullRequestProviderRegistry") {}
 
 /** Exported for tests, which stand a registry up from providers they supply themselves. */
 export function fromProviders(
-  providers: ReadonlyArray<PullRequestProviderApi>,
+	providers: ReadonlyArray<PullRequestProviderApi>,
 ): PullRequestProviderRegistry["Service"] {
-  const byKind = new Map(providers.map((provider) => [provider.kind, provider]));
-  return {
-    get: (kind) => byKind.get(kind) ?? null,
-    kinds: providers.map((provider) => provider.kind),
-  };
+	const byKind = new Map(
+		providers.map((provider) => [provider.kind, provider]),
+	);
+	return {
+		get: (kind) => byKind.get(kind) ?? null,
+		kinds: providers.map((provider) => provider.kind),
+	};
 }
 
 /**
@@ -47,25 +51,31 @@ export function fromProviders(
  * @public Service construction is part of the canonical Effect module API.
  */
 export const make = Effect.map(
-  Effect.all([
-    GitHubPullRequestProvider.make,
-    GitLabPullRequestProvider.make,
-    ForgejoPullRequestProvider.make,
-    BitbucketPullRequestProvider.make,
-    AzureDevOpsPullRequestProvider.make,
-  ]),
-  fromProviders,
+	Effect.all([
+		GitHubPullRequestProvider.make,
+		GitLabPullRequestProvider.make,
+		ForgejoPullRequestProvider.make,
+		BitbucketPullRequestProvider.make,
+		AzureDevOpsPullRequestProvider.make,
+	]),
+	fromProviders,
 );
 
 export const layer = Layer.effect(PullRequestProviderRegistry, make).pipe(
-  Layer.provide(
-    GitHubPullRequestCli.layer.pipe(
-      Layer.provide(GitHubCli.layer),
-      Layer.provide(GitHubGraphQlBudget.layer),
-    ),
-  ),
-  Layer.provide(GitLabPullRequestCli.layer.pipe(Layer.provide(GitLabCli.layer))),
-  Layer.provide(ForgejoCli.layer),
-  Layer.provide(BitbucketPullRequestApi.layer.pipe(Layer.provide(BitbucketApi.layer))),
-  Layer.provide(AzureDevOpsPullRequestCli.layer.pipe(Layer.provide(AzureDevOpsCli.layer))),
+	Layer.provide(
+		GitHubPullRequestCli.layer.pipe(
+			Layer.provide(GitHubCli.layer),
+			Layer.provide(GitHubGraphQlBudget.layer),
+		),
+	),
+	Layer.provide(
+		GitLabPullRequestCli.layer.pipe(Layer.provide(GitLabCli.layer)),
+	),
+	Layer.provide(ForgejoCli.layer),
+	Layer.provide(
+		BitbucketPullRequestApi.layer.pipe(Layer.provide(BitbucketApi.layer)),
+	),
+	Layer.provide(
+		AzureDevOpsPullRequestCli.layer.pipe(Layer.provide(AzureDevOpsCli.layer)),
+	),
 );

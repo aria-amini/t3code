@@ -10,18 +10,18 @@ import { runClaudeHistoryWorker } from "../claudeHistoryWorker.ts";
  * this hidden subcommand on its own executable instead.
  */
 export const claudeHistoryCommand = Command.make("__claude-history", {
-  method: Argument.String("method"),
-  sessionId: Argument.String("session-id"),
-  options: Argument.String("options").pipe(Argument.optional),
+	method: Argument.String("method"),
+	sessionId: Argument.String("session-id"),
+	options: Argument.String("options").pipe(Argument.optional),
 }).pipe(
-  Command.unlisted,
-  Command.withHandler(({ method, sessionId, options }) =>
-    Effect.promise(() =>
-      runClaudeHistoryWorker(
-        method,
-        sessionId,
-        options._tag === "Some" ? options.value : undefined,
-      ),
-    ),
-  ),
+	Command.unlisted,
+	Command.withHandler(({ method, sessionId, options }) =>
+		Effect.promise(() =>
+			runClaudeHistoryWorker(
+				method,
+				sessionId,
+				options._tag === "Some" ? options.value : undefined,
+			),
+		),
+	),
 );

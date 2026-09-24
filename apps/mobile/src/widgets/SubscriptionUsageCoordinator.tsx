@@ -10,23 +10,23 @@ import { buildSubscriptionUsageSnapshot } from "./subscriptionUsageSnapshot";
 
 // Isolate quota changes from the much busier thread/config presentation stream.
 const snapshotAtom = Atom.make((get) =>
-  buildSubscriptionUsageSnapshot(
-    get(environmentPresentations.presentationsAtom),
-    Linking.createURL("settings/usage", { queryParams: { tab: "limits" } }),
-  ),
+	buildSubscriptionUsageSnapshot(
+		get(environmentPresentations.presentationsAtom),
+		Linking.createURL("settings/usage", { queryParams: { tab: "limits" } }),
+	),
 ).pipe(Atom.withEquality((a, b) => JSON.stringify(a) === JSON.stringify(b)));
 
 export function SubscriptionUsageCoordinator() {
-  const catalog = useAtomValue(environmentCatalog.catalogValueAtom);
-  const snapshot = useAtomValue(snapshotAtom);
-  useSubscriptionUsage(catalog.isReady);
-  useEffect(() => {
-    if (!catalog.isReady) return;
-    void Promise.resolve()
-      .then(() => publishSubscriptionUsage(snapshot))
-      .catch((error: unknown) => {
-        console.warn("Could not update subscription usage widget", error);
-      });
-  }, [catalog.isReady, snapshot]);
-  return null;
+	const catalog = useAtomValue(environmentCatalog.catalogValueAtom);
+	const snapshot = useAtomValue(snapshotAtom);
+	useSubscriptionUsage(catalog.isReady);
+	useEffect(() => {
+		if (!catalog.isReady) return;
+		void Promise.resolve()
+			.then(() => publishSubscriptionUsage(snapshot))
+			.catch((error: unknown) => {
+				console.warn("Could not update subscription usage widget", error);
+			});
+	}, [catalog.isReady, snapshot]);
+	return null;
 }

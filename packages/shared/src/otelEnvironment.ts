@@ -13,23 +13,23 @@ import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 
 export interface OtelEnvironment {
-  /** Whether OTLP export is off, whatever endpoint is configured. */
-  readonly disabled: boolean;
-  /** Messages for the caller to log once at startup. */
-  readonly warnings: ReadonlyArray<string>;
+	/** Whether OTLP export is off, whatever endpoint is configured. */
+	readonly disabled: boolean;
+	/** Messages for the caller to log once at startup. */
+	readonly warnings: ReadonlyArray<string>;
 }
 
 interface Flag {
-  /** `undefined` when the variable is unset, blank, or unreadable. */
-  readonly value: boolean | undefined;
-  readonly warning?: string;
+	/** `undefined` when the variable is unset, blank, or unreadable. */
+	readonly value: boolean | undefined;
+	readonly warning?: string;
 }
 
 const TrimmedLowercase = Schema.String.pipe(
-  Schema.decodeTo(
-    Schema.String,
-    SchemaTransformation.trim().compose(SchemaTransformation.toLowerCase()),
-  ),
+	Schema.decodeTo(
+		Schema.String,
+		SchemaTransformation.trim().compose(SchemaTransformation.toLowerCase()),
+	),
 );
 
 /**
@@ -37,69 +37,74 @@ const TrimmedLowercase = Schema.String.pipe(
  * Any other value is ignored with a warning rather than failing startup.
  */
 const flag = (
-  name: string,
-  truthy: ReadonlyArray<string>,
-  falsy: ReadonlyArray<string>,
-  invalid: (value: string) => string,
+	name: string,
+	truthy: ReadonlyArray<string>,
+	falsy: ReadonlyArray<string>,
+	invalid: (value: string) => string,
 ) =>
-  Config.schema(
-    TrimmedLowercase.pipe(Schema.decodeTo(Schema.Literals([...truthy, ...falsy]))),
-    name,
-  ).pipe(
-    Config.map((value): Flag => ({ value: truthy.includes(value) })),
-    Config.orElse(() =>
-      Config.String(name).pipe(
-        Config.map((raw): Flag => {
-          const value = raw.trim();
-          return value === ""
-            ? { value: undefined }
-            : { value: undefined, warning: invalid(value) };
-        }),
-      ),
-    ),
-    Config.withDefault<Flag>({ value: undefined }),
-  );
+	Config.schema(
+		TrimmedLowercase.pipe(
+			Schema.decodeTo(Schema.Literals([...truthy, ...falsy])),
+		),
+		name,
+	).pipe(
+		Config.map((value): Flag => ({ value: truthy.includes(value) })),
+		Config.orElse(() =>
+			Config.String(name).pipe(
+				Config.map((raw): Flag => {
+					const value = raw.trim();
+					return value === ""
+						? { value: undefined }
+						: { value: undefined, warning: invalid(value) };
+				}),
+			),
+		),
+		Config.withDefault<Flag>({ value: undefined }),
+	);
 
 // `Config.Boolean`'s literals, which effect does not export on their own.
 const T3CODE_TRUE = ["true", "yes", "on", "1", "y"];
 const T3CODE_FALSE = ["false", "no", "off", "0", "n"];
 
 export const load: Effect.Effect<OtelEnvironment> = Config.all({
-  t3: flag(
-    "T3CODE_OTEL_SDK_DISABLED",
-    T3CODE_TRUE,
-    T3CODE_FALSE,
-    (value) => `T3CODE_OTEL_SDK_DISABLED=${value} is not a yes or a no and was ignored`,
-  ),
-  // The specification: a boolean it defines is true "only by the
-  // case-insensitive string `true`", implementations "MUST NOT" accept other
-  // values as true, and should warn about unrecognized ones.
-  spec: flag(
-    "OTEL_SDK_DISABLED",
-    ["true"],
-    ["false"],
-    (value) =>
-      `OTEL_SDK_DISABLED=${value} was read as false; the OpenTelemetry specification recognizes only the string true, so use OTEL_SDK_DISABLED=true or T3CODE_OTEL_SDK_DISABLED to say it any other way`,
-  ),
+	t3: flag(
+		"T3CODE_OTEL_SDK_DISABLED",
+		T3CODE_TRUE,
+		T3CODE_FALSE,
+		(value) =>
+			`T3CODE_OTEL_SDK_DISABLED=${value} is not a yes or a no and was ignored`,
+	),
+	// The specification: a boolean it defines is true "only by the
+	// case-insensitive string `true`", implementations "MUST NOT" accept other
+	// values as true, and should warn about unrecognized ones.
+	spec: flag(
+		"OTEL_SDK_DISABLED",
+		["true"],
+		["false"],
+		(value) =>
+			`OTEL_SDK_DISABLED=${value} was read as false; the OpenTelemetry specification recognizes only the string true, so use OTEL_SDK_DISABLED=true or T3CODE_OTEL_SDK_DISABLED to say it any other way`,
+	),
 }).pipe(
-  Effect.map(({ t3, spec }) => {
-    const disabled = t3.value ?? spec.value ?? false;
-    const warnings = [t3.warning, spec.warning].filter((warning) => warning !== undefined);
-    if (disabled) {
-      warnings.push(
-        t3.value
-          ? "T3CODE_OTEL_SDK_DISABLED is set, so no telemetry is exported, whatever configured it"
-          : "OTEL_SDK_DISABLED is set, so no telemetry is exported, whatever configured it; set T3CODE_OTEL_SDK_DISABLED=false to export anyway",
-      );
-    }
-    return { disabled, warnings };
-  }),
-  // Every read above falls back instead of failing, so this cannot happen.
-  Effect.orDie,
+	Effect.map(({ t3, spec }) => {
+		const disabled = t3.value ?? spec.value ?? false;
+		const warnings = [t3.warning, spec.warning].filter(
+			(warning) => warning !== undefined,
+		);
+		if (disabled) {
+			warnings.push(
+				t3.value
+					? "T3CODE_OTEL_SDK_DISABLED is set, so no telemetry is exported, whatever configured it"
+					: "OTEL_SDK_DISABLED is set, so no telemetry is exported, whatever configured it; set T3CODE_OTEL_SDK_DISABLED=false to export anyway",
+			);
+		}
+		return { disabled, warnings };
+	}),
+	// Every read above falls back instead of failing, so this cannot happen.
+	Effect.orDie,
 );
 
 /** An environment that asked for nothing, for tests and for the pairing CLI. */
 export const none: OtelEnvironment = {
-  disabled: false,
-  warnings: [],
+	disabled: false,
+	warnings: [],
 };

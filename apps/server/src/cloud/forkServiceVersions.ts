@@ -30,8 +30,10 @@ export function compareForkServiceVersions(
 	const a = splitVersion(left);
 	const b = splitVersion(right);
 	if (a.core !== b.core) return exact;
-	const aFork = a.prerelease !== undefined && FORK_PRERELEASE.test(a.prerelease);
-	const bFork = b.prerelease !== undefined && FORK_PRERELEASE.test(b.prerelease);
+	const aFork =
+		a.prerelease !== undefined && FORK_PRERELEASE.test(a.prerelease);
+	const bFork =
+		b.prerelease !== undefined && FORK_PRERELEASE.test(b.prerelease);
 	if (aFork === bFork) return exact;
 	return aFork ? 1 : -1;
 }

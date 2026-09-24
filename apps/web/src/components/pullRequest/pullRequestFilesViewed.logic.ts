@@ -1,4 +1,7 @@
-import type { PullRequestFileViewedState, PullRequestFilesViewedResult } from "@t3tools/contracts";
+import type {
+	PullRequestFileViewedState,
+	PullRequestFilesViewedResult,
+} from "@t3tools/contracts";
 
 /** What the host last said about each file, by path. Absent means the host said nothing. */
 export type FileViewedStates = ReadonlyMap<string, PullRequestFileViewedState>;
@@ -7,10 +10,10 @@ export type FileViewedStates = ReadonlyMap<string, PullRequestFileViewedState>;
 export type FileViewedOverlay = ReadonlyMap<string, boolean>;
 
 export function toFileViewedStates(
-  result: PullRequestFilesViewedResult | null,
+	result: PullRequestFilesViewedResult | null,
 ): FileViewedStates | null {
-  if (result === null) return null;
-  return new Map(result.files.map((file) => [file.path, file.state]));
+	if (result === null) return null;
+	return new Map(result.files.map((file) => [file.path, file.state]));
 }
 
 /**
@@ -19,33 +22,35 @@ export function toFileViewedStates(
  * been looked at, and it is not the same code any more.
  */
 function isViewedState(state: PullRequestFileViewedState | undefined): boolean {
-  return state === "viewed";
+	return state === "viewed";
 }
 
 /** Whether the file was cleared and has since moved, which the header says out loud. */
-export function isStaleViewedState(state: PullRequestFileViewedState | undefined): boolean {
-  return state === "dismissed";
+export function isStaleViewedState(
+	state: PullRequestFileViewedState | undefined,
+): boolean {
+	return state === "dismissed";
 }
 
 /** The press the reader made if it has not landed, and the host's answer otherwise. */
 export function isFileViewed(
-  path: string,
-  states: FileViewedStates | null,
-  overlay: FileViewedOverlay,
+	path: string,
+	states: FileViewedStates | null,
+	overlay: FileViewedOverlay,
 ): boolean {
-  const pressed = overlay.get(path);
-  return pressed ?? isViewedState(states?.get(path));
+	const pressed = overlay.get(path);
+	return pressed ?? isViewedState(states?.get(path));
 }
 
 export function countViewedFiles(
-  paths: ReadonlyArray<string>,
-  states: FileViewedStates | null,
-  overlay: FileViewedOverlay,
+	paths: ReadonlyArray<string>,
+	states: FileViewedStates | null,
+	overlay: FileViewedOverlay,
 ): number {
-  return paths.reduce(
-    (total, path) => (isFileViewed(path, states, overlay) ? total + 1 : total),
-    0,
-  );
+	return paths.reduce(
+		(total, path) => (isFileViewed(path, states, overlay) ? total + 1 : total),
+		0,
+	);
 }
 
 /**
@@ -59,18 +64,19 @@ export function countViewedFiles(
  * held over a `dismissed` would hide a file pushed to since, with no refresh able to recover it.
  */
 export function settleFileViewedOverlay(
-  overlay: FileViewedOverlay,
-  states: FileViewedStates | null,
-  pending: ReadonlySet<string>,
-  answered: ReadonlySet<string>,
+	overlay: FileViewedOverlay,
+	states: FileViewedStates | null,
+	pending: ReadonlySet<string>,
+	answered: ReadonlySet<string>,
 ): FileViewedOverlay {
-  if (states === null || overlay.size === 0) return overlay;
-  const next = new Map(overlay);
-  for (const [path, pressed] of overlay) {
-    if (pending.has(path)) continue;
-    if (answered.has(path) || isViewedState(states.get(path)) === pressed) next.delete(path);
-  }
-  return next.size === overlay.size ? overlay : next;
+	if (states === null || overlay.size === 0) return overlay;
+	const next = new Map(overlay);
+	for (const [path, pressed] of overlay) {
+		if (pending.has(path)) continue;
+		if (answered.has(path) || isViewedState(states.get(path)) === pressed)
+			next.delete(path);
+	}
+	return next.size === overlay.size ? overlay : next;
 }
 
 /**
@@ -80,21 +86,21 @@ export function settleFileViewedOverlay(
  * answer would take a press out from under the reader's hand.
  */
 export function revertFileViewedOverlay(
-  overlay: FileViewedOverlay,
-  batch: ReadonlyArray<{ readonly path: string; readonly viewed: boolean }>,
-  owned: ReadonlySet<string>,
+	overlay: FileViewedOverlay,
+	batch: ReadonlyArray<{ readonly path: string; readonly viewed: boolean }>,
+	owned: ReadonlySet<string>,
 ): FileViewedOverlay {
-  const next = new Map(overlay);
-  for (const { path, viewed } of batch) {
-    if (!owned.has(path)) continue;
-    if (next.get(path) === viewed) next.delete(path);
-  }
-  return next.size === overlay.size ? overlay : next;
+	const next = new Map(overlay);
+	for (const { path, viewed } of batch) {
+		if (!owned.has(path)) continue;
+		if (next.get(path) === viewed) next.delete(path);
+	}
+	return next.size === overlay.size ? overlay : next;
 }
 
 /** The presses in an overlay as the batch the host is told about. */
 export function toFileViewedBatch(
-  overlay: FileViewedOverlay,
+	overlay: FileViewedOverlay,
 ): ReadonlyArray<{ readonly path: string; readonly viewed: boolean }> {
-  return [...overlay].map(([path, viewed]) => ({ path, viewed }));
+	return [...overlay].map(([path, viewed]) => ({ path, viewed }));
 }

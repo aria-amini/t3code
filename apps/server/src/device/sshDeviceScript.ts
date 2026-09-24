@@ -1,7 +1,8 @@
 import { deviceToolMaintenanceScript } from "./deviceToolMaintenance.ts";
 import { AGENT_DEVICE_VERSION, DEVICE_HUB_VERSION } from "./DeviceToolchain.ts";
 
-export const quoteRemoteArg = (value: string) => `'${value.replaceAll("'", "'\"'\"'")}'`;
+export const quoteRemoteArg = (value: string) =>
+	`'${value.replaceAll("'", "'\"'\"'")}'`;
 
 /** Resolve common non-interactive SDK and Node locations without sourcing user shell scripts. */
 export const remoteDeviceEnvironment = `export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
@@ -20,17 +21,17 @@ if [ -n "$JAVA_HOME" ]; then export PATH="$JAVA_HOME/bin:$PATH"; fi
 
 /** Node runs this on the host. All paths it returns belong to that host. */
 export const remoteDeviceScript = (
-  owner: string,
-  mode: "probe" | "start" | "agent-start" | "stop-agent" | "stop",
+	owner: string,
+	mode: "probe" | "start" | "agent-start" | "stop-agent" | "stop",
 ) =>
-  `
+	`
 const owner = ${JSON.stringify(owner)};
 const mode = ${JSON.stringify(mode)};
 const hubVersion = ${JSON.stringify(DEVICE_HUB_VERSION)};
 const agentVersion = ${JSON.stringify(AGENT_DEVICE_VERSION)};
 ` +
-  deviceToolMaintenanceScript +
-  String.raw`
+	deviceToolMaintenanceScript +
+	String.raw`
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');

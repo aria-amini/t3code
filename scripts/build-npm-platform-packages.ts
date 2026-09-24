@@ -32,9 +32,9 @@ import { Command, Flag } from "effect/unstable/cli";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 import {
-  CLI_ARCHIVE_PLATFORM_KEYS,
-  cliArchiveFileName,
-  type CliArchivePlatformKey,
+	CLI_ARCHIVE_PLATFORM_KEYS,
+	cliArchiveFileName,
+	type CliArchivePlatformKey,
 } from "@t3tools/shared/cliRelease";
 import { HostProcessPlatform } from "@t3tools/shared/hostProcess";
 import { fromJsonStringPretty } from "@t3tools/shared/schemaJson";
@@ -46,46 +46,50 @@ import { windowsSystemTar } from "./build-cli-archive.ts";
 export const NPM_PLATFORM_PACKAGE_SCOPE = "@t3code";
 export const NPM_LAUNCHER_PACKAGE_NAME = "t3";
 
-const encodePackageJson = Schema.encodeEffect(fromJsonStringPretty(Schema.Unknown));
+const encodePackageJson = Schema.encodeEffect(
+	fromJsonStringPretty(Schema.Unknown),
+);
 
 export class NpmPackagesCommandFailedError extends Schema.TaggedError<NpmPackagesCommandFailedError>()(
-  "NpmPackagesCommandFailedError",
-  { command: Schema.String, exitCode: Schema.Int },
+	"NpmPackagesCommandFailedError",
+	{ command: Schema.String, exitCode: Schema.Int },
 ) {
-  override get message(): string {
-    return `${this.command} exited with code ${this.exitCode}.`;
-  }
+	override get message(): string {
+		return `${this.command} exited with code ${this.exitCode}.`;
+	}
 }
 
 export class NpmPackagesToolMissingError extends Schema.TaggedError<NpmPackagesToolMissingError>()(
-  "NpmPackagesToolMissingError",
-  { tool: Schema.String, purpose: Schema.String },
+	"NpmPackagesToolMissingError",
+	{ tool: Schema.String, purpose: Schema.String },
 ) {
-  override get message(): string {
-    return `\`${this.tool}\` is not on PATH; it is needed to ${this.purpose}.`;
-  }
+	override get message(): string {
+		return `\`${this.tool}\` is not on PATH; it is needed to ${this.purpose}.`;
+	}
 }
 
 export class NpmPackagesArchivesMissingError extends Schema.TaggedError<NpmPackagesArchivesMissingError>()(
-  "NpmPackagesArchivesMissingError",
-  { archivesDir: Schema.String, missing: Schema.Array(Schema.String) },
+	"NpmPackagesArchivesMissingError",
+	{ archivesDir: Schema.String, missing: Schema.Array(Schema.String) },
 ) {
-  override get message(): string {
-    return `${this.archivesDir} lacks archives for ${this.missing.join(", ")}. A launcher published without them would silently skip those platforms; pass --allow-missing for a deliberately partial build.`;
-  }
+	override get message(): string {
+		return `${this.archivesDir} lacks archives for ${this.missing.join(", ")}. A launcher published without them would silently skip those platforms; pass --allow-missing for a deliberately partial build.`;
+	}
 }
 
 export class NpmPackagesArchiveLayoutError extends Schema.TaggedError<NpmPackagesArchiveLayoutError>()(
-  "NpmPackagesArchiveLayoutError",
-  { archive: Schema.String, detail: Schema.String },
+	"NpmPackagesArchiveLayoutError",
+	{ archive: Schema.String, detail: Schema.String },
 ) {
-  override get message(): string {
-    return `${this.archive}: ${this.detail}`;
-  }
+	override get message(): string {
+		return `${this.archive}: ${this.detail}`;
+	}
 }
 
-export function npmPlatformPackageName(platformKey: CliArchivePlatformKey): string {
-  return `${NPM_PLATFORM_PACKAGE_SCOPE}/t3-${platformKey}`;
+export function npmPlatformPackageName(
+	platformKey: CliArchivePlatformKey,
+): string {
+	return `${NPM_PLATFORM_PACKAGE_SCOPE}/t3-${platformKey}`;
 }
 
 /**
@@ -98,52 +102,62 @@ export function npmPlatformPackageName(platformKey: CliArchivePlatformKey): stri
  * makes npm treat the tree as part of this package and leave it alone.
  */
 export function npmPlatformPackageManifest(
-  platformKey: CliArchivePlatformKey,
-  version: string,
-  bundled: Readonly<Record<string, string>>,
+	platformKey: CliArchivePlatformKey,
+	version: string,
+	bundled: Readonly<Record<string, string>>,
 ) {
-  const [os, cpu] = platformKey.split("-") as [string, string];
-  const bundleDependencies = Object.keys(bundled).sort();
-  return {
-    name: npmPlatformPackageName(platformKey),
-    version,
-    description: `T3 Code CLI executable for ${platformKey}`,
-    license: serverPackageJson.license,
-    repository: serverPackageJson.repository,
-    os: [os],
-    cpu: [cpu],
-    files: ["t3", "t3.exe", "client", "resource-monitor", "node_modules"],
-    preferUnplugged: true,
-    dependencies: Object.fromEntries(bundleDependencies.map((name) => [name, bundled[name]])),
-    bundleDependencies,
-  };
+	const [os, cpu] = platformKey.split("-") as [string, string];
+	const bundleDependencies = Object.keys(bundled).sort();
+	return {
+		name: npmPlatformPackageName(platformKey),
+		version,
+		description: `T3 Code CLI executable for ${platformKey}`,
+		license: serverPackageJson.license,
+		repository: serverPackageJson.repository,
+		os: [os],
+		cpu: [cpu],
+		files: ["t3", "t3.exe", "client", "resource-monitor", "node_modules"],
+		preferUnplugged: true,
+		dependencies: Object.fromEntries(
+			bundleDependencies.map((name) => [name, bundled[name]]),
+		),
+		bundleDependencies,
+	};
 }
 
 const PackageVersion = Schema.Struct({ version: Schema.String });
-const decodePackageVersion = Schema.decodeUnknownEffect(Schema.fromJsonString(PackageVersion));
+const decodePackageVersion = Schema.decodeUnknownEffect(
+	Schema.fromJsonString(PackageVersion),
+);
 
 /** Every top-level package under `node_modules`, scoped ones included, at the version its manifest names. */
-const readBundledPackages = Effect.fn("readBundledPackages")(function* (nodeModulesDir: string) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const bundled: Record<string, string> = {};
-  const packageDirs: Array<{ readonly name: string; readonly dir: string }> = [];
-  for (const entry of yield* fs.readDirectory(nodeModulesDir)) {
-    if (entry.startsWith(".")) continue;
-    const dir = path.join(nodeModulesDir, entry);
-    if (entry.startsWith("@")) {
-      for (const scoped of yield* fs.readDirectory(dir)) {
-        packageDirs.push({ name: `${entry}/${scoped}`, dir: path.join(dir, scoped) });
-      }
-    } else {
-      packageDirs.push({ name: entry, dir });
-    }
-  }
-  for (const { name, dir } of packageDirs) {
-    const manifest = yield* fs.readFileString(path.join(dir, "package.json"));
-    bundled[name] = (yield* decodePackageVersion(manifest)).version;
-  }
-  return bundled;
+const readBundledPackages = Effect.fn("readBundledPackages")(function* (
+	nodeModulesDir: string,
+) {
+	const fs = yield* FileSystem.FileSystem;
+	const path = yield* Path.Path;
+	const bundled: Record<string, string> = {};
+	const packageDirs: Array<{ readonly name: string; readonly dir: string }> =
+		[];
+	for (const entry of yield* fs.readDirectory(nodeModulesDir)) {
+		if (entry.startsWith(".")) continue;
+		const dir = path.join(nodeModulesDir, entry);
+		if (entry.startsWith("@")) {
+			for (const scoped of yield* fs.readDirectory(dir)) {
+				packageDirs.push({
+					name: `${entry}/${scoped}`,
+					dir: path.join(dir, scoped),
+				});
+			}
+		} else {
+			packageDirs.push({ name: entry, dir });
+		}
+	}
+	for (const { name, dir } of packageDirs) {
+		const manifest = yield* fs.readFileString(path.join(dir, "package.json"));
+		bundled[name] = (yield* decodePackageVersion(manifest)).version;
+	}
+	return bundled;
 });
 
 /**
@@ -151,40 +165,43 @@ const readBundledPackages = Effect.fn("readBundledPackages")(function* (nodeModu
  * shows the first README it finds in the tarball, which is a bundled
  * dependency's (ffi-rs).
  */
-export function npmPlatformPackageReadme(platformKey: CliArchivePlatformKey): string {
-  return [
-    `# ${npmPlatformPackageName(platformKey)}`,
-    "",
-    `The T3 Code CLI executable for ${platformKey}. Do not install this package directly:`,
-    `it is an optional dependency of \`${NPM_LAUNCHER_PACKAGE_NAME}\`, which picks the package for the`,
-    "current platform and runs the executable inside it.",
-    "",
-    "```sh",
-    `npx ${NPM_LAUNCHER_PACKAGE_NAME}@latest`,
-    "```",
-    "",
-    "Source and documentation: https://github.com/pingdotgg/t3code",
-    "",
-  ].join("\n");
+export function npmPlatformPackageReadme(
+	platformKey: CliArchivePlatformKey,
+): string {
+	return [
+		`# ${npmPlatformPackageName(platformKey)}`,
+		"",
+		`The T3 Code CLI executable for ${platformKey}. Do not install this package directly:`,
+		`it is an optional dependency of \`${NPM_LAUNCHER_PACKAGE_NAME}\`, which picks the package for the`,
+		"current platform and runs the executable inside it.",
+		"",
+		"```sh",
+		`npx ${NPM_LAUNCHER_PACKAGE_NAME}@latest`,
+		"```",
+		"",
+		"Source and documentation: https://github.com/pingdotgg/t3code",
+		"",
+	].join("\n");
 }
 
 /** package.json for the `t3` launcher. No engines: bin/t3.js is trivial CJS. */
 export function npmLauncherPackageManifest(
-  version: string,
-  platformKeys: ReadonlyArray<CliArchivePlatformKey>,
+	version: string,
+	platformKeys: ReadonlyArray<CliArchivePlatformKey>,
 ) {
-  return {
-    name: NPM_LAUNCHER_PACKAGE_NAME,
-    version,
-    description: "T3 Code CLI. Installs the self-contained executable for this platform.",
-    license: serverPackageJson.license,
-    repository: serverPackageJson.repository,
-    bin: { t3: "./bin/t3.js" },
-    files: ["bin", "dist"],
-    optionalDependencies: Object.fromEntries(
-      platformKeys.map((key) => [npmPlatformPackageName(key), version]),
-    ),
-  };
+	return {
+		name: NPM_LAUNCHER_PACKAGE_NAME,
+		version,
+		description:
+			"T3 Code CLI. Installs the self-contained executable for this platform.",
+		license: serverPackageJson.license,
+		repository: serverPackageJson.repository,
+		bin: { t3: "./bin/t3.js" },
+		files: ["bin", "dist"],
+		optionalDependencies: Object.fromEntries(
+			platformKeys.map((key) => [npmPlatformPackageName(key), version]),
+		),
+	};
 }
 
 /**
@@ -228,21 +245,24 @@ process.exit(result.status ?? 128 + (constants.signals[result.signal] || 1));
 `;
 
 const runCommand = Effect.fn("runCommand")(function* (
-  command: ChildProcess.StandardCommand,
-  label: string,
+	command: ChildProcess.StandardCommand,
+	label: string,
 ) {
-  const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-  const child = yield* spawner.spawn(
-    ChildProcess.make(command.command, command.args, {
-      ...command.options,
-      stdout: "inherit",
-      stderr: "inherit",
-    }),
-  );
-  const exitCode = Number(yield* child.exitCode);
-  if (exitCode !== 0) {
-    return yield* new NpmPackagesCommandFailedError({ command: label, exitCode });
-  }
+	const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+	const child = yield* spawner.spawn(
+		ChildProcess.make(command.command, command.args, {
+			...command.options,
+			stdout: "inherit",
+			stderr: "inherit",
+		}),
+	);
+	const exitCode = Number(yield* child.exitCode);
+	if (exitCode !== 0) {
+		return yield* new NpmPackagesCommandFailedError({
+			command: label,
+			exitCode,
+		});
+	}
 });
 
 /**
@@ -250,40 +270,49 @@ const runCommand = Effect.fn("runCommand")(function* (
  * goes through tar everywhere; `.zip` through the bsdtar Windows ships or,
  * elsewhere, `unzip`, since GNU tar cannot read zip.
  */
-const extractArchive = Effect.fn("extractArchive")(function* (archive: string, into: string) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const platform = yield* HostProcessPlatform;
-  if (!archive.endsWith(".zip")) {
-    yield* runCommand(ChildProcess.make("tar", ["-xf", archive, "-C", into]), "tar -xf");
-  } else if (platform === "win32") {
-    yield* runCommand(
-      ChildProcess.make(windowsSystemTar(), ["-xf", archive, "-C", into]),
-      "tar.exe -xf (zip)",
-    );
-  } else {
-    if (!(yield* isCommandAvailable("unzip"))) {
-      return yield* new NpmPackagesToolMissingError({
-        tool: "unzip",
-        purpose: `extract ${path.basename(archive)} (GNU tar cannot read zip)`,
-      });
-    }
-    yield* runCommand(ChildProcess.make("unzip", ["-q", archive, "-d", into]), "unzip");
-  }
-  const entries = yield* fs.readDirectory(into);
-  const [root] = entries;
-  if (root === undefined || entries.length !== 1) {
-    return yield* new NpmPackagesArchiveLayoutError({
-      archive: path.basename(archive),
-      detail: `expected exactly one top-level directory, found ${String(entries.length)} entries`,
-    });
-  }
-  return path.join(into, root);
+const extractArchive = Effect.fn("extractArchive")(function* (
+	archive: string,
+	into: string,
+) {
+	const fs = yield* FileSystem.FileSystem;
+	const path = yield* Path.Path;
+	const platform = yield* HostProcessPlatform;
+	if (!archive.endsWith(".zip")) {
+		yield* runCommand(
+			ChildProcess.make("tar", ["-xf", archive, "-C", into]),
+			"tar -xf",
+		);
+	} else if (platform === "win32") {
+		yield* runCommand(
+			ChildProcess.make(windowsSystemTar(), ["-xf", archive, "-C", into]),
+			"tar.exe -xf (zip)",
+		);
+	} else {
+		if (!(yield* isCommandAvailable("unzip"))) {
+			return yield* new NpmPackagesToolMissingError({
+				tool: "unzip",
+				purpose: `extract ${path.basename(archive)} (GNU tar cannot read zip)`,
+			});
+		}
+		yield* runCommand(
+			ChildProcess.make("unzip", ["-q", archive, "-d", into]),
+			"unzip",
+		);
+	}
+	const entries = yield* fs.readDirectory(into);
+	const [root] = entries;
+	if (root === undefined || entries.length !== 1) {
+		return yield* new NpmPackagesArchiveLayoutError({
+			archive: path.basename(archive),
+			detail: `expected exactly one top-level directory, found ${String(entries.length)} entries`,
+		});
+	}
+	return path.join(into, root);
 });
 
 /** Tar to build npm tarballs with; see build-cli-archive.ts for why Windows names bsdtar by path. */
 const hostTar = Effect.map(HostProcessPlatform, (platform) =>
-  platform === "win32" ? windowsSystemTar() : "tar",
+	platform === "win32" ? windowsSystemTar() : "tar",
 );
 
 /**
@@ -291,24 +320,30 @@ const hostTar = Effect.map(HostProcessPlatform, (platform) =>
  * to `packageDir` so the contents stay inspectable beside the tarball.
  */
 const packAndPlace = Effect.fn("packAndPlace")(function* (input: {
-  readonly stageDir: string;
-  readonly packageDir: string;
-  readonly tarball: string;
+	readonly stageDir: string;
+	readonly packageDir: string;
+	readonly tarball: string;
 }) {
-  const fs = yield* FileSystem.FileSystem;
-  yield* fs.remove(input.tarball, { force: true });
-  yield* runCommand(
-    ChildProcess.make(yield* hostTar, ["-czf", input.tarball, "-C", input.stageDir, "package"]),
-    `tar (${input.tarball})`,
-  );
-  yield* fs.remove(input.packageDir, { recursive: true, force: true });
-  yield* fs.rename(`${input.stageDir}/package`, input.packageDir);
+	const fs = yield* FileSystem.FileSystem;
+	yield* fs.remove(input.tarball, { force: true });
+	yield* runCommand(
+		ChildProcess.make(yield* hostTar, [
+			"-czf",
+			input.tarball,
+			"-C",
+			input.stageDir,
+			"package",
+		]),
+		`tar (${input.tarball})`,
+	);
+	yield* fs.remove(input.packageDir, { recursive: true, force: true });
+	yield* fs.rename(`${input.stageDir}/package`, input.packageDir);
 });
 
 export interface NpmPackageOutput {
-  readonly name: string;
-  readonly packageDir: string;
-  readonly tarball: string;
+	readonly name: string;
+	readonly packageDir: string;
+	readonly tarball: string;
 }
 
 /**
@@ -316,176 +351,210 @@ export interface NpmPackageOutput {
  * tarball. The scratch dir lives inside the output dir so the extracted tree
  * is renamed into place rather than copied across filesystems.
  */
-const stagePlatformPackage = Effect.fn("stagePlatformPackage")(function* (input: {
-  readonly key: CliArchivePlatformKey;
-  readonly archive: string;
-  readonly outputDir: string;
-  readonly version: string;
-}) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  yield* Effect.log(`[npm-packages] Extracting ${path.basename(input.archive)}...`);
-  const scratch = yield* fs.makeTempDirectoryScoped({
-    directory: input.outputDir,
-    prefix: ".extract-",
-  });
-  const extractDir = path.join(scratch, "extract");
-  yield* fs.makeDirectory(extractDir);
-  const contentDir = yield* extractArchive(input.archive, extractDir);
-  const executableName = input.key.startsWith("win32") ? "t3.exe" : "t3";
-  const executable = path.join(contentDir, executableName);
-  if (!(yield* fs.exists(executable))) {
-    return yield* new NpmPackagesArchiveLayoutError({
-      archive: path.basename(input.archive),
-      detail: `missing ${executableName} at the archive root`,
-    });
-  }
-  // The tarball carries the on-disk mode, so the bit must be set before packing.
-  if (executableName === "t3") {
-    yield* fs.chmod(executable, 0o755);
-  }
-  const bundled = yield* readBundledPackages(path.join(contentDir, "node_modules"));
-  yield* fs.writeFileString(
-    path.join(contentDir, "package.json"),
-    `${yield* encodePackageJson(npmPlatformPackageManifest(input.key, input.version, bundled))}\n`,
-  );
-  yield* fs.writeFileString(
-    path.join(contentDir, "README.md"),
-    npmPlatformPackageReadme(input.key),
-  );
-  // npm tarballs root everything under `package/`.
-  yield* fs.rename(contentDir, path.join(scratch, "package"));
-  const name = npmPlatformPackageName(input.key);
-  const output: NpmPackageOutput = {
-    name,
-    packageDir: path.join(input.outputDir, name),
-    tarball: path.join(input.outputDir, `${name}.tgz`),
-  };
-  yield* packAndPlace({ stageDir: scratch, ...output });
-  return output;
-}, Effect.scoped);
+const stagePlatformPackage = Effect.fn("stagePlatformPackage")(
+	function* (input: {
+		readonly key: CliArchivePlatformKey;
+		readonly archive: string;
+		readonly outputDir: string;
+		readonly version: string;
+	}) {
+		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
+		yield* Effect.log(
+			`[npm-packages] Extracting ${path.basename(input.archive)}...`,
+		);
+		const scratch = yield* fs.makeTempDirectoryScoped({
+			directory: input.outputDir,
+			prefix: ".extract-",
+		});
+		const extractDir = path.join(scratch, "extract");
+		yield* fs.makeDirectory(extractDir);
+		const contentDir = yield* extractArchive(input.archive, extractDir);
+		const executableName = input.key.startsWith("win32") ? "t3.exe" : "t3";
+		const executable = path.join(contentDir, executableName);
+		if (!(yield* fs.exists(executable))) {
+			return yield* new NpmPackagesArchiveLayoutError({
+				archive: path.basename(input.archive),
+				detail: `missing ${executableName} at the archive root`,
+			});
+		}
+		// The tarball carries the on-disk mode, so the bit must be set before packing.
+		if (executableName === "t3") {
+			yield* fs.chmod(executable, 0o755);
+		}
+		const bundled = yield* readBundledPackages(
+			path.join(contentDir, "node_modules"),
+		);
+		yield* fs.writeFileString(
+			path.join(contentDir, "package.json"),
+			`${yield* encodePackageJson(npmPlatformPackageManifest(input.key, input.version, bundled))}\n`,
+		);
+		yield* fs.writeFileString(
+			path.join(contentDir, "README.md"),
+			npmPlatformPackageReadme(input.key),
+		);
+		// npm tarballs root everything under `package/`.
+		yield* fs.rename(contentDir, path.join(scratch, "package"));
+		const name = npmPlatformPackageName(input.key);
+		const output: NpmPackageOutput = {
+			name,
+			packageDir: path.join(input.outputDir, name),
+			tarball: path.join(input.outputDir, `${name}.tgz`),
+		};
+		yield* packAndPlace({ stageDir: scratch, ...output });
+		return output;
+	},
+	Effect.scoped,
+);
 
 /** Writes the launcher package (package.json, bin/t3.js, README) and its tarball. */
-const stageLauncherPackage = Effect.fn("stageLauncherPackage")(function* (input: {
-  readonly outputDir: string;
-  readonly version: string;
-  readonly platformKeys: ReadonlyArray<CliArchivePlatformKey>;
-}) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const scratch = yield* fs.makeTempDirectoryScoped({
-    directory: input.outputDir,
-    prefix: ".launcher-",
-  });
-  const stageDir = path.join(scratch, "package");
-  yield* fs.makeDirectory(path.join(stageDir, "bin"), { recursive: true });
-  yield* fs.writeFileString(
-    path.join(stageDir, "package.json"),
-    `${yield* encodePackageJson(npmLauncherPackageManifest(input.version, input.platformKeys))}\n`,
-  );
-  const launcherScript = path.join(stageDir, "bin/t3.js");
-  yield* fs.writeFileString(launcherScript, NPM_LAUNCHER_SCRIPT);
-  yield* fs.chmod(launcherScript, 0o755);
-  // Older service updaters and launchers run this exact path with Node.
-  // Keep it in the package so they can preflight and start the new executable.
-  yield* fs.makeDirectory(path.join(stageDir, "dist"));
-  yield* fs.writeFileString(path.join(stageDir, "dist/bin.mjs"), legacyCliLauncherScript());
-  const readme = yield* path.fromFileUrl(new URL("../apps/server/README.md", import.meta.url));
-  if (yield* fs.exists(readme)) {
-    yield* fs.copyFile(readme, path.join(stageDir, "README.md"));
-  }
-  const output: NpmPackageOutput = {
-    name: NPM_LAUNCHER_PACKAGE_NAME,
-    packageDir: path.join(input.outputDir, NPM_LAUNCHER_PACKAGE_NAME),
-    tarball: path.join(input.outputDir, `${NPM_LAUNCHER_PACKAGE_NAME}.tgz`),
-  };
-  yield* packAndPlace({ stageDir: scratch, ...output });
-  return output;
-}, Effect.scoped);
+const stageLauncherPackage = Effect.fn("stageLauncherPackage")(
+	function* (input: {
+		readonly outputDir: string;
+		readonly version: string;
+		readonly platformKeys: ReadonlyArray<CliArchivePlatformKey>;
+	}) {
+		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
+		const scratch = yield* fs.makeTempDirectoryScoped({
+			directory: input.outputDir,
+			prefix: ".launcher-",
+		});
+		const stageDir = path.join(scratch, "package");
+		yield* fs.makeDirectory(path.join(stageDir, "bin"), { recursive: true });
+		yield* fs.writeFileString(
+			path.join(stageDir, "package.json"),
+			`${yield* encodePackageJson(npmLauncherPackageManifest(input.version, input.platformKeys))}\n`,
+		);
+		const launcherScript = path.join(stageDir, "bin/t3.js");
+		yield* fs.writeFileString(launcherScript, NPM_LAUNCHER_SCRIPT);
+		yield* fs.chmod(launcherScript, 0o755);
+		// Older service updaters and launchers run this exact path with Node.
+		// Keep it in the package so they can preflight and start the new executable.
+		yield* fs.makeDirectory(path.join(stageDir, "dist"));
+		yield* fs.writeFileString(
+			path.join(stageDir, "dist/bin.mjs"),
+			legacyCliLauncherScript(),
+		);
+		const readme = yield* path.fromFileUrl(
+			new URL("../apps/server/README.md", import.meta.url),
+		);
+		if (yield* fs.exists(readme)) {
+			yield* fs.copyFile(readme, path.join(stageDir, "README.md"));
+		}
+		const output: NpmPackageOutput = {
+			name: NPM_LAUNCHER_PACKAGE_NAME,
+			packageDir: path.join(input.outputDir, NPM_LAUNCHER_PACKAGE_NAME),
+			tarball: path.join(input.outputDir, `${NPM_LAUNCHER_PACKAGE_NAME}.tgz`),
+		};
+		yield* packAndPlace({ stageDir: scratch, ...output });
+		return output;
+	},
+	Effect.scoped,
+);
 
-export const buildNpmPlatformPackages = Effect.fn("buildNpmPlatformPackages")(function* (input: {
-  readonly archivesDir: string;
-  readonly version: string;
-  readonly outputDir: string;
-  readonly allowMissing: boolean;
-}) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
+export const buildNpmPlatformPackages = Effect.fn("buildNpmPlatformPackages")(
+	function* (input: {
+		readonly archivesDir: string;
+		readonly version: string;
+		readonly outputDir: string;
+		readonly allowMissing: boolean;
+	}) {
+		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
 
-  const present = yield* fs.readDirectory(input.archivesDir);
-  const archives = CLI_ARCHIVE_PLATFORM_KEYS.flatMap((key) => {
-    const fileName = cliArchiveFileName(input.version, key);
-    return present.includes(fileName)
-      ? [{ key, archive: path.join(input.archivesDir, fileName) }]
-      : [];
-  });
-  const missing = CLI_ARCHIVE_PLATFORM_KEYS.filter(
-    (key) => !archives.some((entry) => entry.key === key),
-  );
-  if (missing.length > 0 && (!input.allowMissing || archives.length === 0)) {
-    return yield* new NpmPackagesArchivesMissingError({ archivesDir: input.archivesDir, missing });
-  }
+		const present = yield* fs.readDirectory(input.archivesDir);
+		const archives = CLI_ARCHIVE_PLATFORM_KEYS.flatMap((key) => {
+			const fileName = cliArchiveFileName(input.version, key);
+			return present.includes(fileName)
+				? [{ key, archive: path.join(input.archivesDir, fileName) }]
+				: [];
+		});
+		const missing = CLI_ARCHIVE_PLATFORM_KEYS.filter(
+			(key) => !archives.some((entry) => entry.key === key),
+		);
+		if (missing.length > 0 && (!input.allowMissing || archives.length === 0)) {
+			return yield* new NpmPackagesArchivesMissingError({
+				archivesDir: input.archivesDir,
+				missing,
+			});
+		}
 
-  yield* fs.makeDirectory(path.join(input.outputDir, NPM_PLATFORM_PACKAGE_SCOPE), {
-    recursive: true,
-  });
-  const outputs: Array<NpmPackageOutput> = [];
-  for (const { key, archive } of archives) {
-    outputs.push(
-      yield* stagePlatformPackage({
-        key,
-        archive,
-        outputDir: input.outputDir,
-        version: input.version,
-      }),
-    );
-  }
-  outputs.push(
-    yield* stageLauncherPackage({
-      outputDir: input.outputDir,
-      version: input.version,
-      platformKeys: archives.map((entry) => entry.key),
-    }),
-  );
+		yield* fs.makeDirectory(
+			path.join(input.outputDir, NPM_PLATFORM_PACKAGE_SCOPE),
+			{
+				recursive: true,
+			},
+		);
+		const outputs: Array<NpmPackageOutput> = [];
+		for (const { key, archive } of archives) {
+			outputs.push(
+				yield* stagePlatformPackage({
+					key,
+					archive,
+					outputDir: input.outputDir,
+					version: input.version,
+				}),
+			);
+		}
+		outputs.push(
+			yield* stageLauncherPackage({
+				outputDir: input.outputDir,
+				version: input.version,
+				platformKeys: archives.map((entry) => entry.key),
+			}),
+		);
 
-  for (const output of outputs) {
-    yield* Effect.log(`[npm-packages] Wrote ${output.packageDir} and ${output.tarball}`);
-  }
-  if (missing.length > 0) {
-    yield* Effect.logWarning(
-      `[npm-packages] Launcher omits ${missing.join(", ")} (--allow-missing).`,
-    );
-  }
-  return outputs;
-});
+		for (const output of outputs) {
+			yield* Effect.log(
+				`[npm-packages] Wrote ${output.packageDir} and ${output.tarball}`,
+			);
+		}
+		if (missing.length > 0) {
+			yield* Effect.logWarning(
+				`[npm-packages] Launcher omits ${missing.join(", ")} (--allow-missing).`,
+			);
+		}
+		return outputs;
+	},
+);
 
 const command = Command.make(
-  "build-npm-platform-packages",
-  {
-    archivesDir: Flag.String("archives-dir").pipe(
-      Flag.withDescription("Directory holding the release's t3-<version>-<platform> archives."),
-    ),
-    version: Flag.String("version").pipe(
-      Flag.withDescription(
-        "Exact release version; selects the archives and versions the packages.",
-      ),
-    ),
-    outputDir: Flag.String("output-dir").pipe(Flag.withDefault("npm-packages")),
-    allowMissing: Flag.Boolean("allow-missing").pipe(
-      Flag.withDefault(false),
-      Flag.withDescription("Build a launcher that lists only the platforms present."),
-    ),
-  },
-  buildNpmPlatformPackages,
+	"build-npm-platform-packages",
+	{
+		archivesDir: Flag.String("archives-dir").pipe(
+			Flag.withDescription(
+				"Directory holding the release's t3-<version>-<platform> archives.",
+			),
+		),
+		version: Flag.String("version").pipe(
+			Flag.withDescription(
+				"Exact release version; selects the archives and versions the packages.",
+			),
+		),
+		outputDir: Flag.String("output-dir").pipe(Flag.withDefault("npm-packages")),
+		allowMissing: Flag.Boolean("allow-missing").pipe(
+			Flag.withDefault(false),
+			Flag.withDescription(
+				"Build a launcher that lists only the platforms present.",
+			),
+		),
+	},
+	buildNpmPlatformPackages,
 ).pipe(
-  Command.withDescription(
-    "Build the t3 launcher and @t3code/t3-<platform> npm packages from CLI release archives.",
-  ),
+	Command.withDescription(
+		"Build the t3 launcher and @t3code/t3-<platform> npm packages from CLI release archives.",
+	),
 );
 
 if (import.meta.main) {
-  Command.run(command, { version: "0.0.0" }).pipe(
-    Effect.provide(Layer.mergeAll(Logger.layer([Logger.consolePretty()]), NodeServices.layer)),
-    NodeRuntime.runMain,
-  );
+	Command.run(command, { version: "0.0.0" }).pipe(
+		Effect.provide(
+			Layer.mergeAll(
+				Logger.layer([Logger.consolePretty()]),
+				NodeServices.layer,
+			),
+		),
+		NodeRuntime.runMain,
+	);
 }

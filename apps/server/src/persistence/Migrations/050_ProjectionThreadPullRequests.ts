@@ -3,35 +3,39 @@ import * as Effect from "effect/Effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
 interface LegacyLinkedThreadRow {
-  readonly threadId: string;
-  readonly updatedAt: string;
-  readonly linkedPullRequestJson: string;
+	readonly threadId: string;
+	readonly updatedAt: string;
+	readonly linkedPullRequestJson: string;
 }
 
 interface LegacyLinkedPullRequest {
-  readonly repository: string;
-  readonly number: number;
-  readonly url: string;
+	readonly repository: string;
+	readonly number: number;
+	readonly url: string;
 }
 
-function parseLegacyLinkedPullRequest(json: string): LegacyLinkedPullRequest | null {
-  try {
-    const value: unknown = JSON.parse(json);
-    if (typeof value !== "object" || value === null) return null;
-    const { repository, number, url } = value as Record<string, unknown>;
-    if (typeof repository !== "string" || repository.trim().length === 0) return null;
-    if (typeof number !== "number" || !Number.isInteger(number) || number < 1) return null;
-    if (typeof url !== "string" || url.trim().length === 0) return null;
-    return { repository, number, url };
-  } catch {
-    return null;
-  }
+function parseLegacyLinkedPullRequest(
+	json: string,
+): LegacyLinkedPullRequest | null {
+	try {
+		const value: unknown = JSON.parse(json);
+		if (typeof value !== "object" || value === null) return null;
+		const { repository, number, url } = value as Record<string, unknown>;
+		if (typeof repository !== "string" || repository.trim().length === 0)
+			return null;
+		if (typeof number !== "number" || !Number.isInteger(number) || number < 1)
+			return null;
+		if (typeof url !== "string" || url.trim().length === 0) return null;
+		return { repository, number, url };
+	} catch {
+		return null;
+	}
 }
 
 export default Effect.gen(function* () {
-  const sql = yield* SqlClient.SqlClient;
+	const sql = yield* SqlClient.SqlClient;
 
-  yield* sql`
+	yield* sql`
     CREATE TABLE IF NOT EXISTS projection_thread_pull_requests (
       thread_id TEXT NOT NULL,
       host TEXT NOT NULL,
@@ -46,12 +50,12 @@ export default Effect.gen(function* () {
     )
   `;
 
-  yield* sql`
+	yield* sql`
     CREATE INDEX IF NOT EXISTS idx_projection_thread_pull_requests_pr
     ON projection_thread_pull_requests(host, repository, number)
   `;
 
-  const legacyRows = yield* sql<LegacyLinkedThreadRow>`
+	const legacyRows = yield* sql<LegacyLinkedThreadRow>`
     SELECT
       thread_id AS "threadId",
       updated_at AS "updatedAt",
@@ -60,11 +64,11 @@ export default Effect.gen(function* () {
     WHERE linked_pull_request_json IS NOT NULL
   `;
 
-  for (const row of legacyRows) {
-    const linked = parseLegacyLinkedPullRequest(row.linkedPullRequestJson);
-    if (linked === null) continue;
-    const key = legacyThreadPullRequestKey(linked);
-    yield* sql`
+	for (const row of legacyRows) {
+		const linked = parseLegacyLinkedPullRequest(row.linkedPullRequestJson);
+		if (linked === null) continue;
+		const key = legacyThreadPullRequestKey(linked);
+		yield* sql`
       INSERT OR IGNORE INTO projection_thread_pull_requests (
         thread_id,
         host,
@@ -88,5 +92,5 @@ export default Effect.gen(function* () {
         NULL
       )
     `;
-  }
+	}
 });

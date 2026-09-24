@@ -20,14 +20,16 @@ The \`t3-code\` MCP server also exposes \`device_*\` tools for iOS Simulators an
 `;
 
 export interface T3CodeToolAvailability {
-  readonly browser: boolean;
-  readonly device: boolean;
+	readonly browser: boolean;
+	readonly device: boolean;
 }
 
 const normalizeAvailability = (
-  availability: boolean | T3CodeToolAvailability,
+	availability: boolean | T3CodeToolAvailability,
 ): T3CodeToolAvailability =>
-  typeof availability === "boolean" ? { browser: availability, device: false } : availability;
+	typeof availability === "boolean"
+		? { browser: availability, device: false }
+		: availability;
 
 /**
  * Each block is omitted entirely when its tools aren't attached. Describing
@@ -36,15 +38,17 @@ const normalizeAvailability = (
  * from Playwright, agent-browser, and raw simctl/adb, so leaving them in would
  * talk it out of the only automation it still has.
  */
-const browserToolInstructions = (availability: boolean | T3CodeToolAvailability): string => {
-  const tools = normalizeAvailability(availability);
-  return `${tools.browser ? T3_CODE_BROWSER_TOOL_INSTRUCTIONS : ""}${
-    tools.device ? T3_CODE_DEVICE_TOOL_INSTRUCTIONS : ""
-  }`;
+const browserToolInstructions = (
+	availability: boolean | T3CodeToolAvailability,
+): string => {
+	const tools = normalizeAvailability(availability);
+	return `${tools.browser ? T3_CODE_BROWSER_TOOL_INSTRUCTIONS : ""}${
+		tools.device ? T3_CODE_DEVICE_TOOL_INSTRUCTIONS : ""
+	}`;
 };
 
 const codexPlanModeDeveloperInstructions = (
-  browserToolsAvailable: boolean | T3CodeToolAvailability,
+	browserToolsAvailable: boolean | T3CodeToolAvailability,
 ): string => `<collaboration_mode># Plan Mode (Conversational)
 
 You work in 3 phases, and you should *chat your way* to a great plan before finalizing it. A great plan is very detailed-intent- and implementation-wise-so that it can be handed to another engineer or agent to be implemented right away. It must be **decision complete**, where the implementer does not need to make any decisions.
@@ -177,7 +181,7 @@ ${browserToolInstructions(browserToolsAvailable)}
 </collaboration_mode>`;
 
 const codexDefaultModeDeveloperInstructions = (
-  browserToolsAvailable: boolean | T3CodeToolAvailability,
+	browserToolsAvailable: boolean | T3CodeToolAvailability,
 ): string => `<collaboration_mode># Collaboration Mode: Default
 
 You are now in Default mode. Any previous instructions for other modes (e.g. Plan mode) are no longer active.
@@ -193,25 +197,25 @@ ${browserToolInstructions(browserToolsAvailable)}
 </collaboration_mode>`;
 
 export interface CodexRuntimeInfo {
-  readonly model: string;
-  readonly reasoningEffort: string;
+	readonly model: string;
+	readonly reasoningEffort: string;
 }
 
 export function buildCodexDeveloperInstructions(
-  interactionMode: ProviderInteractionMode,
-  runtime: CodexRuntimeInfo,
-  /**
-   * Whether the `t3-code` MCP server is attached to this turn. Callers derive
-   * it from the session's actual MCP configuration rather than re-reading the
-   * setting, so the prompt cannot claim tools the turn doesn't have.
-   */
-  browserToolsAvailable: boolean | T3CodeToolAvailability = true,
+	interactionMode: ProviderInteractionMode,
+	runtime: CodexRuntimeInfo,
+	/**
+	 * Whether the `t3-code` MCP server is attached to this turn. Callers derive
+	 * it from the session's actual MCP configuration rather than re-reading the
+	 * setting, so the prompt cannot claim tools the turn doesn't have.
+	 */
+	browserToolsAvailable: boolean | T3CodeToolAvailability = true,
 ): string {
-  const base =
-    interactionMode === "plan"
-      ? codexPlanModeDeveloperInstructions(browserToolsAvailable)
-      : codexDefaultModeDeveloperInstructions(browserToolsAvailable);
-  return `${base}
+	const base =
+		interactionMode === "plan"
+			? codexPlanModeDeveloperInstructions(browserToolsAvailable)
+			: codexDefaultModeDeveloperInstructions(browserToolsAvailable);
+	return `${base}
 
 ${buildRuntimeInstructions({ harness: "Codex", ...runtime })}`;
 }

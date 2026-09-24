@@ -10,34 +10,34 @@ import { useSettingsScope } from "../components/settings/SettingsScopeContext";
  * narrows the candidates to the environments that project is registered on.
  */
 function SettingsProvidersRoute() {
-  const target = Route.useSearch();
-  const { environment, scope } = useSettingsScope();
-  if (!environment) {
-    return (
-      <p className="p-8 text-sm text-muted-foreground">
-        {scope.kind === "environment"
-          ? `Reconnect ${scope.label} to set up its providers.`
-          : "Connect an environment to set up its providers."}
-      </p>
-    );
-  }
-  return (
-    <ProviderSettingsPanel
-      environmentId={environment.environmentId}
-      {...(target.instanceId ? { instanceId: target.instanceId } : {})}
-      scoped
-    />
-  );
+	const target = Route.useSearch();
+	const { environment, scope } = useSettingsScope();
+	if (!environment) {
+		return (
+			<p className="p-8 text-sm text-muted-foreground">
+				{scope.kind === "environment"
+					? `Reconnect ${scope.label} to set up its providers.`
+					: "Connect an environment to set up its providers."}
+			</p>
+		);
+	}
+	return (
+		<ProviderSettingsPanel
+			environmentId={environment.environmentId}
+			{...(target.instanceId ? { instanceId: target.instanceId } : {})}
+			scoped
+		/>
+	);
 }
 
 export const Route = createFileRoute("/settings/providers")({
-  validateSearch: (raw: Record<string, unknown>) => ({
-    ...(typeof raw.environmentId === "string" && raw.environmentId.trim()
-      ? { environmentId: EnvironmentId.make(raw.environmentId) }
-      : {}),
-    ...(typeof raw.instanceId === "string" && raw.instanceId.trim()
-      ? { instanceId: ProviderInstanceId.make(raw.instanceId) }
-      : {}),
-  }),
-  component: SettingsProvidersRoute,
+	validateSearch: (raw: Record<string, unknown>) => ({
+		...(typeof raw.environmentId === "string" && raw.environmentId.trim()
+			? { environmentId: EnvironmentId.make(raw.environmentId) }
+			: {}),
+		...(typeof raw.instanceId === "string" && raw.instanceId.trim()
+			? { instanceId: ProviderInstanceId.make(raw.instanceId) }
+			: {}),
+	}),
+	component: SettingsProvidersRoute,
 });

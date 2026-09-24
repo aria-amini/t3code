@@ -97,52 +97,55 @@ function pruneTools(root, specs, flat) {
 `;
 
 class DeviceToolMaintenanceError extends Schema.TaggedError<DeviceToolMaintenanceError>()(
-  "DeviceToolMaintenanceError",
-  {
-    operation: Schema.Literal("prune"),
-    tool: Schema.Literals(["hub", "agent"]),
-    exitCode: Schema.NullOr(Schema.Int),
-    cause: Schema.Defect(),
-  },
+	"DeviceToolMaintenanceError",
+	{
+		operation: Schema.Literal("prune"),
+		tool: Schema.Literals(["hub", "agent"]),
+		exitCode: Schema.NullOr(Schema.Int),
+		cause: Schema.Defect(),
+	},
 ) {
-  override get message() {
-    return `Device tool ${this.operation} failed for ${this.tool} (exit code ${this.exitCode ?? "unknown"}).`;
-  }
+	override get message() {
+		return `Device tool ${this.operation} failed for ${this.tool} (exit code ${this.exitCode ?? "unknown"}).`;
+	}
 }
 
 const runMaintenance = Effect.fn("DeviceToolchain.maintenance")(function* (
-  nodePath: string,
-  script: string,
-  operation: "prune",
-  tool: "hub" | "agent",
+	nodePath: string,
+	script: string,
+	operation: "prune",
+	tool: "hub" | "agent",
 ) {
-  const runner = yield* ProcessRunner.ProcessRunner;
-  const result = yield* runner.run({
-    command: nodePath,
-    args: [
-      "-e",
-      deviceToolMaintenanceScript +
-        "\n" +
-        script +
-        ".catch(error => { console.error(error.message); process.exitCode = 1; });",
-    ],
-  });
-  if (result.code !== 0)
-    return yield* Effect.fail(
-      new DeviceToolMaintenanceError({ operation, tool, exitCode: result.code, cause: result }),
-    );
+	const runner = yield* ProcessRunner.ProcessRunner;
+	const result = yield* runner.run({
+		command: nodePath,
+		args: [
+			"-e",
+			deviceToolMaintenanceScript +
+				"\n" +
+				script +
+				".catch(error => { console.error(error.message); process.exitCode = 1; });",
+		],
+	});
+	if (result.code !== 0)
+		return yield* Effect.fail(
+			new DeviceToolMaintenanceError({
+				operation,
+				tool,
+				exitCode: result.code,
+				cause: result,
+			}),
+		);
 });
 
-export const pruneLocalDeviceTools = Effect.fn("DeviceToolchain.prune")(function* (
-  baseDir: string,
-  nodePath: string,
-  tool: "hub" | "agent",
-) {
-  const path = yield* Path.Path;
-  yield* runMaintenance(
-    nodePath,
-    `pruneTools(${JSON.stringify(path.join(baseDir, "tools"))}, ${JSON.stringify(tool === "hub" ? [["expo-device-hub", DEVICE_HUB_VERSION]] : [["agent-device", AGENT_DEVICE_VERSION]])}, false)`,
-    "prune",
-    tool,
-  );
-});
+export const pruneLocalDeviceTools = Effect.fn("DeviceToolchain.prune")(
+	function* (baseDir: string, nodePath: string, tool: "hub" | "agent") {
+		const path = yield* Path.Path;
+		yield* runMaintenance(
+			nodePath,
+			`pruneTools(${JSON.stringify(path.join(baseDir, "tools"))}, ${JSON.stringify(tool === "hub" ? [["expo-device-hub", DEVICE_HUB_VERSION]] : [["agent-device", AGENT_DEVICE_VERSION]])}, false)`,
+			"prune",
+			tool,
+		);
+	},
+);

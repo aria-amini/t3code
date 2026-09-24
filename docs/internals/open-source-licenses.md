@@ -39,16 +39,16 @@ another asset that did not come from an npm package:
 
 ```json
 {
-  "name": "asset-name",
-  "license": "CC-BY-4.0",
-  "generatedNotices": [
-    {
-      "licenseId": "CC-BY-4.0",
-      "preamble": ["Asset by Example Author. Changes: converted to MP3."]
-    }
-  ],
-  "sourceUrl": "https://example.com/source",
-  "bundles": ["assets", "web"]
+	"name": "asset-name",
+	"license": "CC-BY-4.0",
+	"generatedNotices": [
+		{
+			"licenseId": "CC-BY-4.0",
+			"preamble": ["Asset by Example Author. Changes: converted to MP3."]
+		}
+	],
+	"sourceUrl": "https://example.com/source",
+	"bundles": ["assets", "web"]
 }
 ```
 
@@ -65,14 +65,14 @@ metadata:
 
 ```json
 {
-  "name": "package-name",
-  "version": "1.2.3",
-  "generatedNotice": {
-    "licenseId": "MIT",
-    "copyrights": ["Copyright (c) 2026 Example Author"]
-  },
-  "license": "MIT",
-  "sourceUrl": "https://example.com/package-name"
+	"name": "package-name",
+	"version": "1.2.3",
+	"generatedNotice": {
+		"licenseId": "MIT",
+		"copyrights": ["Copyright (c) 2026 Example Author"]
+	},
+	"license": "MIT",
+	"sourceUrl": "https://example.com/package-name"
 }
 ```
 
@@ -82,10 +82,10 @@ several packages from one monorepo share the same notice:
 
 ```json
 {
-  "repositoryUrl": "https://github.com/example/project",
-  "generatedNotice": {
-    "licenseId": "Apache-2.0"
-  }
+	"repositoryUrl": "https://github.com/example/project",
+	"generatedNotice": {
+		"licenseId": "Apache-2.0"
+	}
 }
 ```
 

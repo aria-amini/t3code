@@ -2,9 +2,9 @@ import { ComposerPromptEditorTiptap } from "./ComposerPromptEditorTiptap";
 import type { ComposerPromptEditorProps } from "./ComposerPromptEditorTiptap";
 
 export type {
-  ComposerCitationCommentRequest,
-  ComposerPromptEditorHandle,
-  ComposerPromptEditorProps,
+	ComposerCitationCommentRequest,
+	ComposerPromptEditorHandle,
+	ComposerPromptEditorProps,
 } from "./ComposerPromptEditorTiptap";
 
 /**
@@ -13,5 +13,5 @@ export type {
  * marker as a literal character and serializes byte-identically.
  */
 export function ComposerPromptEditor(props: ComposerPromptEditorProps) {
-  return <ComposerPromptEditorTiptap {...props} />;
+	return <ComposerPromptEditorTiptap {...props} />;
 }

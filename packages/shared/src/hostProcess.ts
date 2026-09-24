@@ -59,10 +59,10 @@ export const HostProcessArguments = Context.Reference<ReadonlyArray<string>>(
  * path. `process.argv[0]` and `execPath` are always the resolved binary.
  */
 export const HostProcessInvokedAs = Context.Reference<string>(
-  "@t3tools/shared/hostProcess/HostProcessInvokedAs",
-  {
-    defaultValue: () => process.argv0,
-  },
+	"@t3tools/shared/hostProcess/HostProcessInvokedAs",
+	{
+		defaultValue: () => process.argv0,
+	},
 );
 
 /**
@@ -72,10 +72,10 @@ export const HostProcessInvokedAs = Context.Reference<string>(
  * subcommands of itself.
  */
 export const HostProcessIsExecutable = Context.Reference<boolean>(
-  "@t3tools/shared/hostProcess/HostProcessIsExecutable",
-  {
-    defaultValue: () => NodeSea.isSea(),
-  },
+	"@t3tools/shared/hostProcess/HostProcessIsExecutable",
+	{
+		defaultValue: () => NodeSea.isSea(),
+	},
 );
 
 /**

@@ -11,7 +11,7 @@
  * first stable release that ships it).
  */
 export function legacyCliLauncherScript(): string {
-  return `import { spawn } from "node:child_process";
+	return `import { spawn } from "node:child_process";
 import { constants } from "node:os";
 import { dirname, join } from "node:path";
 import { createRequire } from "node:module";

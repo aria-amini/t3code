@@ -26,27 +26,27 @@
  * enforced by a test, not by inspection.
  */
 export const CLI_RUNTIME_EXTERNAL_PREFIXES = [
-  "node-pty",
-  "ffi-rs",
-  "@yuuang/",
-  "@ff-labs/",
-  "@clerk/electron-passkeys",
-  "node-gyp-build",
-  "node-addon-api",
-  // ws's optional accelerators. Nothing in this repo declares them, so they are
-  // not in the staged production install and the packaged app does not ship
-  // them either way -- ws wraps the require in try/catch and falls back to its
-  // JS paths. They are listed because they were being inlined from the dev
-  // store: both carry binding.gyp and prebuilds and load through
-  // node-gyp-build, and a native loader inlined into a bundle chunk searches
-  // for prebuilds that cannot be beside it. Listing them keeps that from
-  // becoming real if either is ever declared as a dependency.
-  "bufferutil",
-  "utf-8-validate",
+	"node-pty",
+	"ffi-rs",
+	"@yuuang/",
+	"@ff-labs/",
+	"@clerk/electron-passkeys",
+	"node-gyp-build",
+	"node-addon-api",
+	// ws's optional accelerators. Nothing in this repo declares them, so they are
+	// not in the staged production install and the packaged app does not ship
+	// them either way -- ws wraps the require in try/catch and falls back to its
+	// JS paths. They are listed because they were being inlined from the dev
+	// store: both carry binding.gyp and prebuilds and load through
+	// node-gyp-build, and a native loader inlined into a bundle chunk searches
+	// for prebuilds that cannot be beside it. Listing them keeps that from
+	// becoming real if either is ever declared as a dependency.
+	"bufferutil",
+	"utf-8-validate",
 ] as const;
 
 export function isRuntimeExternalCliDependency(id: string): boolean {
-  return CLI_RUNTIME_EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix));
+	return CLI_RUNTIME_EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix));
 }
 
 /**
@@ -60,22 +60,24 @@ export function isRuntimeExternalCliDependency(id: string): boolean {
  * dependency) stayed external.
  */
 export function isExternalCliDependency(id: string): boolean {
-  return isRuntimeExternalCliDependency(id);
+	return isRuntimeExternalCliDependency(id);
 }
 
 /** True when the CLI bundle should inline `id` rather than leave it external. */
 export function shouldBundleCliDependency(id: string): boolean {
-  if (id.startsWith("node:")) return false;
-  return !isExternalCliDependency(id);
+	if (id.startsWith("node:")) return false;
+	return !isExternalCliDependency(id);
 }
 
 /** Select direct dependency roots whose runtime closure belongs in the sidecar. */
 export function selectCliRuntimeExternalDependencies(
-  dependencies: Readonly<Record<string, string>>,
+	dependencies: Readonly<Record<string, string>>,
 ): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(dependencies).filter(([name]) => isRuntimeExternalCliDependency(name)),
-  );
+	return Object.fromEntries(
+		Object.entries(dependencies).filter(([name]) =>
+			isRuntimeExternalCliDependency(name),
+		),
+	);
 }
 
 /**
@@ -100,31 +102,31 @@ export function selectCliRuntimeExternalDependencies(
  * are not in the selected sidecar closure either.
  */
 export function findInlinedExternalPackages(source: string): {
-  readonly regionCount: number;
-  readonly inlined: ReadonlyArray<string>;
-  readonly inlinedPackages: ReadonlyArray<string>;
+	readonly regionCount: number;
+	readonly inlined: ReadonlyArray<string>;
+	readonly inlinedPackages: ReadonlyArray<string>;
 } {
-  // Rolldown marks each inlined module with a `//#region <path>` comment.
-  const regionPattern = /\/\/#region\s+(\S+)/g;
-  const packagePattern = /node_modules\/((?:@[^/\s]+\/)?[^/\s]+)\//g;
+	// Rolldown marks each inlined module with a `//#region <path>` comment.
+	const regionPattern = /\/\/#region\s+(\S+)/g;
+	const packagePattern = /node_modules\/((?:@[^/\s]+\/)?[^/\s]+)\//g;
 
-  let regionCount = 0;
-  const inlined = new Set<string>();
-  const inlinedPackages = new Set<string>();
-  for (const region of source.matchAll(regionPattern)) {
-    regionCount += 1;
-    const regionPath = region[1] ?? "";
-    for (const candidate of regionPath.matchAll(packagePattern)) {
-      const name = candidate[1];
-      if (name === undefined || name === ".pnpm") continue;
-      inlinedPackages.add(name);
-      if (isExternalCliDependency(name)) inlined.add(name);
-    }
-  }
+	let regionCount = 0;
+	const inlined = new Set<string>();
+	const inlinedPackages = new Set<string>();
+	for (const region of source.matchAll(regionPattern)) {
+		regionCount += 1;
+		const regionPath = region[1] ?? "";
+		for (const candidate of regionPath.matchAll(packagePattern)) {
+			const name = candidate[1];
+			if (name === undefined || name === ".pnpm") continue;
+			inlinedPackages.add(name);
+			if (isExternalCliDependency(name)) inlined.add(name);
+		}
+	}
 
-  return {
-    regionCount,
-    inlined: [...inlined].sort(),
-    inlinedPackages: [...inlinedPackages].sort(),
-  };
+	return {
+		regionCount,
+		inlined: [...inlined].sort(),
+		inlinedPackages: [...inlinedPackages].sort(),
+	};
 }

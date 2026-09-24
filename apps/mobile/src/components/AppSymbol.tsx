@@ -110,182 +110,188 @@ import type { AndroidSymbol, SFSymbol, SymbolViewProps } from "expo-symbols";
 import { withUniwind } from "uniwind";
 
 const ANDROID_ICON_BY_SF_SYMBOL = {
-  "arrow.branch": IconGitBranch,
-  "arrow.left": IconArrowLeft,
-  "arrow.clockwise": IconRefresh,
-  "arrow.down": IconArrowDown,
-  "arrow.down.circle": IconArrowDownCircle,
-  "arrow.right.circle": IconArrowRightCircle,
-  "arrow.triangle.branch": IconGitBranch,
-  "arrow.triangle.pull": IconGitPullRequest,
-  "square.3.layers.3d": IconStack2,
-  "arrow.turn.left.up": IconArrowBackUp,
-  "arrow.up": IconArrowUp,
-  "arrow.up.circle": IconArrowUpCircle,
-  "arrow.up.left.and.arrow.down.right": IconArrowsDiagonal2,
-  "arrow.down.right.and.arrow.up.left": IconArrowsMinimize,
-  "arrow.up.right": IconArrowUpRight,
-  "arrow.up.right.circle": IconArrowUpRightCircle,
-  "arrow.uturn.backward": IconArrowBackUp,
-  "arrow.uturn.forward": IconArrowForwardUp,
-  archivebox: IconArchive,
-  "archivebox.fill": IconArchive,
-  "bell.badge": IconBellRinging,
-  "bolt.circle": IconBolt,
-  "bolt.horizontal.circle": IconBolt,
-  brain: IconBrain,
-  camera: IconCamera,
-  "chart.bar.xaxis": IconChartBar,
-  checkmark: IconCheck,
-  "checkmark.circle": IconCircleCheck,
-  circle: IconCircle,
-  clock: IconClock,
-  ticket: IconTicket,
-  cloud: IconCloud,
-  cube: IconBox,
-  "chevron.down": IconChevronDown,
-  "chevron.left": IconChevronLeft,
-  "chevron.left.forwardslash.chevron.right": IconCode,
-  "chevron.right": IconChevronRight,
-  "chevron.up": IconChevronUp,
-  desktopcomputer: IconDeviceDesktop,
-  "doc.on.doc": IconCopy,
-  "doc.text": IconFileText,
-  ellipsis: IconDots,
-  moon: IconMoon,
-  "ellipsis.circle": IconDotsCircleHorizontal,
-  "exclamationmark.triangle": IconAlertTriangle,
-  "exclamationmark.circle": IconAlertCircle,
-  eye: IconEye,
-  folder: IconFolder,
-  "folder.badge.plus": IconFolderPlus,
-  "folder.fill": IconFolder,
-  gearshape: IconSettings,
-  globe: IconWorld,
-  hammer: IconHammer,
-  house: IconHome,
-  "info.circle": IconInfoCircle,
-  internaldrive: IconDatabase,
-  keyboard: IconKeyboard,
-  laptopcomputer: IconDeviceLaptop,
-  link: IconLink,
-  "line.3.horizontal": IconMenu2,
-  "line.3.horizontal.decrease": IconFilter,
-  "line.3.horizontal.decrease.circle": IconFilter,
-  "line.3.horizontal.decrease.circle.fill": IconFilterFilled,
-  // Tabler has no Apple desktops; the closest silhouettes stand in on Android.
-  macmini: IconServer,
-  macstudio: IconDeviceDesktop,
-  magnifyingglass: IconSearch,
-  mic: IconMicrophone,
-  paintbrush: IconPalette,
-  pencil: IconPencil,
-  "person.crop.circle": IconUserCircle,
-  photo: IconPhoto,
-  pin: IconPin,
-  "pin.slash": IconPinnedOff,
-  play: IconPlayerPlay,
-  plus: IconPlus,
-  minus: IconMinus,
-  "qrcode.viewfinder": IconQrcode,
-  "point.3.connected.trianglepath.dotted": IconNetwork,
-  "point.topleft.down.curvedto.point.bottomright.up": IconGitMerge,
-  safari: IconExternalLink,
-  "server.rack": IconServer,
-  stethoscope: IconStethoscope,
-  "sidebar.left": IconLayoutSidebar,
-  "sidebar.right": IconLayoutSidebarRight,
-  "slider.horizontal.3": IconAdjustmentsHorizontal,
-  "square.and.pencil": IconEdit,
-  "square.on.square": IconCopy,
-  "square.grid.2x2": IconApps,
-  "square.split.2x1": IconLayoutColumns,
-  star: IconStar,
-  "star.fill": IconStarFilled,
-  "sun.max": IconSun,
-  "stop.fill": IconPlayerStopFilled,
-  terminal: IconTerminal2,
-  "text.alignleft": IconAlignLeft,
-  "text.bubble": IconMessage,
-  "text.word.spacing": IconLetterSpacing,
-  "textformat.size": IconTypography,
-  "textformat.size.larger": IconTextIncrease,
-  "textformat.size.smaller": IconTextDecrease,
-  "tray.and.arrow.up": IconUpload,
-  trash: IconTrash,
-  "wifi.slash": IconWifiOff,
-  xmark: IconX,
-  "xmark.circle.fill": IconCircleXFilled,
+	"arrow.branch": IconGitBranch,
+	"arrow.left": IconArrowLeft,
+	"arrow.clockwise": IconRefresh,
+	"arrow.down": IconArrowDown,
+	"arrow.down.circle": IconArrowDownCircle,
+	"arrow.right.circle": IconArrowRightCircle,
+	"arrow.triangle.branch": IconGitBranch,
+	"arrow.triangle.pull": IconGitPullRequest,
+	"square.3.layers.3d": IconStack2,
+	"arrow.turn.left.up": IconArrowBackUp,
+	"arrow.up": IconArrowUp,
+	"arrow.up.circle": IconArrowUpCircle,
+	"arrow.up.left.and.arrow.down.right": IconArrowsDiagonal2,
+	"arrow.down.right.and.arrow.up.left": IconArrowsMinimize,
+	"arrow.up.right": IconArrowUpRight,
+	"arrow.up.right.circle": IconArrowUpRightCircle,
+	"arrow.uturn.backward": IconArrowBackUp,
+	"arrow.uturn.forward": IconArrowForwardUp,
+	archivebox: IconArchive,
+	"archivebox.fill": IconArchive,
+	"bell.badge": IconBellRinging,
+	"bolt.circle": IconBolt,
+	"bolt.horizontal.circle": IconBolt,
+	brain: IconBrain,
+	camera: IconCamera,
+	"chart.bar.xaxis": IconChartBar,
+	checkmark: IconCheck,
+	"checkmark.circle": IconCircleCheck,
+	circle: IconCircle,
+	clock: IconClock,
+	ticket: IconTicket,
+	cloud: IconCloud,
+	cube: IconBox,
+	"chevron.down": IconChevronDown,
+	"chevron.left": IconChevronLeft,
+	"chevron.left.forwardslash.chevron.right": IconCode,
+	"chevron.right": IconChevronRight,
+	"chevron.up": IconChevronUp,
+	desktopcomputer: IconDeviceDesktop,
+	"doc.on.doc": IconCopy,
+	"doc.text": IconFileText,
+	ellipsis: IconDots,
+	moon: IconMoon,
+	"ellipsis.circle": IconDotsCircleHorizontal,
+	"exclamationmark.triangle": IconAlertTriangle,
+	"exclamationmark.circle": IconAlertCircle,
+	eye: IconEye,
+	folder: IconFolder,
+	"folder.badge.plus": IconFolderPlus,
+	"folder.fill": IconFolder,
+	gearshape: IconSettings,
+	globe: IconWorld,
+	hammer: IconHammer,
+	house: IconHome,
+	"info.circle": IconInfoCircle,
+	internaldrive: IconDatabase,
+	keyboard: IconKeyboard,
+	laptopcomputer: IconDeviceLaptop,
+	link: IconLink,
+	"line.3.horizontal": IconMenu2,
+	"line.3.horizontal.decrease": IconFilter,
+	"line.3.horizontal.decrease.circle": IconFilter,
+	"line.3.horizontal.decrease.circle.fill": IconFilterFilled,
+	// Tabler has no Apple desktops; the closest silhouettes stand in on Android.
+	macmini: IconServer,
+	macstudio: IconDeviceDesktop,
+	magnifyingglass: IconSearch,
+	mic: IconMicrophone,
+	paintbrush: IconPalette,
+	pencil: IconPencil,
+	"person.crop.circle": IconUserCircle,
+	photo: IconPhoto,
+	pin: IconPin,
+	"pin.slash": IconPinnedOff,
+	play: IconPlayerPlay,
+	plus: IconPlus,
+	minus: IconMinus,
+	"qrcode.viewfinder": IconQrcode,
+	"point.3.connected.trianglepath.dotted": IconNetwork,
+	"point.topleft.down.curvedto.point.bottomright.up": IconGitMerge,
+	safari: IconExternalLink,
+	"server.rack": IconServer,
+	stethoscope: IconStethoscope,
+	"sidebar.left": IconLayoutSidebar,
+	"sidebar.right": IconLayoutSidebarRight,
+	"slider.horizontal.3": IconAdjustmentsHorizontal,
+	"square.and.pencil": IconEdit,
+	"square.on.square": IconCopy,
+	"square.grid.2x2": IconApps,
+	"square.split.2x1": IconLayoutColumns,
+	star: IconStar,
+	"star.fill": IconStarFilled,
+	"sun.max": IconSun,
+	"stop.fill": IconPlayerStopFilled,
+	terminal: IconTerminal2,
+	"text.alignleft": IconAlignLeft,
+	"text.bubble": IconMessage,
+	"text.word.spacing": IconLetterSpacing,
+	"textformat.size": IconTypography,
+	"textformat.size.larger": IconTextIncrease,
+	"textformat.size.smaller": IconTextDecrease,
+	"tray.and.arrow.up": IconUpload,
+	trash: IconTrash,
+	"wifi.slash": IconWifiOff,
+	xmark: IconX,
+	"xmark.circle.fill": IconCircleXFilled,
 } satisfies Partial<Record<SFSymbol, Icon>>;
-const SF_ICON_LOOKUP: Partial<Record<SFSymbol, Icon>> = ANDROID_ICON_BY_SF_SYMBOL;
+const SF_ICON_LOOKUP: Partial<Record<SFSymbol, Icon>> =
+	ANDROID_ICON_BY_SF_SYMBOL;
 
 // Callers can pass `{ ios, android }` names where `android` is a Material
 // icon name (the raw expo-symbols contract). Resolve those here too so the
 // android key keeps working through this wrapper — it wins over the SF map
 // when both match (e.g. folder vs folder_open for expanded project groups).
 const ANDROID_ICON_BY_MATERIAL_NAME = {
-  auto_awesome: IconSparkles,
-  bolt: IconBolt,
-  build: IconTool,
-  chat_bubble: IconMessage,
-  check: IconCheck,
-  close: IconX,
-  construction: IconHammer,
-  content_copy: IconCopy,
-  desktop_windows: IconDeviceDesktop,
-  edit: IconEdit,
-  error: IconAlertCircle,
-  folder: IconFolder,
-  folder_open: IconFolderOpen,
-  keyboard: IconKeyboard,
-  keyboard_arrow_down: IconChevronDown,
-  keyboard_arrow_up: IconChevronUp,
-  keyboard_hide: IconKeyboardHide,
-  lock: IconLock,
-  more_vert: IconDotsVertical,
-  merge: IconGitMerge,
-  public: IconWorld,
-  remove: IconMinus,
-  smartphone: IconDeviceMobile,
-  terminal: IconTerminal2,
-  visibility: IconEye,
+	auto_awesome: IconSparkles,
+	bolt: IconBolt,
+	build: IconTool,
+	chat_bubble: IconMessage,
+	check: IconCheck,
+	close: IconX,
+	construction: IconHammer,
+	content_copy: IconCopy,
+	desktop_windows: IconDeviceDesktop,
+	edit: IconEdit,
+	error: IconAlertCircle,
+	folder: IconFolder,
+	folder_open: IconFolderOpen,
+	keyboard: IconKeyboard,
+	keyboard_arrow_down: IconChevronDown,
+	keyboard_arrow_up: IconChevronUp,
+	keyboard_hide: IconKeyboardHide,
+	lock: IconLock,
+	more_vert: IconDotsVertical,
+	merge: IconGitMerge,
+	public: IconWorld,
+	remove: IconMinus,
+	smartphone: IconDeviceMobile,
+	terminal: IconTerminal2,
+	visibility: IconEye,
 } satisfies Partial<Record<AndroidSymbol, Icon>>;
 
 export type { SFSymbol } from "expo-symbols";
 export type AppSymbolName =
-  | keyof typeof ANDROID_ICON_BY_SF_SYMBOL
-  | {
-      ios: SFSymbol;
-      android: keyof typeof ANDROID_ICON_BY_MATERIAL_NAME;
-    };
+	| keyof typeof ANDROID_ICON_BY_SF_SYMBOL
+	| {
+			ios: SFSymbol;
+			android: keyof typeof ANDROID_ICON_BY_MATERIAL_NAME;
+	  };
 
-export type AppSymbolViewProps = Omit<SymbolViewProps, "name"> & { name: AppSymbolName };
+export type AppSymbolViewProps = Omit<SymbolViewProps, "name"> & {
+	name: AppSymbolName;
+};
 
-export function isAppSymbolName(name: string): name is Extract<AppSymbolName, string> {
-  return Object.prototype.hasOwnProperty.call(ANDROID_ICON_BY_SF_SYMBOL, name);
+export function isAppSymbolName(
+	name: string,
+): name is Extract<AppSymbolName, string> {
+	return Object.prototype.hasOwnProperty.call(ANDROID_ICON_BY_SF_SYMBOL, name);
 }
 
 function AppSymbolView(props: AppSymbolViewProps) {
-  const materialName = typeof props.name === "string" ? undefined : props.name.android;
-  const sfSymbol = typeof props.name === "string" ? props.name : props.name.ios;
-  const AndroidIcon =
-    (materialName ? ANDROID_ICON_BY_MATERIAL_NAME[materialName] : undefined) ??
-    (sfSymbol ? SF_ICON_LOOKUP[sfSymbol] : undefined);
+	const materialName =
+		typeof props.name === "string" ? undefined : props.name.android;
+	const sfSymbol = typeof props.name === "string" ? props.name : props.name.ios;
+	const AndroidIcon =
+		(materialName ? ANDROID_ICON_BY_MATERIAL_NAME[materialName] : undefined) ??
+		(sfSymbol ? SF_ICON_LOOKUP[sfSymbol] : undefined);
 
-  if (!AndroidIcon) {
-    return props.fallback ?? null;
-  }
+	if (!AndroidIcon) {
+		return props.fallback ?? null;
+	}
 
-  return (
-    <AndroidIcon
-      accessibilityLabel={props.accessibilityLabel}
-      color={props.tintColor}
-      size={props.size}
-      strokeWidth={2}
-      style={props.style}
-      testID={props.testID}
-    />
-  );
+	return (
+		<AndroidIcon
+			accessibilityLabel={props.accessibilityLabel}
+			color={props.tintColor}
+			size={props.size}
+			strokeWidth={2}
+			style={props.style}
+			testID={props.testID}
+		/>
+	);
 }
 
 /**

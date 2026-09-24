@@ -3,24 +3,24 @@ import { snapShotShortcutKeyLabels } from "../../lib/snapShotShortcut";
 import { Kbd, KbdGroup } from "../ui/kbd";
 
 export function SnapShotShortcutKeys({
-  shortcut,
-  platform = navigator.platform,
+	shortcut,
+	platform = navigator.platform,
 }: {
-  shortcut: SnapShotShortcut;
-  platform?: string;
+	shortcut: SnapShotShortcut;
+	platform?: string;
 }) {
-  const seenLabels = new Map<string, number>();
-  return (
-    <KbdGroup>
-      {snapShotShortcutKeyLabels(shortcut, platform).map((label) => {
-        const seen = seenLabels.get(label) ?? 0;
-        seenLabels.set(label, seen + 1);
-        return (
-          <Kbd aria-hidden key={`${label}-${seen}`}>
-            {label}
-          </Kbd>
-        );
-      })}
-    </KbdGroup>
-  );
+	const seenLabels = new Map<string, number>();
+	return (
+		<KbdGroup>
+			{snapShotShortcutKeyLabels(shortcut, platform).map((label) => {
+				const seen = seenLabels.get(label) ?? 0;
+				seenLabels.set(label, seen + 1);
+				return (
+					<Kbd aria-hidden key={`${label}-${seen}`}>
+						{label}
+					</Kbd>
+				);
+			})}
+		</KbdGroup>
+	);
 }

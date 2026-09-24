@@ -12,20 +12,22 @@ import { compareSemverVersions, parseSemver } from "@t3tools/shared/semver";
 
 const FORK_RELEASES_URL =
 	"https://api.github.com/repos/aria-amini/t3code/releases/tags/fork-runtime";
+export const FORK_DOWNLOAD_BASE_URL =
+	"https://github.com/aria-amini/t3code/releases/download";
 const FORK_CHANNEL_TIMEOUT = Duration.seconds(10);
 const FORK_CHANNEL_CACHE_TTL = Duration.minutes(10);
-const FORK_ASSET_PATTERN = /^t3-(\d+\.\d+\.\d+-fork\.\d+)\.tgz$/u;
+const FORK_ASSET_PATTERN = /^t3-(\d+\.\d+\.\d+-fork\.\d+)-linux-(?:x64|arm64)\.tar\.gz$/u;
 
 export interface ForkRuntimeRelease {
 	readonly version: string;
-	readonly packageSpec: string;
+	readonly releaseBaseUrl: string;
 }
 
 export type ForkUpdateResolution =
 	| {
 			readonly action: "redirect";
 			readonly targetVersion: string;
-			readonly packageSpec: string;
+			readonly releaseBaseUrl: string;
 	  }
 	| { readonly action: "block"; readonly reason: string };
 
@@ -60,12 +62,13 @@ export function forkRuntimeFromAssets(
 	}>,
 ): ForkRuntimeRelease | null {
 	let best: ForkRuntimeRelease | null = null;
+	if (!assets.some((asset) => asset.name === "SHA256SUMS")) return null;
 	for (const asset of assets) {
 		const match = FORK_ASSET_PATTERN.exec(asset.name);
 		const version = match?.[1];
 		if (version === undefined) continue;
 		if (best === null || compareSemverVersions(version, best.version) > 0) {
-			best = { version, packageSpec: asset.browser_download_url };
+			best = { version, releaseBaseUrl: FORK_DOWNLOAD_BASE_URL };
 		}
 	}
 	return best;
@@ -88,7 +91,7 @@ export function resolveForkUpdateRequest(input: {
 		return {
 			action: "block",
 			reason:
-				"This server runs the Aria fork and its fork runtime channel is unreachable. Update the fork manually with T3_RUNTIME_PACKAGE.",
+				"This server runs the Aria fork and its fork runtime channel is unreachable. Update the fork manually.",
 		};
 	}
 	if (requestedVersion.includes("-fork.")) {
@@ -96,7 +99,7 @@ export function resolveForkUpdateRequest(input: {
 			? {
 					action: "redirect",
 					targetVersion: channel.version,
-					packageSpec: channel.packageSpec,
+					releaseBaseUrl: channel.releaseBaseUrl,
 				}
 			: {
 					action: "block",
@@ -114,7 +117,7 @@ export function resolveForkUpdateRequest(input: {
 		? {
 				action: "redirect",
 				targetVersion: channel.version,
-				packageSpec: channel.packageSpec,
+				releaseBaseUrl: channel.releaseBaseUrl,
 			}
 		: {
 				action: "block",
@@ -140,7 +143,7 @@ export class ForkRuntimeChannel extends Context.Service<
 			ForkRuntimeChannelError
 		>;
 	}
->()("t3/cloud/fork_runtime_channel") {}
+>()("t3/cloud/forkRuntimeChannel") {}
 
 export const makeForkRuntimeChannel = Effect.fn(
 	"cloud.fork_runtime_channel.make",

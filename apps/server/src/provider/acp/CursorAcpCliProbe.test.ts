@@ -2,6 +2,7 @@
  * Optional integration check against a real `cursor-agent acp` install.
  * Enable with: T3_CURSOR_ACP_PROBE=1 bun run test --filter CursorAcpCliProbe
  */
+// @effect-diagnostics preferSchemaOverJson:off
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it } from "@effect/vitest";
 import * as Console from "effect/Console";

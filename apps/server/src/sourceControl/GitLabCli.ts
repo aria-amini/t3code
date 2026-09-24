@@ -252,7 +252,6 @@ export const GitLabCliError = Schema.Union([
 	GitLabNamespaceDecodeError,
 ]);
 export type GitLabCliError = typeof GitLabCliError.Type;
-export const isGitLabCliError = Schema.is(GitLabCliError);
 
 export interface GitLabMergeRequestSummary {
 	readonly number: number;
@@ -431,6 +430,7 @@ function parseRepositoryPath(repository: string): {
 	return { namespacePath, projectPath };
 }
 
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
 	const process = yield* VcsProcess.VcsProcess;
 

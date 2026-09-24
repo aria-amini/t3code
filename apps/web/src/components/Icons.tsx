@@ -2,6 +2,60 @@ import React, { type SVGProps, useId } from "react";
 import { cn } from "~/lib/utils";
 export type Icon = React.FC<SVGProps<SVGSVGElement>>;
 
+export const FinderIcon: Icon = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" {...props}>
+    <rect x="2" y="2" width="20" height="20" rx="4" fill="#36A9F5" />
+    <path
+      d="M13 2h5a4 4 0 0 1 4 4v12a4 4 0 0 1-4 4h-6c-1-4-1-7 0-10H9c0-4 2-8 4-10Z"
+      fill="#D9F1FF"
+    />
+    <path
+      d="M7 7v2m10-2v2M6 15c3 3 9 3 12 0"
+      stroke="#163A59"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+export const FileExplorerIcon: Icon = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" {...props}>
+    <path
+      d="M2 5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z"
+      fill="#D99A16"
+    />
+    <path d="M2 9h20v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z" fill="#FFCE45" />
+    <path d="M8 14h8v7H8Z" fill="#58B8E8" />
+    <path d="M10 16h4v2h-4Z" fill="#1879B9" />
+  </svg>
+);
+
+// Apple brand mark from Simple Icons (CC0).
+export const AppleIcon: Icon = (props) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
+    <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701" />
+  </svg>
+);
+
+export const AndroidIcon: Icon = (props) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
+    <path
+      d="m8 3-1-2m9 2 1-2"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+    />
+    <path
+      fillRule="evenodd"
+      d="M5 10a7 7 0 0 1 14 0H5Zm4-4a.8.8 0 1 0 0 1.6A.8.8 0 0 0 9 6Zm6 0a.8.8 0 1 0 0 1.6A.8.8 0 0 0 15 6Z"
+    />
+    <path d="M5 11h14v7a2 2 0 0 1-2 2v2a1.5 1.5 0 0 1-3 0v-2h-4v2a1.5 1.5 0 0 1-3 0v-2a2 2 0 0 1-2-2v-7Z" />
+    <rect x="1" y="11" width="3" height="8" rx="1.5" />
+    <rect x="20" y="11" width="3" height="8" rx="1.5" />
+  </svg>
+);
+
 export const LinuxIcon: Icon = ({ className, ...props }) => (
 	<svg
 		{...props}
@@ -809,4 +863,17 @@ export const PiAgentIcon: Icon = ({ className, ...props }) => (
 		/>
 		<path fill="#fff" d="M517.36 400H634.72V634.72H517.36Z" />
 	</svg>
+);
+
+// Official two-color mark from https://forgejo.org/favicon.svg.
+export const ForgejoIcon: Icon = (props) => (
+  <svg viewBox="0 0 212 212" aria-hidden="true" {...props}>
+    <g transform="translate(6 6)" fill="none">
+      <path d="M58 168 v-98 a50 50 0 0 1 50-50 h20" stroke="#ff6600" strokeWidth="25" />
+      <path d="M58 168 v-30 a50 50 0 0 1 50-50 h20" stroke="#d40000" strokeWidth="25" />
+      <circle cx="142" cy="20" r="18" stroke="#ff6600" strokeWidth="15" />
+      <circle cx="142" cy="88" r="18" stroke="#d40000" strokeWidth="15" />
+      <circle cx="58" cy="180" r="18" stroke="#d40000" strokeWidth="15" />
+    </g>
+  </svg>
 );

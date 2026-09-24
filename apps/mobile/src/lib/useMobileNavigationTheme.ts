@@ -10,22 +10,25 @@ import { useUniwindTheme } from "./useUniwindTheme";
  * preferences provider applies the registered Uniwind theme first, then
  * publishes this matching navigation palette through React.
  */
-export function useMobileNavigationTheme(): Theme {
-	const { themeAppearance: appearance } = useAppearancePreferences();
-	const variables = useUniwindTheme();
-	return useMemo(() => {
-		const base = appearance === "dark" ? DarkTheme : DefaultTheme;
-		return {
-			...base,
-			colors: {
-				...base.colors,
-				primary: variables["--color-primary"],
-				background: variables["--color-screen"],
-				card: variables["--color-sheet-solid"],
-				text: variables["--color-foreground"],
-				border: variables["--color-header-border"],
-				notification: variables["--color-danger-foreground"],
-			},
-		};
-	}, [appearance, variables]);
+export function useMobileNavigationTheme(surface: "screen" | "sidebar" = "screen"): Theme {
+  const { themeAppearance: appearance } = useAppearancePreferences();
+  const variables = useUniwindTheme();
+  return useMemo(() => {
+    const base = appearance === "dark" ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        primary: variables["--color-primary-text"],
+        background: variables[surface === "sidebar" ? "--color-drawer" : "--color-screen"],
+        card: variables[surface === "sidebar" ? "--color-drawer" : "--color-sheet-solid"],
+        text: variables[
+          surface === "sidebar" ? "--color-drawer-foreground" : "--color-header-foreground"
+        ],
+        border:
+          variables[surface === "sidebar" ? "--color-drawer-border" : "--color-header-border"],
+        notification: variables["--color-danger-foreground"],
+      },
+    };
+  }, [appearance, surface, variables]);
 }

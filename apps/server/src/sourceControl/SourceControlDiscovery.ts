@@ -69,6 +69,7 @@ export class SourceControlDiscovery extends Context.Service<
 	}
 >()("t3/sourceControl/SourceControlDiscovery") {}
 
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
 	const config = yield* ServerConfig;
 	const process = yield* VcsProcess.VcsProcess;

@@ -6,6 +6,7 @@ export {
 	type EnvironmentConnectionLease,
 } from "./driver.ts";
 export * from "./errors.ts";
+export * from "./githubRoutingPermissions.ts";
 export * as Connection from "./layer.ts";
 export * from "./model.ts";
 export {
@@ -26,3 +27,5 @@ export {
 	type EnvironmentSupervisorOptions,
 } from "./supervisor.ts";
 export * as Wakeups from "./wakeups.ts";
+
+export { orchestrationProtocolCompatibilityError } from "./compatibility.ts";

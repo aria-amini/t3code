@@ -17,73 +17,77 @@ import { isEntrypoint } from "./entrypoint.ts";
 import { projectCommand } from "./cli/project.ts";
 import { runServerCommand, serveCommand, startCommand } from "./cli/server.ts";
 import { serviceCommand } from "./cli/service.ts";
+import { uninstallCommand } from "./cli/uninstall.ts";
+import { updateCommand } from "./cli/update.ts";
+import { claudeHistoryCommand } from "./cli/claudeHistory.ts";
+import { serviceLauncherCommand } from "./cli/serviceLauncher.ts";
 import { servicePreflightCommand } from "./cli/servicePreflight.ts";
+import { sshHelperCommand } from "./cli/sshHelper.ts";
 import { themeCommand } from "./cli/theme.ts";
 import { triageCommand } from "./cli/triage.ts";
 
 const CliRuntimeLayer = Layer.mergeAll(NodeServices.layer, NetService.layer);
 
 const connectPublicConfigMissingMessage =
-	"T3 Connect commands are unavailable: this build is missing T3 Connect public configuration.";
+  "T3 Connect commands are unavailable: this build is missing T3 Connect public configuration.";
 
 class ConnectPublicConfigMissingError extends CliError.UserError {
-	override get message() {
-		return connectPublicConfigMissingMessage;
-	}
+  override get message() {
+    return connectPublicConfigMissingMessage;
+  }
 }
 
 const connectUnavailableCommand = Command.make("connect", {
-	command: Argument.string("command").pipe(Argument.variadic),
+  command: Argument.String("command").pipe(Argument.variadic),
 }).pipe(
-	Command.withDescription(
-		"T3 Connect is unavailable in builds without public configuration.",
-	),
-	Command.unlisted,
-	Command.withHandler(() =>
-		Effect.fail(
-			new CliError.ShowHelp({
-				commandPath: ["t3", "connect"],
-				errors: [
-					new ConnectPublicConfigMissingError({
-						cause: connectPublicConfigMissingMessage,
-					}),
-				],
-			}),
-		),
-	),
+  Command.withDescription("T3 Connect is unavailable in builds without public configuration."),
+  Command.unlisted,
+  Command.withHandler(() =>
+    Effect.fail(
+      new CliError.ShowHelp({
+        commandPath: ["t3", "connect"],
+        errors: [new ConnectPublicConfigMissingError({ cause: connectPublicConfigMissingMessage })],
+      }),
+    ),
+  ),
 );
 
 export const makeCli = ({ cloudEnabled = hasCloudPublicConfig } = {}) =>
-	Command.make("t3", { ...sharedServerCommandFlags }).pipe(
-		Command.withDescription("Run the T3 Code server."),
-		Command.withHandler((flags) => runServerCommand(flags)),
-		Command.withSubcommands([
-			startCommand,
-			serveCommand,
-			appCommand,
-			pairCommand,
-			authCommand,
-			projectCommand,
-			serviceCommand,
-			servicePreflightCommand,
-			themeCommand,
-			triageCommand,
-			cloudEnabled ? connectCommand : connectUnavailableCommand,
-		]),
-	);
+  Command.make("t3", { ...sharedServerCommandFlags }).pipe(
+    Command.withDescription("Run the T3 Code server."),
+    Command.withHandler((flags) => runServerCommand(flags)),
+    Command.withSubcommands([
+      startCommand,
+      serveCommand,
+      appCommand,
+      pairCommand,
+      authCommand,
+      projectCommand,
+      serviceCommand,
+      updateCommand,
+      uninstallCommand,
+      serviceLauncherCommand,
+      claudeHistoryCommand,
+      servicePreflightCommand,
+      sshHelperCommand,
+      themeCommand,
+      triageCommand,
+      cloudEnabled ? connectCommand : connectUnavailableCommand,
+    ]),
+  );
 
 export const cli = makeCli();
 
 if (
-	isEntrypoint({
-		moduleUrl: import.meta.url,
-		entryPath: process.argv[1],
-		runtimeMain: import.meta.main,
-	})
+  isEntrypoint({
+    moduleUrl: import.meta.url,
+    entryPath: process.argv[1],
+    runtimeMain: import.meta.main,
+  })
 ) {
-	Command.run(cli, { version: packageJson.version }).pipe(
-		Effect.scoped,
-		Effect.provide(CliRuntimeLayer),
-		NodeRuntime.runMain,
-	);
+  Command.run(cli, { version: packageJson.version }).pipe(
+    Effect.scoped,
+    Effect.provide(CliRuntimeLayer),
+    NodeRuntime.runMain,
+  );
 }

@@ -1,13 +1,13 @@
 import { describe, expect, it } from "@effect/vitest";
 
 import {
+	FORK_DOWNLOAD_BASE_URL,
 	forkRuntimeFromAssets,
 	resolveForkUpdateRequest,
 } from "./forkRuntimeChannel.ts";
 import { compareForkServiceVersions } from "./forkServiceVersions.ts";
 
-const RELEASE_URL = (version: string) =>
-	`https://github.com/aria-amini/t3code/releases/download/fork-runtime/t3-${version}.tgz`;
+const asset = (name: string) => ({ name, browser_download_url: `https://x/${name}` });
 
 describe("forkRuntimeFromAssets", () => {
 	it("returns null when no fork runtime asset exists", () => {
@@ -22,14 +22,15 @@ describe("forkRuntimeFromAssets", () => {
 
 	it("picks the newest fork runtime asset", () => {
 		const release = forkRuntimeFromAssets([
-			{ name: "t3-0.0.39-fork.3.tgz", browser_download_url: RELEASE_URL("0.0.39-fork.3") },
-			{ name: "t3-runtime.tgz", browser_download_url: "https://x/t3-runtime.tgz" },
-			{ name: "t3-0.0.40-fork.1.tgz", browser_download_url: RELEASE_URL("0.0.40-fork.1") },
+			asset("SHA256SUMS"),
+			asset("t3-0.0.39-fork.3-linux-x64.tar.gz"),
+			asset("t3-0.0.40-fork.1-linux-x64.tar.gz"),
 		]);
 		expect(release).toEqual({
 			version: "0.0.40-fork.1",
-			packageSpec: RELEASE_URL("0.0.40-fork.1"),
+			releaseBaseUrl: FORK_DOWNLOAD_BASE_URL,
 		});
+		expect(forkRuntimeFromAssets([asset("t3-0.0.40-fork.1-linux-x64.tar.gz")])).toBeNull();
 	});
 });
 
@@ -51,7 +52,7 @@ describe("compareForkServiceVersions", () => {
 describe("resolveForkUpdateRequest", () => {
 	const channel = {
 		version: "0.0.40-fork.1",
-		packageSpec: RELEASE_URL("0.0.40-fork.1"),
+		releaseBaseUrl: FORK_DOWNLOAD_BASE_URL,
 	};
 
 	it("blocks when the channel is unreachable", () => {
@@ -68,7 +69,7 @@ describe("resolveForkUpdateRequest", () => {
 				requestedVersion: "0.0.40",
 				channel,
 			}),
-		).toEqual({ action: "redirect", targetVersion: "0.0.40-fork.1", packageSpec: channel.packageSpec });
+		).toEqual({ action: "redirect", targetVersion: "0.0.40-fork.1", releaseBaseUrl: channel.releaseBaseUrl });
 	});
 
 	it("redirects when the fork runtime is newer than the requested core", () => {
@@ -94,7 +95,7 @@ describe("resolveForkUpdateRequest", () => {
 				requestedVersion: "0.0.40-fork.1",
 				channel,
 			}),
-		).toEqual({ action: "redirect", targetVersion: "0.0.40-fork.1", packageSpec: channel.packageSpec });
+		).toEqual({ action: "redirect", targetVersion: "0.0.40-fork.1", releaseBaseUrl: channel.releaseBaseUrl });
 	});
 
 	it("blocks a fork target the channel does not carry", () => {

@@ -11,3 +11,9 @@ export function wasBootstrapThreadDeleted(error: unknown): boolean {
 		error.bootstrapThreadDisposition === "deleted"
 	);
 }
+
+export function wasBootstrapThreadNotCreated(error: unknown): boolean {
+  return (
+    isOrchestrationDispatchCommandError(error) && error.bootstrapThreadDisposition === "not-created"
+  );
+}

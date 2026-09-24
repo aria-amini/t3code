@@ -58,6 +58,7 @@ function canSignalCategory(
 	);
 }
 
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.fn("makeProcessDiagnostics")(function* () {
 	const telemetry = yield* ResourceTelemetry.ResourceTelemetry;
 	const refreshedTelemetry = telemetry.refresh.pipe(

@@ -1,28 +1,32 @@
 import {
-	type TerminalContextDraft,
-	formatTerminalContextLabel,
-	isTerminalContextExpired,
+  type TerminalContextDraft,
+  formatTerminalContextLabel,
+  isTerminalContextExpired,
 } from "~/lib/terminalContext";
+import type { ContextPresentationCapability } from "../contextPresentationRegistry";
 import { TerminalContextInlineChip } from "./TerminalContextInlineChip";
 
 interface ComposerPendingTerminalContextChipProps {
-	context: TerminalContextDraft;
+  context: TerminalContextDraft;
+  detailsMode: ContextPresentationCapability["details"];
 }
 
 export function ComposerPendingTerminalContextChip({
-	context,
+  context,
+  detailsMode,
 }: ComposerPendingTerminalContextChipProps) {
-	const label = formatTerminalContextLabel(context);
-	const expired = isTerminalContextExpired(context);
-	const tooltipText = expired
-		? `Terminal context expired. Remove and re-add ${label} to include it in your message.`
-		: context.text;
+  const label = formatTerminalContextLabel(context);
+  const expired = isTerminalContextExpired(context);
 
-	return (
-		<TerminalContextInlineChip
-			label={label}
-			tooltipText={tooltipText}
-			expired={expired}
-		/>
-	);
+  return (
+    <TerminalContextInlineChip
+      label={label}
+      terminalLabel={context.terminalLabel}
+      lineStart={context.lineStart}
+      lineEnd={context.lineEnd}
+      text={context.text}
+      expired={expired}
+      detailsMode={detailsMode}
+    />
+  );
 }

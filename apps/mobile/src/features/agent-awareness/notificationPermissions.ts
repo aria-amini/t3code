@@ -4,64 +4,75 @@ import * as Schema from "effect/Schema";
 import { Platform } from "react-native";
 
 export type NotificationPermissionResult =
-	| { readonly type: "unsupported" }
-	| { readonly type: "granted" }
-	| { readonly type: "denied"; readonly canAskAgain: boolean };
+  | { readonly type: "unsupported" }
+  | { readonly type: "granted" }
+  | { readonly type: "denied"; readonly canAskAgain: boolean };
 
 export class NotificationPermissionReadError extends Schema.TaggedError<NotificationPermissionReadError>()(
-	"NotificationPermissionReadError",
-	{
-		cause: Schema.Defect(),
-	},
+  "NotificationPermissionReadError",
+  {
+    cause: Schema.Defect(),
+  },
 ) {
-	override get message(): string {
-		return "Failed to read notification permissions on iOS.";
-	}
+  override get message(): string {
+    return "Failed to read notification permissions.";
+  }
 }
 
 export class NotificationPermissionRequestError extends Schema.TaggedError<NotificationPermissionRequestError>()(
-	"NotificationPermissionRequestError",
-	{
-		cause: Schema.Defect(),
-	},
+  "NotificationPermissionRequestError",
+  {
+    cause: Schema.Defect(),
+  },
 ) {
-	override get message(): string {
-		return "Failed to request notification permissions on iOS.";
-	}
+  override get message(): string {
+    return "Failed to request notification permissions.";
+  }
 }
 
 export const requestAgentNotificationPermission: Effect.Effect<
-	NotificationPermissionResult,
-	NotificationPermissionReadError | NotificationPermissionRequestError
+  NotificationPermissionResult,
+  NotificationPermissionReadError | NotificationPermissionRequestError
 > = Effect.gen(function* () {
-	if (Platform.OS !== "ios") {
-		return { type: "unsupported" };
-	}
+  if (Platform.OS !== "ios" && Platform.OS !== "android") {
+    return { type: "unsupported" };
+  }
 
-	const existing = yield* Effect.tryPromise({
-		try: () => Notifications.getPermissionsAsync(),
-		catch: (cause) => new NotificationPermissionReadError({ cause }),
-	});
-	if (existing.granted) {
-		return { type: "granted" };
-	}
+  if (Platform.OS === "android") {
+    yield* Effect.tryPromise({
+      try: () =>
+        Notifications.setNotificationChannelAsync("agent-alerts", {
+          name: "Agent alerts",
+          importance: Notifications.AndroidImportance.HIGH,
+        }),
+      catch: (cause) => new NotificationPermissionRequestError({ cause }),
+    });
+  }
 
-	if (!existing.canAskAgain) {
-		return { type: "denied", canAskAgain: false };
-	}
+  const existing = yield* Effect.tryPromise({
+    try: () => Notifications.getPermissionsAsync(),
+    catch: (cause) => new NotificationPermissionReadError({ cause }),
+  });
+  if (existing.granted) {
+    return { type: "granted" };
+  }
 
-	const requested = yield* Effect.tryPromise({
-		try: () =>
-			Notifications.requestPermissionsAsync({
-				ios: {
-					allowAlert: true,
-					allowBadge: true,
-					allowSound: true,
-				},
-			}),
-		catch: (cause) => new NotificationPermissionRequestError({ cause }),
-	});
-	return requested.granted
-		? { type: "granted" }
-		: { type: "denied", canAskAgain: requested.canAskAgain };
+  if (!existing.canAskAgain) {
+    return { type: "denied", canAskAgain: false };
+  }
+
+  const requested = yield* Effect.tryPromise({
+    try: () =>
+      Notifications.requestPermissionsAsync({
+        ios: {
+          allowAlert: true,
+          allowBadge: true,
+          allowSound: true,
+        },
+      }),
+    catch: (cause) => new NotificationPermissionRequestError({ cause }),
+  });
+  return requested.granted
+    ? { type: "granted" }
+    : { type: "denied", canAskAgain: requested.canAskAgain };
 });

@@ -1,150 +1,162 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import {
-	ProviderInstanceId,
-	type ProviderOptionSelection,
-} from "@t3tools/contracts";
+import { ProviderInstanceId, type ProviderOptionSelection } from "@t3tools/contracts";
 
 import type { ModelOption } from "../../lib/modelOptions";
 import {
-	canCommitPendingModel,
-	modelMatchesCatalogQuery,
-	pendingModelAfterPress,
+  canCommitPendingModel,
+  favoritesFirst,
+  modelFavoriteKey,
+  modelMatchesCatalogQuery,
+  pendingModelAfterPress,
+  toggleModelFavorite,
 } from "./thread-settings-sheet-state";
 
 function modelOption(
-	model: string,
-	options: ReadonlyArray<ProviderOptionSelection> = [],
+  model: string,
+  options: ReadonlyArray<ProviderOptionSelection> = [],
 ): ModelOption {
-	return {
-		key: `codex:${model}`,
-		label: model,
-		subtitle: "",
-		providerKey: "codex",
-		providerLabel: "Codex",
-		providerDriver: "codex",
-		isDefault: false,
-		isLegacy: false,
-		capabilities: null,
-		selection: {
-			instanceId: ProviderInstanceId.make("codex"),
-			model,
-			options,
-		},
-	};
+  return {
+    key: `codex:${model}`,
+    label: model,
+    subtitle: "",
+    providerKey: "codex",
+    providerLabel: "Codex",
+    providerDriver: "codex",
+    isDefault: false,
+    isLegacy: false,
+    capabilities: null,
+    selection: {
+      instanceId: ProviderInstanceId.make("codex"),
+      model,
+      options,
+    },
+  };
 }
 
 describe("thread settings sheet state", () => {
-	it("matches visible model and provider terms", () => {
-		const model = modelOption("gpt-next");
+  it("keeps favorites in catalog order ahead of other models", () => {
+    const models = [
+      modelOption("first"),
+      modelOption("second"),
+      modelOption("third"),
+      modelOption("fourth"),
+    ];
+    const favorites = new Set([models[2]!.key, models[0]!.key]);
 
-		expect(
-			modelMatchesCatalogQuery({
-				model,
-				providerLabel: "Codex",
-				query: "NEXT",
-			}),
-		).toBe(true);
-		expect(
-			modelMatchesCatalogQuery({
-				model,
-				providerLabel: "Codex",
-				query: "codex",
-			}),
-		).toBe(true);
-		expect(
-			modelMatchesCatalogQuery({
-				model,
-				providerLabel: "Codex",
-				query: "claude",
-			}),
-		).toBe(false);
-	});
+    expect(favoritesFirst(models, favorites).map((model) => model.selection.model)).toEqual([
+      "first",
+      "third",
+      "second",
+      "fourth",
+    ]);
+    expect(models.map((model) => model.selection.model)).toEqual([
+      "first",
+      "second",
+      "third",
+      "fourth",
+    ]);
+  });
 
-	it("treats whitespace-only catalog searches as empty", () => {
-		expect(
-			modelMatchesCatalogQuery({
-				model: modelOption("gpt-next"),
-				providerLabel: "Codex",
-				query: "   ",
-			}),
-		).toBe(true);
-	});
+  it("adds and removes favorites for one provider instance", () => {
+    const codexModel = modelOption("shared");
+    const otherProvider = ProviderInstanceId.make("codex_personal");
+    const personalModel = {
+      ...codexModel,
+      key: modelFavoriteKey(otherProvider, "shared"),
+      selection: { ...codexModel.selection, instanceId: otherProvider },
+    };
+    const favorites = toggleModelFavorite([], codexModel);
 
-	it("matches the upstream provider's display name", () => {
-		const model = {
-			...modelOption("opencode/claude-fable-5"),
-			label: "Claude Fable 5",
-			subtitle: "OpenCode Zen",
-		};
+    expect(toggleModelFavorite(favorites, personalModel)).toEqual([
+      { provider: ProviderInstanceId.make("codex"), model: "shared" },
+      { provider: otherProvider, model: "shared" },
+    ]);
+    expect(toggleModelFavorite(favorites, codexModel)).toEqual([]);
+  });
 
-		expect(
-			modelMatchesCatalogQuery({
-				model,
-				providerLabel: "OpenCode",
-				query: " ZEN ",
-			}),
-		).toBe(true);
-		expect(
-			modelMatchesCatalogQuery({
-				model,
-				providerLabel: "OpenCode",
-				query: "copilot",
-			}),
-		).toBe(false);
-	});
+  it("matches visible model and provider terms", () => {
+    const model = modelOption("gpt-next");
 
-	it("clears staging when the applied model is pressed", () => {
-		expect(
-			pendingModelAfterPress({
-				current: modelOption("gpt-next"),
-				pressed: modelOption("gpt-current"),
-				pressedIsApplied: true,
-			}),
-		).toBeNull();
-	});
+    expect(modelMatchesCatalogQuery({ model, providerLabel: "Codex", query: "NEXT" })).toBe(true);
+    expect(modelMatchesCatalogQuery({ model, providerLabel: "Codex", query: "codex" })).toBe(true);
+    expect(modelMatchesCatalogQuery({ model, providerLabel: "Codex", query: "claude" })).toBe(
+      false,
+    );
+  });
 
-	it("preserves staged options when the highlighted model is pressed again", () => {
-		const pending = modelOption("gpt-next", [{ id: "effort", value: "high" }]);
+  it("treats whitespace-only catalog searches as empty", () => {
+    expect(
+      modelMatchesCatalogQuery({
+        model: modelOption("gpt-next"),
+        providerLabel: "Codex",
+        query: "   ",
+      }),
+    ).toBe(true);
+  });
 
-		expect(
-			pendingModelAfterPress({
-				current: pending,
-				pressed: modelOption("gpt-next"),
-				pressedIsApplied: false,
-			}),
-		).toBe(pending);
-	});
+  it("matches the upstream provider's display name", () => {
+    const model = {
+      ...modelOption("opencode/claude-fable-5"),
+      label: "Claude Fable 5",
+      subtitle: "OpenCode Zen",
+    };
 
-	it("stages a different model", () => {
-		const pressed = modelOption("gpt-other");
+    expect(modelMatchesCatalogQuery({ model, providerLabel: "OpenCode", query: " ZEN " })).toBe(
+      true,
+    );
+    expect(modelMatchesCatalogQuery({ model, providerLabel: "OpenCode", query: "copilot" })).toBe(
+      false,
+    );
+  });
 
-		expect(
-			pendingModelAfterPress({
-				current: modelOption("gpt-next"),
-				pressed,
-				pressedIsApplied: false,
-			}),
-		).toBe(pressed);
-	});
+  it("clears staging when the applied model is pressed", () => {
+    expect(
+      pendingModelAfterPress({
+        current: modelOption("gpt-next"),
+        pressed: modelOption("gpt-current"),
+        pressedIsApplied: true,
+      }),
+    ).toBeNull();
+  });
 
-	it("cannot save a staged model after sign-out removes it from the catalog", () => {
-		const pending = modelOption("gemini-native");
-		const group = {
-			providerKey: "codex",
-			providerLabel: "Codex",
-			models: [pending],
-		};
+  it("preserves staged options when the highlighted model is pressed again", () => {
+    const pending = modelOption("gpt-next", [{ id: "effort", value: "high" }]);
 
-		expect(canCommitPendingModel(pending, [group])).toBe(true);
-		expect(canCommitPendingModel(pending, [])).toBe(false);
-		expect(
-			canCommitPendingModel(pending, [
-				{
-					...group,
-					models: [{ ...pending, isUnavailable: true }],
-				},
-			]),
-		).toBe(false);
-	});
+    expect(
+      pendingModelAfterPress({
+        current: pending,
+        pressed: modelOption("gpt-next"),
+        pressedIsApplied: false,
+      }),
+    ).toBe(pending);
+  });
+
+  it("stages a different model", () => {
+    const pressed = modelOption("gpt-other");
+
+    expect(
+      pendingModelAfterPress({
+        current: modelOption("gpt-next"),
+        pressed,
+        pressedIsApplied: false,
+      }),
+    ).toBe(pressed);
+  });
+
+  it("cannot save a staged model after sign-out removes it from the catalog", () => {
+    const pending = modelOption("gemini-native");
+    const group = { providerKey: "codex", providerLabel: "Codex", models: [pending] };
+
+    expect(canCommitPendingModel(pending, [group])).toBe(true);
+    expect(canCommitPendingModel(pending, [])).toBe(false);
+    expect(
+      canCommitPendingModel(pending, [
+        {
+          ...group,
+          models: [{ ...pending, isUnavailable: true }],
+        },
+      ]),
+    ).toBe(false);
+  });
 });

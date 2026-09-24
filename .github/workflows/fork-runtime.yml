@@ -14,8 +14,15 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
 
@@ -26,36 +33,37 @@ jobs:
           cache: true
           run-install: true
 
-      - name: Build runtime package
+      - name: Build server and web client
+        run: vp run --filter t3 build
+
+      - name: Build CLI single-executable
+        env:
+          VP_NODE_VERSION: "26.8.2"
+        run: node apps/server/scripts/cli.ts build-exe --verbose
+
+      - name: Build resource monitor
+        run: cargo build --release --locked --manifest-path native/resource-monitor/Cargo.toml
+
+      - name: Package CLI archive
         shell: bash
         run: |
           set -euo pipefail
-          vp run --filter t3 build:bundle
-          vp run --filter @t3tools/web build
-          rm -rf apps/server/dist/client
-          cp -a apps/web/dist apps/server/dist/client
-          runtime_dir="$RUNNER_TEMP/t3-runtime"
-          vp dlx pnpm@11.10.0 --filter t3 deploy --prod --legacy "$runtime_dir"
-          node scripts/rewrite-runtime-manifest.ts "$runtime_dir"
-          mkdir release
-          (
-            cd "$runtime_dir"
-            npm pack --pack-destination "$GITHUB_WORKSPACE/release"
-          )
-          shopt -s nullglob
-          assets=(release/t3-*.tgz)
-          if (( ${#assets[@]} != 1 )); then
-            printf 'Expected one runtime package, found %s.\n' "${#assets[@]}" >&2
-            exit 1
-          fi
-          # Keep the versioned tarball for fork update channel discovery and a
-          # stable rolling name for pinners.
-          cp "${assets[0]}" release/t3-runtime.tgz
+          version="$(node -p 'require("./apps/server/package.json").version')"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-fork\.[0-9]+$ ]]
+          mkdir -p "resource-monitor/linux-${{ matrix.arch }}"
+          cp native/resource-monitor/target/release/t3-resource-monitor "resource-monitor/linux-${{ matrix.arch }}/"
+          node scripts/build-cli-archive.ts \
+            --platform linux \
+            --arch "${{ matrix.arch }}" \
+            --version "$version" \
+            --resource-monitor-dir resource-monitor \
+            --output-dir release
+          node scripts/smoke-cli-archive.ts --archive release/* --expect-version "$version"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: fork-runtime
-          path: release/*.tgz
+          name: fork-runtime-linux-${{ matrix.arch }}
+          path: release/*
           if-no-files-found: error
 
   publish:
@@ -64,17 +72,30 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v6
+
       - uses: actions/download-artifact@v8
         with:
-          name: fork-runtime
+          pattern: fork-runtime-linux-*
           path: release
+          merge-multiple: true
 
-      - name: Publish rolling runtime
+      - name: Publish versioned and rolling releases
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          set -euo pipefail
+          version="$(node -p 'require("./apps/server/package.json").version')"
+          sha256sum release/*.tar.gz | while read -r checksum file; do
+            printf '%s  %s\n' "$checksum" "${file##*/}"
+          done > release/SHA256SUMS
+          if ! gh release view "v$version" >/dev/null 2>&1; then
+            gh release create "v$version" --target "$GITHUB_SHA" --prerelease --title "Fork runtime $version"
+          fi
+          gh release upload "v$version" release/* --clobber
           if ! gh release view fork-runtime >/dev/null 2>&1; then
             gh release create fork-runtime --target "$GITHUB_SHA" --prerelease --title "Fork runtime"
           fi
-          gh release upload fork-runtime release/*.tgz --clobber
+          gh release upload fork-runtime release/* --clobber

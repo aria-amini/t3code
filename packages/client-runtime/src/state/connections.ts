@@ -10,133 +10,179 @@ import type { ConnectionCatalogEntry } from "../connection/catalog.ts";
 import { AVAILABLE_CONNECTION_STATE } from "../connection/model.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import {
-	createAtomCommandScheduler,
-	createRuntimeCommand,
-	followStreamInEnvironment,
+  GitHubRoutingPermissions,
+  type GitHubRoutingPermission,
+  type StoredGitHubRoutingPermission,
+} from "../connection/githubRoutingPermissions.ts";
+import {
+  createAtomCommandScheduler,
+  createRuntimeCommand,
+  followStreamInEnvironment,
 } from "./runtime.ts";
 
 export interface EnvironmentCatalogState {
-	readonly isReady: boolean;
-	readonly entries: ReadonlyMap<EnvironmentIdType, ConnectionCatalogEntry>;
+  readonly isReady: boolean;
+  readonly entries: ReadonlyMap<EnvironmentIdType, ConnectionCatalogEntry>;
+}
+
+/**
+ * Environments that take part in the workspace: projects, threads, and shell
+ * summaries only come from these. Disabled environments stay in `entries` so
+ * Settings can list them and switch them back on.
+ */
+export function* enabledEnvironmentIds(
+  catalog: EnvironmentCatalogState,
+): Generator<EnvironmentIdType> {
+  for (const [environmentId, entry] of catalog.entries) {
+    if (entry.enabled) {
+      yield environmentId;
+    }
+  }
 }
 
 const EMPTY_ENVIRONMENT_CATALOG_STATE: EnvironmentCatalogState = Object.freeze({
-	isReady: false,
-	entries: new Map(),
+  isReady: false,
+  entries: new Map(),
 });
 
 export function createEnvironmentCatalogAtoms<R, E>(
-	runtime: Atom.AtomRuntime<EnvironmentRegistry.EnvironmentRegistry | R, E>,
+  runtime: Atom.AtomRuntime<EnvironmentRegistry.EnvironmentRegistry | R, E>,
 ) {
-	const commandScheduler = createAtomCommandScheduler();
-	const serial = { mode: "serial" as const, key: () => "environment-catalog" };
-	const catalogAtom = runtime.atom(
-		Stream.unwrap(
-			EnvironmentRegistry.EnvironmentRegistry.pipe(
-				Effect.map((registry) =>
-					SubscriptionRef.changes(registry.entries).pipe(
-						Stream.map((entries) => ({
-							isReady: true,
-							entries,
-						})),
-					),
-				),
-			),
-		),
-		{ initialValue: EMPTY_ENVIRONMENT_CATALOG_STATE },
-	);
+  const commandScheduler = createAtomCommandScheduler();
+  const serial = { mode: "serial" as const, key: () => "environment-catalog" };
+  const catalogAtom = runtime.atom(
+    Stream.unwrap(
+      EnvironmentRegistry.EnvironmentRegistry.pipe(
+        Effect.map((registry) =>
+          SubscriptionRef.changes(registry.entries).pipe(
+            Stream.map((entries) => ({
+              isReady: true,
+              entries,
+            })),
+          ),
+        ),
+      ),
+    ),
+    { initialValue: EMPTY_ENVIRONMENT_CATALOG_STATE },
+  );
 
-	const catalogValueAtom = Atom.make((get) =>
-		Option.getOrElse(
-			AsyncResult.value(get(catalogAtom)),
-			() => EMPTY_ENVIRONMENT_CATALOG_STATE,
-		),
-	).pipe(Atom.withLabel("environment-catalog-value"));
+  const catalogValueAtom = Atom.make((get) =>
+    Option.getOrElse(AsyncResult.value(get(catalogAtom)), () => EMPTY_ENVIRONMENT_CATALOG_STATE),
+  ).pipe(Atom.withLabel("environment-catalog-value"));
 
-	const networkStatusAtom = runtime.atom(
-		Stream.unwrap(
-			EnvironmentRegistry.EnvironmentRegistry.pipe(
-				Effect.map((registry) =>
-					SubscriptionRef.changes(registry.networkStatus),
-				),
-			),
-		),
-		{ initialValue: "unknown" as const },
-	);
+  const githubRoutingPermissionsAtom = runtime.atom(
+    Stream.unwrap(GitHubRoutingPermissions.pipe(Effect.map((permissions) => permissions.changes))),
+    { initialValue: [] as ReadonlyArray<StoredGitHubRoutingPermission> },
+  );
+  const githubRoutingPermissionsValueAtom = Atom.make((get) =>
+    Option.getOrElse(AsyncResult.value(get(githubRoutingPermissionsAtom)), () => []),
+  ).pipe(Atom.withLabel("environment-github-routing-permissions"));
+  const setGitHubRoutingPermission = createRuntimeCommand(runtime, {
+    label: "environment-catalog:github-routing-permission",
+    scheduler: commandScheduler,
+    concurrency: serial,
+    execute: Effect.fn(function* (input: {
+      readonly environmentId: EnvironmentIdType;
+      readonly permission: GitHubRoutingPermission;
+    }) {
+      const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+      const entry = (yield* SubscriptionRef.get(registry.entries)).get(input.environmentId);
+      if (entry === undefined)
+        return yield* new EnvironmentRegistry.EnvironmentNotRegisteredError({
+          environmentId: input.environmentId,
+        });
+      const permissions = yield* GitHubRoutingPermissions;
+      yield* permissions.set(entry, input.permission);
+    }),
+  });
 
-	const networkStatusValueAtom = Atom.make((get) =>
-		Option.getOrElse(
-			AsyncResult.value(get(networkStatusAtom)),
-			() => "unknown" as const,
-		),
-	).pipe(Atom.withLabel("environment-network-status-value"));
+  const networkStatusAtom = runtime.atom(
+    Stream.unwrap(
+      EnvironmentRegistry.EnvironmentRegistry.pipe(
+        Effect.map((registry) => SubscriptionRef.changes(registry.networkStatus)),
+      ),
+    ),
+    { initialValue: "unknown" as const },
+  );
 
-	const stateAtom = Atom.family((environmentId: EnvironmentIdType) =>
-		runtime.atom(
-			followStreamInEnvironment(
-				environmentId,
-				Stream.unwrap(
-					EnvironmentSupervisor.EnvironmentSupervisor.pipe(
-						Effect.map((supervisor) =>
-							SubscriptionRef.changes(supervisor.state),
-						),
-					),
-				),
-			),
-			{ initialValue: AVAILABLE_CONNECTION_STATE },
-		),
-	);
+  const networkStatusValueAtom = Atom.make((get) =>
+    Option.getOrElse(AsyncResult.value(get(networkStatusAtom)), () => "unknown" as const),
+  ).pipe(Atom.withLabel("environment-network-status-value"));
 
-	const register = createRuntimeCommand(runtime, {
-		label: "environment-catalog:register",
-		scheduler: commandScheduler,
-		concurrency: serial,
-		execute: (
-			target: Parameters<
-				EnvironmentRegistry.EnvironmentRegistry["Service"]["register"]
-			>[0],
-		) =>
-			EnvironmentRegistry.EnvironmentRegistry.pipe(
-				Effect.flatMap((registry) => registry.register(target)),
-			),
-	});
-	const remove = createRuntimeCommand(runtime, {
-		label: "environment-catalog:remove",
-		scheduler: commandScheduler,
-		concurrency: serial,
-		execute: (environmentId: EnvironmentIdType) =>
-			EnvironmentRegistry.EnvironmentRegistry.pipe(
-				Effect.flatMap((registry) => registry.remove(environmentId)),
-			),
-	});
-	const removeRelayEnvironments = createRuntimeCommand(runtime, {
-		label: "environment-catalog:remove-relay-environments",
-		scheduler: commandScheduler,
-		concurrency: serial,
-		execute: (_input: void) =>
-			EnvironmentRegistry.EnvironmentRegistry.pipe(
-				Effect.flatMap((registry) => registry.removeRelayEnvironments()),
-			),
-	});
-	const retryNow = createRuntimeCommand(runtime, {
-		label: "environment-catalog:retry-now",
-		scheduler: commandScheduler,
-		concurrency: serial,
-		execute: (environmentId: EnvironmentIdType) =>
-			EnvironmentRegistry.EnvironmentRegistry.pipe(
-				Effect.flatMap((registry) => registry.retryNow(environmentId)),
-			),
-	});
+  const stateAtom = Atom.family((environmentId: EnvironmentIdType) =>
+    runtime.atom(
+      followStreamInEnvironment(
+        environmentId,
+        Stream.unwrap(
+          EnvironmentSupervisor.EnvironmentSupervisor.pipe(
+            Effect.map((supervisor) => SubscriptionRef.changes(supervisor.state)),
+          ),
+        ),
+      ),
+      { initialValue: AVAILABLE_CONNECTION_STATE },
+    ),
+  );
 
-	return {
-		catalogAtom,
-		catalogValueAtom,
-		networkStatusAtom,
-		networkStatusValueAtom,
-		stateAtom,
-		register,
-		remove,
-		removeRelayEnvironments,
-		retryNow,
-	};
+  const register = createRuntimeCommand(runtime, {
+    label: "environment-catalog:register",
+    scheduler: commandScheduler,
+    concurrency: serial,
+    execute: (
+      target: Parameters<EnvironmentRegistry.EnvironmentRegistry["Service"]["register"]>[0],
+    ) =>
+      EnvironmentRegistry.EnvironmentRegistry.pipe(
+        Effect.flatMap((registry) => registry.register(target)),
+      ),
+  });
+  const remove = createRuntimeCommand(runtime, {
+    label: "environment-catalog:remove",
+    scheduler: commandScheduler,
+    concurrency: serial,
+    execute: (environmentId: EnvironmentIdType) =>
+      EnvironmentRegistry.EnvironmentRegistry.pipe(
+        Effect.flatMap((registry) => registry.remove(environmentId)),
+      ),
+  });
+  const removeRelayEnvironments = createRuntimeCommand(runtime, {
+    label: "environment-catalog:remove-relay-environments",
+    scheduler: commandScheduler,
+    concurrency: serial,
+    execute: (_input: void) =>
+      EnvironmentRegistry.EnvironmentRegistry.pipe(
+        Effect.flatMap((registry) => registry.removeRelayEnvironments()),
+      ),
+  });
+  const setEnabled = createRuntimeCommand(runtime, {
+    label: "environment-catalog:set-enabled",
+    scheduler: commandScheduler,
+    concurrency: serial,
+    execute: (input: { readonly environmentId: EnvironmentIdType; readonly enabled: boolean }) =>
+      EnvironmentRegistry.EnvironmentRegistry.pipe(
+        Effect.flatMap((registry) => registry.setEnabled(input.environmentId, input.enabled)),
+      ),
+  });
+  const retryNow = createRuntimeCommand(runtime, {
+    label: "environment-catalog:retry-now",
+    scheduler: commandScheduler,
+    concurrency: serial,
+    execute: (environmentId: EnvironmentIdType) =>
+      EnvironmentRegistry.EnvironmentRegistry.pipe(
+        Effect.flatMap((registry) => registry.retryNow(environmentId)),
+      ),
+  });
+
+  return {
+    catalogAtom,
+    catalogValueAtom,
+    githubRoutingPermissionsValueAtom,
+    setGitHubRoutingPermission,
+    networkStatusAtom,
+    networkStatusValueAtom,
+    stateAtom,
+    register,
+    remove,
+    removeRelayEnvironments,
+    retryNow,
+    setEnabled,
+  };
 }

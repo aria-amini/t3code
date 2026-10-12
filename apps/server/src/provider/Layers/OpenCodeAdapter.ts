@@ -359,6 +359,7 @@ interface OpenCodeSessionContext {
   activeVariant: string | undefined;
   cancellation: OpenCodeCancellation | undefined;
   interruptedTurnId: TurnId | undefined;
+  readonly inFlightAgentToolPartIds: Set<string>;
   reconcileIdleStatus: boolean;
   awaitingBusyAfterInterruption: boolean;
   pendingIdleReconciliation: OpenCodeIdleReconciliation | undefined;
@@ -787,6 +788,7 @@ const abortOpenCodeDescendants = Effect.fn("abortOpenCodeDescendants")(function*
 ) {
   const visited = new Set([context.openCodeSessionId]);
   const requestSemaphore = Semaphore.makeUnsafe(8);
+  let abortedCount = 0;
 
   const visit = (
     sessionId: string,
@@ -799,17 +801,19 @@ const abortOpenCodeDescendants = Effect.fn("abortOpenCodeDescendants")(function*
           .withPermit(
             runOpenCodeSdk("session.abort", (signal) =>
               context.client.session.abort({ sessionID: sessionId }, { signal }),
-            ),
+            ).pipe(Effect.as(true)),
           )
           .pipe(
             Effect.catchIf(
               (cause) => isOpenCodeNotFound(cause),
-              () => Effect.void,
+              () => Effect.succeed(false),
             ),
             Effect.result,
           );
         if (abortResult._tag === "Failure") {
           firstFailure = abortResult.failure;
+        } else if (abortResult.success) {
+          abortedCount += 1;
         }
       }
 
@@ -849,6 +853,7 @@ const abortOpenCodeDescendants = Effect.fn("abortOpenCodeDescendants")(function*
   if (firstFailure) {
     return yield* firstFailure;
   }
+  return abortedCount;
 });
 
 const abortOpenCodeSessionForTeardown = Effect.fn("abortOpenCodeSessionForTeardown")(function* (
@@ -2484,6 +2489,13 @@ export function makeOpenCodeAdapter(
 
           if (part.type === "tool") {
             const itemType = toToolLifecycleItemType(part.tool);
+            if (itemType === "collab_agent_tool_call") {
+              if (part.state.status === "completed" || part.state.status === "error") {
+                context.inFlightAgentToolPartIds.delete(part.callID);
+              } else {
+                context.inFlightAgentToolPartIds.add(part.callID);
+              }
+            }
             const title =
               part.state.status === "running" || part.state.status === "completed"
                 ? (part.state.title ?? part.tool)
@@ -3024,6 +3036,7 @@ export function makeOpenCodeAdapter(
           activeVariant: undefined,
           cancellation: undefined,
           interruptedTurnId: undefined,
+          inFlightAgentToolPartIds: new Set(),
           reconcileIdleStatus: false,
           awaitingBusyAfterInterruption: false,
           pendingIdleReconciliation: undefined,
@@ -3178,6 +3191,7 @@ export function makeOpenCodeAdapter(
             : undefined;
           context.pendingIdleReconciliation = undefined;
           const promptGeneration = context.promptGeneration + 1;
+          context.inFlightAgentToolPartIds.clear();
           const promptAdmission: OpenCodePromptAdmission = {
             generation: promptGeneration,
             turnId,
@@ -3634,6 +3648,25 @@ export function makeOpenCodeAdapter(
           completion: Deferred.makeUnsafe<void, ProviderAdapterRequestError>(),
         };
         context.cancellation = cancellation;
+        // While the root waits on an agent tool, Stop cancels descendants and lets the root resume.
+        if (context.inFlightAgentToolPartIds.size > 0) {
+          const exit = yield* abortOpenCodeDescendants(context).pipe(
+            Effect.timeout("10 seconds"),
+            Effect.mapError((cause) => new ProviderAdapterRequestError({
+              provider: PROVIDER, method: "session.abort",
+              detail: "OpenCode subagent cleanup failed.", cause,
+            })),
+            Effect.exit,
+          );
+          if (Exit.isFailure(exit) || exit.value > 0) {
+            if (context.cancellation === cancellation) context.cancellation = undefined;
+            yield* Deferred.succeed(cancellation.acknowledgment, undefined);
+            yield* Deferred.done(cancellation.completion, Exit.asVoid(exit));
+            if (Exit.isFailure(exit)) return yield* Effect.failCause(exit.cause);
+            return;
+          }
+        }
+        context.inFlightAgentToolPartIds.clear();
         const promptAdmission = context.promptAdmission;
         if (promptAdmission !== undefined && promptAdmission.turnId === interruptedTurnId) {
           promptAdmission.cancelled = true;

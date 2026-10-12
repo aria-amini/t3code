@@ -4890,6 +4890,78 @@ it.layer(OpenCodeAdapterTestLayer)("OpenCodeAdapterLive", (it) => {
     }),
   );
 
+  it.effect("stops a busy subagent without aborting the root turn", () => Effect.gen(function* () {
+    const adapter = yield* OpenCodeAdapter;
+    const threadId = asThreadId("thread-scoped-stop");
+    const rootSessionId = "http://127.0.0.1:9999/session";
+    const busyEvent = promiseWithResolvers<unknown>();
+    const toolEvent = promiseWithResolvers<unknown>();
+    const markerEvent = promiseWithResolvers<unknown>();
+    runtimeMock.state.subscribedEvents = [busyEvent.promise, toolEvent.promise, markerEvent.promise];
+    runtimeMock.state.sessionChildrenById.set(rootSessionId, [{ id: "ses_child" }]);
+    const marker = yield* adapter.streamEvents.pipe(
+      Stream.filter((event) => event.threadId === threadId && event.type === "thread.metadata.updated"),
+      Stream.runHead, Effect.forkChild,
+    );
+    yield* adapter.startSession({ provider: ProviderDriverKind.make("opencode"), threadId, runtimeMode: "full-access" });
+    const turn = yield* adapter.sendTurn({ threadId, input: "Run a subagent",
+      modelSelection: createModelSelection(ProviderInstanceId.make("opencode"), "opencode/kimi-k3") });
+    busyEvent.resolve({ type: "session.status", properties: { sessionID: rootSessionId, status: { type: "busy" } } });
+    toolEvent.resolve({ type: "message.part.updated", properties: { sessionID: rootSessionId, time: 1, part: {
+      id: "part-agent", sessionID: rootSessionId, messageID: "msg-agent", type: "tool", tool: "task", callID: "call-agent",
+      state: { status: "running", input: {}, title: "Subagent", time: { start: yield* Clock.currentTimeMillis } },
+    } } });
+    markerEvent.resolve({ type: "session.updated", properties: { info: { id: rootSessionId, title: "Agent tool received" } } });
+    yield* Fiber.join(marker);
+    yield* adapter.interruptTurn(threadId, turn.turnId);
+    NodeAssert.deepEqual(runtimeMock.state.abortCalls, ["ses_child"]);
+    const session = (yield* adapter.listSessions()).find((entry) => entry.threadId === threadId);
+    NodeAssert.equal(session?.status, "running");
+    NodeAssert.equal(session?.activeTurnId, turn.turnId);
+    yield* adapter.stopSession(threadId);
+  }));
+
+  it.effect("stops the root when an agent task is pending without a child", () =>
+    Effect.gen(function* () {
+      const adapter = yield* OpenCodeAdapter;
+      const threadId = asThreadId("thread-pending-agent-stop");
+      const rootSessionId = "http://127.0.0.1:9999/session";
+      const toolEvent = promiseWithResolvers<unknown>();
+      const markerEvent = promiseWithResolvers<unknown>();
+      runtimeMock.state.subscribedEvents = [toolEvent.promise, markerEvent.promise];
+      const marker = yield* adapter.streamEvents.pipe(
+        Stream.filter((event) => event.threadId === threadId && event.type === "thread.metadata.updated"),
+        Stream.runHead,
+        Effect.forkChild,
+      );
+      yield* adapter.startSession({
+        provider: ProviderDriverKind.make("opencode"), threadId, runtimeMode: "full-access",
+      });
+      const turn = yield* adapter.sendTurn({
+        threadId, input: "Start a task",
+        modelSelection: createModelSelection(ProviderInstanceId.make("opencode"), "opencode/kimi-k3"),
+      });
+      toolEvent.resolve({
+        type: "message.part.updated",
+        properties: { sessionID: rootSessionId, time: 1, part: {
+          id: "part-pending", sessionID: rootSessionId, messageID: "msg-pending",
+          type: "tool", tool: "task", callID: "call-pending",
+          state: { status: "pending", input: {}, raw: "" },
+        } },
+      });
+      markerEvent.resolve({
+        type: "session.updated",
+        properties: { info: { id: rootSessionId, title: "Pending task received" } },
+      });
+      yield* Fiber.join(marker);
+      yield* adapter.interruptTurn(threadId, turn.turnId);
+      NodeAssert.deepEqual(runtimeMock.state.abortCalls, [rootSessionId]);
+      const session = (yield* adapter.listSessions()).find((entry) => entry.threadId === threadId);
+      NodeAssert.equal(session?.activeTurnId, undefined);
+      yield* adapter.stopSession(threadId);
+    }),
+  );
+
   it.effect("stops the full OpenCode child tree before it completes the interrupt", () =>
     Effect.gen(function* () {
       const adapter = yield* OpenCodeAdapter;

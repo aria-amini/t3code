@@ -155,13 +155,14 @@ export const request = Effect.fn("EnvironmentRpc.request")(function* <
 export function runStream<TTag extends EnvironmentStreamCommandRpcTag>(
   tag: TTag,
   input: EnvironmentRpcInput<TTag>,
+  session?: RpcSession,
 ): Stream.Stream<
   EnvironmentRpcStreamValue<TTag>,
   EnvironmentRpcStreamFailure<TTag> | EnvironmentRpcUnavailableError,
   EnvironmentSupervisor
 > {
   return Stream.unwrap(
-    currentSession().pipe(
+    (session === undefined ? currentSession() : Effect.succeed(session)).pipe(
       Effect.map((session) => {
         const method = session.client[tag] as (
           input: EnvironmentRpcInput<TTag>,

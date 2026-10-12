@@ -423,6 +423,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["git submodule init recursive top-level none worktree t3.json"],
   },
   {
+    id: "version-control-system",
+    title: "Version control system",
+    to: "/settings/source-control",
+    scope: "project-defaults",
+    searchTerms: ["git jujutsu jj bookmarks commits workspace source control"],
+  },
+  {
     id: "start-from-origin",
     title: "Start from origin",
     to: "/settings/general",

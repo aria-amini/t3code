@@ -1,3 +1,5 @@
+// @effect-diagnostics nodeBuiltinImport:off
+import * as NodeChildProcess from "node:child_process";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
@@ -1116,3 +1118,208 @@ it.effect("GitVcsDriver flushes checkpoint objects and refs to disk before publi
     ),
   );
 });
+
+process.env.JJ_USER ??= "T3 Tests";
+process.env.JJ_EMAIL ??= "t3-tests@example.com";
+
+const jjBinaryAvailable = (() => {
+  try {
+    NodeChildProcess.execFileSync("jj", ["--version"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+})();
+
+const itJj = it.effect.skipIf(!jjBinaryAvailable);
+
+const DriverShapeLayer = VcsProcess.layer.pipe(Layer.provideMerge(NodeServices.layer));
+
+const makeColocatedRepo = Effect.gen(function* () {
+  const fileSystem = yield* FileSystem.FileSystem;
+  const root = yield* fileSystem.makeTempDirectoryScoped({
+    prefix: "t3-git-vcs-colocated-",
+  });
+  yield* Effect.sync(() => {
+    NodeChildProcess.execFileSync("jj", ["git", "init", "--colocate"], {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+  });
+  return root;
+});
+
+itJj(
+  "git driver manages jj workspaces in colocated repositories",
+  () =>
+    Effect.gen(function* () {
+      const root = yield* makeColocatedRepo;
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const driver = yield* GitVcsDriver.makeVcsDriverShape();
+      const { createWorkspace, listWorkspaces, removeWorkspace } = driver;
+      if (!createWorkspace || !listWorkspaces || !removeWorkspace) {
+        throw new Error("colocated git driver is missing jj workspace ops");
+      }
+      const workspacePath = path.join(root, "siblings", "agent");
+
+      const created = yield* createWorkspace({
+        cwd: root,
+        name: "agent",
+        path: workspacePath,
+      });
+      assert.equal(created.name, "agent");
+      assert.isTrue(yield* fileSystem.exists(path.join(workspacePath, ".jj")));
+
+      const listed = yield* listWorkspaces(root);
+      assert.deepEqual(
+        listed.workspaces.map((workspace) => workspace.name).sort(),
+        ["agent", "default"],
+      );
+
+      yield* removeWorkspace({ cwd: root, name: "agent", deleteDirectory: true });
+      assert.isFalse(yield* fileSystem.exists(workspacePath));
+    }).pipe(Effect.provide(DriverShapeLayer)),
+);
+
+itJj("creates thread worktrees as branch-attached jj workspaces", () => Effect.gen(function* () {
+  const root = yield* makeColocatedRepo;
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  yield* Effect.sync(() => NodeChildProcess.execFileSync("jj", ["bookmark", "create", "main", "-r", "@"], { cwd: root }));
+  const driver = yield* GitVcsDriver.make.pipe(Effect.provide(ServerConfig.layerTest(root, { prefix: "t3-jj-worktree-test-" })));
+  const workspacePath = path.join(root, "siblings", "thread space");
+  yield* driver.listRefs({ cwd: root });
+  const created = yield* driver.createWorktree({ cwd: root, refName: "main", newRefName: "thread", path: workspacePath });
+  assert.equal(created.worktree.refName, "thread");
+  assert.include((yield* driver.listRefs({ cwd: root })).refs.map((ref) => ref.name), "thread");
+  assert.isTrue(yield* fs.exists(path.join(workspacePath, ".jj")));
+  assert.equal((yield* driver.execute({ operation: "test", cwd: workspacePath,
+    args: ["symbolic-ref", "--short", "HEAD"] })).stdout.trim(), "thread");
+  yield* driver.removeWorktree({ cwd: root, path: workspacePath });
+  assert.isFalse(yield* fs.exists(workspacePath));
+}).pipe(Effect.provide(DriverShapeLayer)));
+
+itJj("preserves dirty jj workspaces and rejects main-workspace removal", () =>
+  Effect.gen(function* () {
+    const root = yield* makeColocatedRepo;
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const driver = yield* GitVcsDriver.make.pipe(
+      Effect.provide(ServerConfig.layerTest(root, { prefix: "t3-jj-removal-" })),
+    );
+    NodeChildProcess.execFileSync("jj", ["bookmark", "create", "main", "-r", "@"], { cwd: root });
+    const workspacePath = path.join(root, "siblings", "dirty");
+    yield* driver.createWorktree({
+      cwd: root, refName: "main", newRefName: "dirty", path: workspacePath,
+    });
+    yield* fs.writeFileString(path.join(workspacePath, "new.txt"), "keep me\n");
+    const dirtyError = yield* driver.removeWorktree({
+      cwd: root, path: workspacePath, force: false,
+    }).pipe(Effect.flip);
+    assert.equal(dirtyError._tag, "GitCommandError");
+    assert.equal(yield* fs.readFileString(path.join(workspacePath, "new.txt")), "keep me\n");
+    const mainError = yield* driver.removeWorktree({
+      cwd: root, path: root, force: true,
+    }).pipe(Effect.flip);
+    assert.equal(mainError._tag, "GitCommandError");
+    assert.isTrue(yield* fs.exists(path.join(root, ".jj")));
+    yield* driver.removeWorktree({ cwd: root, path: workspacePath, force: true });
+    assert.isFalse(yield* fs.exists(workspacePath));
+  }).pipe(Effect.provide(DriverShapeLayer)),
+);
+
+itJj("removes ordinary Git worktrees from colocated repositories", () =>
+  Effect.gen(function* () {
+    const root = yield* makeColocatedRepo;
+    NodeChildProcess.execFileSync("jj", ["bookmark", "create", "main", "-r", "@"], { cwd: root });
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const driver = yield* GitVcsDriver.make.pipe(
+      Effect.provide(ServerConfig.layerTest(root, { prefix: "t3-jj-legacy-" })),
+    );
+    const workspacePath = path.join(root, "siblings", "legacy");
+    yield* driver.execute({ operation: "test", cwd: root, args: ["checkout", "main"] });
+    const created = yield* driver.execute({
+      operation: "test", cwd: root,
+      args: ["worktree", "add", "-b", "legacy", workspacePath, "main"],
+      allowNonZeroExit: true,
+    });
+    assert.equal(created.exitCode, 0, created.stderr);
+    yield* driver.removeWorktree({ cwd: root, path: workspacePath });
+    assert.isFalse(yield* fs.exists(workspacePath));
+  }).pipe(Effect.provide(DriverShapeLayer)),
+);
+
+itJj("detects jj from nested projects and applies submodule settings", () =>
+  Effect.gen(function* () {
+    const root = yield* makeColocatedRepo;
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    yield* fs.makeDirectory(path.join(root, "src"));
+    yield* fs.writeFileString(path.join(root, "src", "index.ts"), "export {};\n");
+    yield* fs.writeFileString(
+      path.join(root, ".gitmodules"),
+      '[submodule "shared"]\n\tpath = shared\n\turl = /missing\n',
+    );
+    NodeChildProcess.execFileSync("jj", ["bookmark", "create", "main", "-r", "@"], { cwd: root });
+    const driver = yield* GitVcsDriver.make.pipe(
+      Effect.provide(ServerConfig.layerTest(root, { prefix: "t3-jj-nested-" })),
+    );
+    const workspacePath = path.join(root, "siblings", "nested");
+    let disabled = false;
+    yield* driver.createWorktree({
+      cwd: path.join(root, "src"), refName: "main", newRefName: "nested", path: workspacePath,
+    }, {
+      submodules: "none",
+      progress: { onSubmodulesDisabled: () => Effect.sync(() => { disabled = true; }) },
+    });
+    assert.isTrue(yield* fs.exists(path.join(workspacePath, ".jj")));
+    assert.isTrue(disabled);
+    yield* driver.removeWorktree({ cwd: path.join(root, "src"), path: workspacePath });
+  }).pipe(Effect.provide(DriverShapeLayer)),
+);
+
+itJj("keeps detached Git status separate from ancestor jj bookmarks", () =>
+  Effect.gen(function* () {
+    const root = yield* makeColocatedRepo;
+    NodeChildProcess.execFileSync("jj", ["bookmark", "create", "main", "other", "-r", "@"], {
+      cwd: root,
+    });
+    NodeChildProcess.execFileSync("jj", ["new"], { cwd: root });
+    const driver = yield* GitVcsDriver.make.pipe(
+      Effect.provide(ServerConfig.layerTest(root, { prefix: "t3-jj-status-" })),
+    );
+    const status = yield* driver.statusDetailsLocal(root);
+    assert.equal(status.branch, null);
+  }).pipe(Effect.provide(DriverShapeLayer)),
+);
+
+it.effect(
+  "git driver rejects jj workspace ops outside colocated repositories",
+  () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "t3-git-vcs-plain-",
+      });
+      const driver = yield* GitVcsDriver.makeVcsDriverShape();
+      const createWorkspace = driver.createWorkspace;
+      if (!createWorkspace) {
+        throw new Error("git driver is missing jj workspace ops");
+      }
+
+      const error = yield* createWorkspace({
+        cwd: root,
+        name: "agent",
+        path: path.join(root, "wt"),
+      }).pipe(Effect.flip);
+
+      assert.equal(error._tag, "VcsUnsupportedOperationError");
+    }).pipe(Effect.provide(DriverShapeLayer)),
+);

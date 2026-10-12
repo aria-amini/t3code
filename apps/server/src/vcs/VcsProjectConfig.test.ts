@@ -6,6 +6,10 @@ import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 import * as Path from "effect/Path";
 
+import { ProjectId } from "@t3tools/contracts";
+import * as ProjectionSnapshotQuery from "../orchestration/Services/ProjectionSnapshotQuery.ts";
+import * as ServerSettings from "../serverSettings.ts";
+import * as VcsProcess from "./VcsProcess.ts";
 import * as VcsProjectConfig from "./VcsProjectConfig.ts";
 
 const TestLayer = VcsProjectConfig.layer.pipe(
@@ -205,5 +209,69 @@ describe("VcsProjectConfig", () => {
         assert.equal(kind, "auto");
       }),
     );
+  });
+
+  describe("matches thread workspaces to nested projects", () => {
+    const sourceProject = ProjectId.make("project-src");
+    const docsProject = ProjectId.make("project-docs");
+    const git = (cwd: string, ...args: Array<string>) =>
+      Effect.gen(function* () {
+        const vcsProcess = yield* VcsProcess.VcsProcess;
+        return yield* vcsProcess.run({
+          operation: "VcsProjectConfig.test.git", command: "git", cwd,
+          args: ["-c", "user.name=t3", "-c", "user.email=t3@example.com", ...args],
+        });
+      });
+
+    const resolveInWorkspace = (projectDirectories: ReadonlyArray<string>, relativeCwd: string) =>
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const root = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-vcs-workspace-test-" });
+        const repo = path.join(root, "repo");
+        const workspace = path.join(root, "workspace");
+        for (const directory of ["src", "docs"]) {
+          yield* fileSystem.makeDirectory(path.join(repo, directory), { recursive: true });
+          yield* fileSystem.writeFileString(path.join(repo, directory, "README.md"), directory);
+        }
+        yield* git(root, "init", "--quiet", repo);
+        yield* git(repo, "add", ".");
+        yield* git(repo, "commit", "--quiet", "-m", "init");
+        yield* git(repo, "worktree", "add", "--quiet", "--detach", workspace);
+
+        const projects = projectDirectories.map((directory) => ({
+          id: directory === "src" ? sourceProject : docsProject,
+          workspaceRoot: path.join(repo, directory),
+        }));
+        const config = yield* VcsProjectConfig.make.pipe(
+          Effect.provide(Layer.mergeAll(
+            ServerSettings.layerTest({
+              projectSettingsOverrides: { [sourceProject]: { versionControlSystem: "jj" } },
+            }),
+            Layer.succeed(ProjectionSnapshotQuery.ProjectionSnapshotQuery, {
+              getProjectShells: () => Effect.succeed(projects),
+            } as unknown as ProjectionSnapshotQuery.ProjectionSnapshotQuery["Service"]),
+          )),
+        );
+        return yield* config.resolveKind({ cwd: path.join(workspace, relativeCwd) });
+      }).pipe(Effect.provide(VcsProcess.layer));
+
+    it.layer(NodeServices.layer)("resolves the project setting", (it) => {
+      it.effect("uses the only nested project from the workspace root", () =>
+        Effect.gen(function* () {
+          assert.equal(yield* resolveInWorkspace(["src"], ""), "jj");
+        }),
+      );
+      it.effect("uses the project that contains the mapped workspace path", () =>
+        Effect.gen(function* () {
+          assert.equal(yield* resolveInWorkspace(["src", "docs"], "src"), "jj");
+        }),
+      );
+      it.effect("falls back to the environment when nested projects are ambiguous", () =>
+        Effect.gen(function* () {
+          assert.equal(yield* resolveInWorkspace(["src", "docs"], ""), "git");
+        }),
+      );
+    });
   });
 });

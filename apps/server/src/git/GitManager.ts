@@ -1983,6 +1983,7 @@ export const make = Effect.gen(function* () {
         : null;
     const { commitSha } = yield* gitCore.commit(cwd, suggestion.subject, suggestion.body, {
       timeoutMs: COMMIT_TIMEOUT_MS,
+      ...(filePaths ? { filePaths } : {}),
       ...(commitProgress ? { progress: commitProgress } : {}),
     });
     if (currentHookName !== null) {
@@ -2684,6 +2685,13 @@ export const make = Effect.gen(function* () {
           phases,
         });
 
+        if (!input.featureBranch && wantsCommit && !initialStatus.branch) {
+          return yield* new GitManagerError({
+            operation: "runStackedAction",
+            cwd: input.cwd,
+            detail: "Cannot commit from detached HEAD.",
+          });
+        }
         if (!input.featureBranch && wantsPush && !initialStatus.branch) {
           return yield* new GitManagerError({
             operation: "runStackedAction",

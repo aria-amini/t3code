@@ -79,6 +79,7 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
   const mixedSubmodules = useScopedSettingsMixed(["worktreeSubmodules"]);
   const mixedBrowser = useScopedSettingsMixed(["enableAgentBrowserAccess"]);
   const mixedAutoPull = useScopedSettingsMixed(["defaultAutoPull"]);
+  const mixedVcs = useScopedSettingsMixed(["versionControlSystem"]);
   const mixedMergeMethod = useScopedSettingsMixed(["pullRequestMergeMethod"]);
   const modelSource = useScopedSettingSource(["defaultModelSelection"]);
   const isProjectScope = scope.kind === "project" || scope.kind === "checkout";
@@ -383,6 +384,33 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
         </>
       ) : category === "source-control" ? (
         <>
+          <SettingsRow
+            serverScoped
+            settingKeys={["versionControlSystem"]}
+            mixed={mixedVcs}
+            {...searchableSetting("version-control-system")}
+            description="Choose the tool for source-control actions. Jujutsu requires a colocated repository initialized with jj git init --colocate."
+            resetAction={settings.versionControlSystem !== "git" ? (
+              <SettingResetButton label="version control system" onClick={() => updateSettings({ versionControlSystem: "git" })} />
+            ) : null}
+            control={
+              <Select
+                value={mixedVcs ? null : settings.versionControlSystem}
+                disabled={unavailable}
+                onValueChange={(value) => {
+                  if (value === "git" || value === "jj") updateSettings({ versionControlSystem: value });
+                }}
+              >
+                <SelectTrigger size="sm" aria-label="Version control system">
+                  <SelectValue>{mixedVcs ? "Mixed" : settings.versionControlSystem === "jj" ? "Jujutsu" : "Git"}</SelectValue>
+                </SelectTrigger>
+                <SelectPopup align="end" alignItemWithTrigger={false}>
+                  <SelectItem value="git">Git</SelectItem>
+                  <SelectItem value="jj">Jujutsu</SelectItem>
+                </SelectPopup>
+              </Select>
+            }
+          />
           <SettingsRow
             serverScoped
             settingKeys={["defaultAutoPull"]}

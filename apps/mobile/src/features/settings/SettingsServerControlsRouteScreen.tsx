@@ -47,7 +47,7 @@ const PAGE_TITLES: Record<SettingsPage, string> = {
 
 const PAGE_PROJECT_KEYS: Record<SettingsPage, readonly ProjectScopedServerSettingKey[]> = {
   "new-threads": ["defaultThreadEnvMode", "worktreeSubmodules", "defaultRuntimeMode"],
-  "source-control": ["defaultAutoPull", "newWorktreesStartFromOrigin"],
+  "source-control": ["versionControlSystem", "defaultAutoPull", "newWorktreesStartFromOrigin"],
   "agent-behavior": ["responseStreamingMode", "enableAgentBrowserAccess"],
   maintenance: ["continueThreadsAfterServerUpdate"],
 };
@@ -325,6 +325,29 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
 
               {props.page === "source-control" ? (
                 <>
+                  <SettingsSection
+                    title="Version control system"
+                    trailing={pendingWrites === 0 && isMixed("versionControlSystem") ? (
+                      <MixedValuesLabel projectSelected={projectSelected} />
+                    ) : null}
+                  >
+                    <ChoiceRow
+                      label="Git"
+                      description="Use Git for source-control actions."
+                      separated={false}
+                      selected={uniform("versionControlSystem") === "git"}
+                      disabled={disabledFor("versionControlSystem")}
+                      onPress={() => write({ versionControlSystem: "git" })}
+                    />
+                    <ChoiceRow
+                      label="Jujutsu"
+                      description="Use jj bookmarks and workspaces. Initialize the repository with jj git init --colocate first."
+                      selected={uniform("versionControlSystem") === "jj"}
+                      separated
+                      disabled={disabledFor("versionControlSystem")}
+                      onPress={() => write({ versionControlSystem: "jj" })}
+                    />
+                  </SettingsSection>
                   <SettingsSection title="Default branch">
                     <FanoutSwitchRow
                       icon="arrow.down.circle"

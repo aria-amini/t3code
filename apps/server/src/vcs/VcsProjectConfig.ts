@@ -8,6 +8,10 @@ import * as Schema from "effect/Schema";
 
 import { VcsDriverKind, type VcsDriverKind as VcsDriverKindType } from "@t3tools/contracts";
 import { fromLenientJson } from "@t3tools/shared/schemaJson";
+import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
+import * as ServerSettings from "../serverSettings.ts";
+import * as ProjectionSnapshotQuery from "../orchestration/Services/ProjectionSnapshotQuery.ts";
+import * as VcsProcess from "./VcsProcess.ts";
 
 const ProjectVcsConfig = Schema.Struct({
   vcs: Schema.optional(
@@ -68,6 +72,9 @@ const logVcsProjectConfigError = (error: VcsProjectConfigError) =>
 export const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
+  const settingsService = yield* Effect.serviceOption(ServerSettings.ServerSettingsService);
+  const projectionQuery = yield* Effect.serviceOption(ProjectionSnapshotQuery.ProjectionSnapshotQuery);
+  const vcsProcess = yield* Effect.serviceOption(VcsProcess.VcsProcess);
 
   const findConfigPath = Effect.fn("VcsProjectConfig.findConfigPath")(function* (cwd: string) {
     let current = cwd;
@@ -135,7 +142,7 @@ export const make = Effect.gen(function* () {
       return input.requestedKind;
     }
 
-    return yield* findConfigPath(input.cwd).pipe(
+    const configured = yield* findConfigPath(input.cwd).pipe(
       Effect.flatMap(
         Option.match({
           onNone: () => Effect.succeed("auto" as const),
@@ -147,6 +154,36 @@ export const make = Effect.gen(function* () {
           logVcsProjectConfigError(error).pipe(Effect.as("auto" as const)),
       }),
     );
+    if (configured !== "auto" || Option.isNone(settingsService)) return configured;
+    const settings = yield* settingsService.value.getSettings.pipe(Effect.orElseSucceed(() => null));
+    if (!settings) return "auto";
+    const cwd = path.resolve(input.cwd);
+    let checkoutCwd = cwd;
+    if (Option.isSome(vcsProcess)) {
+      const result = yield* vcsProcess.value.run({
+        operation: "VcsProjectConfig.checkoutRoots", command: "git", cwd: input.cwd,
+        args: ["rev-parse", "--path-format=absolute", "--git-common-dir", "--show-toplevel"],
+        allowNonZeroExit: true, timeoutMs: 5_000, maxOutputBytes: 16_000,
+      }).pipe(Effect.orElseSucceed(() => null));
+      const [commonDir, workspaceRoot] = result?.exitCode === 0 ? result.stdout.trim().split("\n") : [];
+      // Thread workspaces live outside the main checkout, so project roots only match after mapping.
+      if (commonDir && workspaceRoot) {
+        checkoutCwd = path.join(path.dirname(commonDir), path.relative(workspaceRoot, cwd));
+      }
+    }
+    const projects = Option.isSome(projectionQuery)
+      ? yield* projectionQuery.value.getProjectShells().pipe(Effect.orElseSucceed(() => []))
+      : [];
+    const isWithin = (child: string, parent: string) =>
+      child === parent || child.startsWith(parent + path.sep);
+    const containing = projects.filter((entry) => {
+      const root = path.resolve(entry.workspaceRoot);
+      return isWithin(cwd, root) || isWithin(checkoutCwd, root);
+    }).sort((a, b) => b.workspaceRoot.length - a.workspaceRoot.length);
+    // A workspace root above nested projects belongs to a project only when exactly one candidate exists.
+    const nested = projects.filter((entry) => isWithin(path.resolve(entry.workspaceRoot), checkoutCwd));
+    const project = containing[0] ?? (nested.length === 1 ? nested[0] : undefined);
+    return resolveProjectSettings(settings, project?.id ?? null).settings.versionControlSystem;
   });
 
   return VcsProjectConfig.of({

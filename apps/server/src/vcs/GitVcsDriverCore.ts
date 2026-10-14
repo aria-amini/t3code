@@ -2410,6 +2410,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
 
   const getReviewDiffPreview = Effect.fn("getReviewDiffPreview")(function* (
     input: ReviewDiffPreviewInput,
+    options?: { readonly branch?: string | null },
   ) {
     const pathArgs = input.file
       ? [input.file.path, ...(input.file.previousPath ? [input.file.previousPath] : [])].map(
@@ -2434,7 +2435,8 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     }
 
     const cwd = repository.worktreeRoot;
-    const branch = repository.currentBranch;
+    // A colocated jj workspace leaves Git HEAD detached, so its driver supplies the active bookmark.
+    const branch = options?.branch ?? repository.currentBranch;
     const baseRef =
       input.baseRef ??
       (branch
@@ -2543,7 +2545,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         readDirty,
         readTrackedDiff(
           baseRef && branch && input.file?.sourceKind !== "working-tree"
-            ? `${baseRef}...HEAD`
+            ? `${baseRef}...${options?.branch ?? "HEAD"}`
             : null,
         ),
       ],

@@ -322,7 +322,8 @@ export class GitVcsDriver extends Context.Service<
     ) => Effect.Effect<GitRangeContext, GitCommandError>;
     readonly getReviewDiffPreview: (
       input: ReviewDiffPreviewInput,
-    ) => Effect.Effect<ReviewDiffPreviewResult, GitCommandError>;
+      options?: { readonly branch?: string | null },
+    ) =>Effect.Effect<ReviewDiffPreviewResult, GitCommandError>;
     readonly getReviewDiffFileContents: (
       input: ReviewDiffFileContentsInput,
     ) => Effect.Effect<ReviewDiffFileContentsResult, GitCommandError>;
@@ -1380,6 +1381,7 @@ export const make = Effect.gen(function* () {
     statusDetails: (cwd) => route(cwd, compatibility.statusDetails(cwd), jj.statusDetails(cwd)),
     statusDetailsLocal: (cwd) => route(cwd, compatibility.statusDetailsLocal(cwd), jj.statusDetailsLocal(cwd)),
     statusDetailsRemote: (cwd, options) => route(cwd, compatibility.statusDetailsRemote(cwd, options), jj.statusDetailsRemote(cwd, options)),
+    getReviewDiffPreview: (input, options) => route(input.cwd, compatibility.getReviewDiffPreview(input, options), jj.getReviewDiffPreview(input, options)),
     prepareCommitContext: (cwd, paths) => route(cwd, compatibility.prepareCommitContext(cwd, paths), jj.prepareCommitContext(cwd, paths)),
     commit: (cwd, subject, body, options) => route(cwd, compatibility.commit(cwd, subject, body, options), jj.commit(cwd, subject, body, options)),
     pushCurrentBranch: (cwd, fallback, options) => route(cwd, compatibility.pushCurrentBranch(cwd, fallback, options), jj.pushCurrentBranch(cwd, fallback, options)),

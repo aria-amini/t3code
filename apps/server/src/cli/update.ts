@@ -2,6 +2,7 @@ import * as HostProcess from "@t3tools/shared/HostProcess";
 import {
   CLI_RELEASE_BASE_URL_ENV,
   CLI_RELEASE_CHANNELS,
+  cliArchivePlatformKey,
   cliReleaseIndexPageUrl,
   cliReleaseChannelOf,
   newestCliReleaseVersion,
@@ -20,6 +21,7 @@ import { FetchHttpClient, HttpClient, HttpClientRequest, HttpClientResponse } fr
 
 import packageJson from "../../package.json" with { type: "json" };
 import * as BootService from "../cloud/bootService.ts";
+import { latestForkUpdateVersion } from "../cloud/forkRuntimeChannel.ts";
 import {
   ensurePinnedRuntimeInstalled,
   launcherOwnsVersionsDir,
@@ -88,6 +90,40 @@ export const resolveNewestVersion = Effect.fn("cli.update.resolve_newest")(funct
     if (releases.length === 0) break;
   }
   return yield* new CliUpdateError({ reason: `No published ${channel} release was found.` });
+});
+
+export const resolveUpdateVersion = Effect.fn("cli.update.resolve_version")(function* (input: {
+  readonly currentVersion: string;
+  readonly requestedVersion?: string;
+  readonly channel?: CliReleaseChannel;
+}) {
+  if (input.requestedVersion !== undefined) return input.requestedVersion;
+  if (input.channel === undefined && input.currentVersion.includes("-fork.")) {
+    const platform = yield* HostProcess.Platform;
+    const arch = yield* HostProcess.Architecture;
+    const key = cliArchivePlatformKey(platform, arch);
+    if (!key)
+      return yield* new CliUpdateError({
+        reason: "No fork runtime supports this platform.",
+      });
+    const version = yield* latestForkUpdateVersion(
+      input.currentVersion.split("-", 1)[0]!,
+      key,
+    ).pipe(
+      Effect.mapError(
+        () =>
+          new CliUpdateError({
+            reason: "Could not list fork runtime releases.",
+          }),
+      ),
+    );
+    if (!version)
+      return yield* new CliUpdateError({
+        reason: "No published fork runtime was found.",
+      });
+    return version;
+  }
+  return yield* resolveNewestVersion(input.channel ?? cliReleaseChannelOf(input.currentVersion));
 });
 
 /**
@@ -311,7 +347,6 @@ const runUpdate = Effect.fn("cli.update.run")(function* (input: {
   const service = yield* BootService.BootService;
 
   const currentVersion = packageJson.version;
-  const channel = input.channel ?? cliReleaseChannelOf(currentVersion);
   if (input.requestedVersion !== undefined && !isExactServiceVersion(input.requestedVersion)) {
     return yield* new CliUpdateError({
       reason: `'${input.requestedVersion}' is not an exact t3 version.`,
@@ -319,11 +354,11 @@ const runUpdate = Effect.fn("cli.update.run")(function* (input: {
   }
   const progress = createUpdateProgress();
   progress.status("Checking for updates...");
-  const targetVersion = yield* (
-    input.requestedVersion === undefined
-      ? resolveNewestVersion(channel)
-      : Effect.succeed(input.requestedVersion)
-  ).pipe(Effect.ensuring(Effect.sync(progress.finish)));
+  const targetVersion = yield* resolveUpdateVersion({
+    currentVersion,
+    ...(input.channel === undefined ? {} : { channel: input.channel }),
+    ...(input.requestedVersion === undefined ? {} : { requestedVersion: input.requestedVersion }),
+  }).pipe(Effect.ensuring(Effect.sync(progress.finish)));
   const targetChannel = cliReleaseChannelOf(targetVersion);
 
   const currentChannel = cliReleaseChannelOf(currentVersion);

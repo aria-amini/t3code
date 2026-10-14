@@ -1153,6 +1153,19 @@ const makeColocatedRepo = Effect.gen(function* () {
   return root;
 });
 
+// Colocated repositories use jj unless `.t3code/vcs.json` pins git.
+const pinGit = (root: string) =>
+  Effect.gen(function* () {
+    const fileSystem = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    yield* fileSystem.makeDirectory(path.join(root, ".t3code"), { recursive: true });
+    yield* fileSystem.writeFileString(
+      path.join(root, ".t3code", "vcs.json"),
+      // @effect-diagnostics-next-line preferSchemaOverJson:off
+      JSON.stringify({ vcs: { kind: "git" } }),
+    );
+  });
+
 itJj(
   "git driver manages jj workspaces in colocated repositories",
   () =>
@@ -1188,6 +1201,7 @@ itJj(
 
 itJj("creates thread worktrees as branch-attached jj workspaces", () => Effect.gen(function* () {
   const root = yield* makeColocatedRepo;
+  yield* pinGit(root);
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   yield* Effect.sync(() => NodeChildProcess.execFileSync("jj", ["bookmark", "create", "main", "-r", "@"], { cwd: root }));
@@ -1287,6 +1301,7 @@ itJj("detects jj from nested projects and applies submodule settings", () =>
 itJj("keeps detached Git status separate from ancestor jj bookmarks", () =>
   Effect.gen(function* () {
     const root = yield* makeColocatedRepo;
+    yield* pinGit(root);
     NodeChildProcess.execFileSync("jj", ["bookmark", "create", "main", "other", "-r", "@"], {
       cwd: root,
     });

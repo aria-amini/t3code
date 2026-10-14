@@ -106,6 +106,24 @@ export const make = Effect.gen(function* () {
     }
   });
 
+  // A colocated jj repository (`.jj` beside `.git`) means jj, whatever the saved setting says; the
+  // nearest repository root decides, so a plain git repository nested inside one stays git.
+  const hasColocatedJj = Effect.fn("VcsProjectConfig.hasColocatedJj")(function* (cwd: string) {
+    const exists = (candidate: string) =>
+      fileSystem.exists(candidate).pipe(Effect.orElseSucceed(() => false));
+    let current = path.resolve(cwd);
+    while (true) {
+      const [jj, git] = yield* Effect.all([
+        exists(path.join(current, ".jj")),
+        exists(path.join(current, ".git")),
+      ]);
+      if (jj || git) return jj && git;
+      const parent = path.dirname(current);
+      if (parent === current) return false;
+      current = parent;
+    }
+  });
+
   const readConfiguredKind = Effect.fn("VcsProjectConfig.readConfiguredKind")(function* (
     cwd: string,
     configPath: string,
@@ -154,7 +172,9 @@ export const make = Effect.gen(function* () {
           logVcsProjectConfigError(error).pipe(Effect.as("auto" as const)),
       }),
     );
-    if (configured !== "auto" || Option.isNone(settingsService)) return configured;
+    if (configured !== "auto") return configured;
+    if (yield* hasColocatedJj(input.cwd)) return "jj";
+    if (Option.isNone(settingsService)) return configured;
     const settings = yield* settingsService.value.getSettings.pipe(Effect.orElseSucceed(() => null));
     if (!settings) return "auto";
     const cwd = path.resolve(input.cwd);

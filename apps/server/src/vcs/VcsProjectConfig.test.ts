@@ -101,6 +101,44 @@ describe("VcsProjectConfig", () => {
     });
   });
 
+  it.layer(TestLayer)("uses jj for colocated repositories", (it) => {
+    it.effect("detects the nearest repository root, and lets vcs.json pin git", () =>
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const mkdirs = (...dirs: string[]) =>
+          Effect.forEach(dirs, (dir) => fileSystem.makeDirectory(dir, { recursive: true }));
+        const root = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-vcs-config-test-" });
+        const nested = path.join(root, "packages", "app");
+        const gitOnlyInside = path.join(root, "vendor", "lib");
+        const jjOnly = path.join(root, "jj-only");
+        yield* mkdirs(
+          path.join(root, ".jj"),
+          path.join(root, ".git"),
+          nested,
+          path.join(gitOnlyInside, ".git"),
+          path.join(jjOnly, ".jj"),
+        );
+
+        const config = yield* VcsProjectConfig.VcsProjectConfig;
+        assert.equal(yield* config.resolveKind({ cwd: root }), "jj");
+        assert.equal(yield* config.resolveKind({ cwd: nested }), "jj");
+        // A plain git repository nested inside one is its own repository.
+        assert.equal(yield* config.resolveKind({ cwd: gitOnlyInside }), "auto");
+        // jj without a Git backend is not colocated, so nothing is chosen for it.
+        assert.equal(yield* config.resolveKind({ cwd: jjOnly }), "auto");
+
+        yield* mkdirs(path.join(root, ".t3code"));
+        yield* fileSystem.writeFileString(
+          path.join(root, ".t3code", "vcs.json"),
+          // @effect-diagnostics-next-line preferSchemaOverJson:off
+          JSON.stringify({ vcs: { kind: "git" } }),
+        );
+        assert.equal(yield* config.resolveKind({ cwd: nested }), "git");
+      }),
+    );
+  });
+
   it.layer(TestLayer)("falls back to auto when no config exists", (it) => {
     it.effect("returns auto", () =>
       Effect.gen(function* () {

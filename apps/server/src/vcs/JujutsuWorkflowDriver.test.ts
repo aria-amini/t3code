@@ -273,6 +273,10 @@ itJj("pulls from the upstream that push recorded", () =>
 itJj("never resets an existing branch when the requested branch is checked out elsewhere", () =>
   Effect.gen(function* () {
     const { fs, path, cwd, driver } = yield* fixture;
+    // Colocated repositories use jj unless `.t3code/vcs.json` pins git.
+    yield* fs.makeDirectory(path.join(cwd, ".t3code"), { recursive: true });
+    // @effect-diagnostics-next-line preferSchemaOverJson:off
+    yield* fs.writeFileString(path.join(cwd, ".t3code", "vcs.json"), JSON.stringify({ vcs: { kind: "git" } }));
     yield* fs.writeFileString(path.join(cwd, "second.txt"), "second\n");
     jj(cwd, ["commit", "-m", "second"]);
     const head = (yield* driver.execute({ operation: "test", cwd, args: ["rev-parse", "HEAD"] })).stdout.trim();

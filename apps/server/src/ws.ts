@@ -2819,6 +2819,10 @@ const makeWsRpcLayer = (
           observeRpcEffect(WS_METHODS.providerInstallRemove, providerInstallation.remove(input), {
             "rpc.aggregate": "provider",
           }),
+        [WS_METHODS.serverCheckForkUpdates]: () =>
+          observeRpcEffect(WS_METHODS.serverCheckForkUpdates, serverUpdate.checkForkUpdates, {
+            "rpc.aggregate": "server",
+          }),
         [WS_METHODS.serverUpdateServer]: (input) =>
           observeRpcEffect(WS_METHODS.serverUpdateServer, serverUpdate.update(input), {
             "rpc.aggregate": "server",

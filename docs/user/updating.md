@@ -47,6 +47,16 @@ If you run the server with `npx` rather than an installed `t3`, there is
 nothing to update on the host: stop the server and relaunch it as
 `npx t3@<client-version>` with the same subcommand and options.
 
+## Fork runtime updates
+
+For this fork, open **Settings → Connections → Check fork updates** to list builds
+available for the server's platform and install a newer fork runtime. On mobile,
+use **Check for updates** on the environment's settings page.
+
+A newer upstream base release appears separately—for example, `0.0.46` when your
+fork is based on `0.0.45`. It is a release notice; the update action keeps you on
+the fork. The check requires a server version that supports fork release discovery.
+
 ## If an update fails
 
 Keep the client open until it reconnects or reports a failure. A failed service

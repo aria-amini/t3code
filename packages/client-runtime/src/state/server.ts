@@ -1074,6 +1074,10 @@ export function createServerEnvironmentAtoms<R, E>(
       tag: WS_METHODS.serverGetResourceTelemetryHistory,
       staleTimeMs: 5_000,
     }),
+    checkForkUpdates: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:check-fork-updates",
+      tag: WS_METHODS.serverCheckForkUpdates,
+    }),
     // A cold transcript scan is measured in seconds, so keep the result around
     // long enough that switching windows or re-rendering does not rescan.
     usageSummary: createEnvironmentRpcQueryAtomFamily(runtime, {

@@ -257,9 +257,15 @@ export const make = Effect.fn("JujutsuWorkflowDriver.make")(function* () {
       const patch = yield* run(cwd, ["diff", "--git", ...args]);
       return { stagedSummary: summary.stdout, stagedPatch: patch.stdout };
     }),
-    getReviewDiffPreview: (input, options) => (
-      options?.branch !== undefined ? Effect.succeed(options.branch) : currentBookmark(input.cwd)
-    ).pipe(Effect.flatMap((branch) => git.getReviewDiffPreview(input, { branch }))),
+    // Git HEAD is the working copy's parent. jj does not move bookmarks on commit, so a bookmark that
+    // lags HEAD is only a label and the range follows HEAD; one at or ahead of HEAD is the newer tip.
+    getReviewDiffPreview: (input, options) => Effect.gen(function* () {
+      const branch = options?.branch !== undefined ? options.branch : yield* currentBookmark(input.cwd);
+      const containsHead = branch !== null && (yield* run(input.cwd, ["log", "--no-graph", "-r",
+        `@- & ::${quoteRevision(branch)}`, "-T", "commit_id", "--limit", "1"]).pipe(
+        Effect.map((result) => result.stdout.trim() !== ""), Effect.orElseSucceed(() => false)));
+      return yield* git.getReviewDiffPreview(input, { branch, headRef: containsHead && branch ? branch : "HEAD" });
+    }),
     commit, createRef, switchRef, createWorktree, pushCurrentBranch, pullCurrentBranch, listRefs,
     renameBranch: (input) => mutate(input.cwd, run(input.cwd, ["bookmark", "rename", input.oldBranch, input.newBranch]).pipe(
       Effect.andThen(selectBookmark(input.cwd, input.newBranch)), Effect.as({ branch: input.newBranch }),

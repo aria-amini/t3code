@@ -131,6 +131,21 @@ itJj("reviews the bookmark tip when the saved bookmark is ahead of the working c
   }).pipe(Effect.provide(TestLayer)),
 );
 
+itJj("reviews the working copy's parent when the selected bookmark lags behind it", () =>
+  Effect.gen(function* () {
+    const { fs, path, cwd, driver } = yield* fixture;
+    yield* driver.createRef({ cwd, refName: "feature", switchRef: true });
+    yield* fs.writeFileString(path.join(cwd, "first.txt"), "first\n");
+    yield* driver.commit(cwd, "first", "");
+    yield* fs.writeFileString(path.join(cwd, "second.txt"), "second\n");
+    jj(cwd, ["commit", "-m", "second"]);
+    const preview = yield* driver.getReviewDiffPreview({ cwd });
+    const range = preview.sources.find((source) => source.kind === "branch-range");
+    assert.equal(range?.headRef, "HEAD");
+    assert.sameMembers(range?.files?.map((file) => file.path) ?? [], ["first.txt", "second.txt"]);
+  }).pipe(Effect.provide(TestLayer)),
+);
+
 itJj("creates native jj thread workspaces and lists their selected bookmarks", () =>
   Effect.gen(function* () {
     const { fs, path, cwd, driver } = yield* fixture;

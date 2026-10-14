@@ -97,7 +97,12 @@ itJj("does not adopt the only bookmark on the parent when another workspace sele
   }).pipe(Effect.provide(TestLayer)),
 );
 
-itJj("reviews the selected bookmark against its base despite the detached Git HEAD", () =>
+const reviewRange = (preview: { readonly sources: ReadonlyArray<{ readonly kind: string; readonly baseRef?: string | null; readonly headRef?: string | null; readonly files?: ReadonlyArray<{ readonly path: string }> }> }) => {
+  const range = preview.sources.find((source) => source.kind === "branch-range");
+  return { baseRef: range?.baseRef, headRef: range?.headRef, files: range?.files?.map((file) => file.path).sort() };
+};
+
+itJj("reviews committed and uncommitted work against the base despite the detached Git HEAD", () =>
   Effect.gen(function* () {
     const { fs, path, cwd, driver } = yield* fixture;
     yield* driver.createRef({ cwd, refName: "feature", switchRef: true });
@@ -105,33 +110,25 @@ itJj("reviews the selected bookmark against its base despite the detached Git HE
     yield* driver.commit(cwd, "feature change", "");
     yield* fs.writeFileString(path.join(cwd, "dirty.txt"), "dirty\n");
     const preview = yield* driver.getReviewDiffPreview({ cwd });
-    const range = preview.sources.find((source) => source.kind === "branch-range");
-    assert.equal(range?.baseRef, "main");
-    assert.equal(range?.headRef, "feature");
-    assert.deepEqual(range?.files?.map((file) => file.path), ["committed.txt"]);
+    assert.deepEqual(reviewRange(preview), { baseRef: "main", headRef: "feature", files: ["committed.txt", "dirty.txt"] });
     const dirty = preview.sources.find((source) => source.kind === "working-tree");
     assert.deepEqual(dirty?.files?.map((file) => file.path), ["dirty.txt"]);
   }).pipe(Effect.provide(TestLayer)),
 );
 
-itJj("reviews the bookmark tip when the saved bookmark is ahead of the working copy's parent", () =>
+itJj("reviews local commits and edits when the bookmark is the base branch and has not moved", () =>
   Effect.gen(function* () {
     const { fs, path, cwd, driver } = yield* fixture;
-    yield* driver.createRef({ cwd, refName: "feature", switchRef: true });
-    yield* fs.writeFileString(path.join(cwd, "first.txt"), "first\n");
-    const first = yield* driver.commit(cwd, "first", "");
-    yield* fs.writeFileString(path.join(cwd, "second.txt"), "second\n");
-    jj(cwd, ["commit", "-m", "second"]);
-    jj(cwd, ["bookmark", "set", "feature", "-r", "@-"]);
-    jj(cwd, ["new", first.commitSha]);
+    yield* fs.writeFileString(path.join(cwd, "local.txt"), "local\n");
+    jj(cwd, ["commit", "-m", "local work"]);
+    yield* fs.writeFileString(path.join(cwd, "dirty.txt"), "dirty\n");
+    assert.equal((yield* driver.statusDetailsLocal(cwd)).branch, "main");
     const preview = yield* driver.getReviewDiffPreview({ cwd });
-    const range = preview.sources.find((source) => source.kind === "branch-range");
-    assert.equal(range?.headRef, "feature");
-    assert.sameMembers(range?.files?.map((file) => file.path) ?? [], ["first.txt", "second.txt"]);
+    assert.deepEqual(reviewRange(preview), { baseRef: "main", headRef: "main", files: ["dirty.txt", "local.txt"] });
   }).pipe(Effect.provide(TestLayer)),
 );
 
-itJj("reviews the working copy's parent when the selected bookmark lags behind it", () =>
+itJj("reviews every local commit when the selected bookmark lags behind them", () =>
   Effect.gen(function* () {
     const { fs, path, cwd, driver } = yield* fixture;
     yield* driver.createRef({ cwd, refName: "feature", switchRef: true });
@@ -140,9 +137,7 @@ itJj("reviews the working copy's parent when the selected bookmark lags behind i
     yield* fs.writeFileString(path.join(cwd, "second.txt"), "second\n");
     jj(cwd, ["commit", "-m", "second"]);
     const preview = yield* driver.getReviewDiffPreview({ cwd });
-    const range = preview.sources.find((source) => source.kind === "branch-range");
-    assert.equal(range?.headRef, "HEAD");
-    assert.sameMembers(range?.files?.map((file) => file.path) ?? [], ["first.txt", "second.txt"]);
+    assert.deepEqual(reviewRange(preview), { baseRef: "main", headRef: "feature", files: ["first.txt", "second.txt"] });
   }).pipe(Effect.provide(TestLayer)),
 );
 

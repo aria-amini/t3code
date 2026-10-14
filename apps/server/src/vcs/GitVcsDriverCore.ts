@@ -2410,7 +2410,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
 
   const getReviewDiffPreview = Effect.fn("getReviewDiffPreview")(function* (
     input: ReviewDiffPreviewInput,
-    options?: { readonly branch?: string | null; readonly headRef?: string },
+    options?: { readonly branch?: string | null; readonly workingCopy?: boolean },
   ) {
     const pathArgs = input.file
       ? [input.file.path, ...(input.file.previousPath ? [input.file.previousPath] : [])].map(
@@ -2436,12 +2436,15 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
 
     const cwd = repository.worktreeRoot;
     // A colocated jj workspace leaves Git HEAD detached, so its driver supplies the active bookmark.
+    // `workingCopy` compares the whole working copy with the base, since a jj bookmark is only a label.
     const branch = options?.branch ?? repository.currentBranch;
+    const resolveBase = (name: string) =>
+      resolveBaseBranchForNoUpstream(cwd, name).pipe(Effect.orElseSucceed(() => null));
     const baseRef =
       input.baseRef ??
-      (branch
-        ? yield* resolveBaseBranchForNoUpstream(cwd, branch).pipe(Effect.orElseSucceed(() => null))
-        : null);
+      ((branch ? yield* resolveBase(branch) : null) ??
+        // The default branch is a valid base here even when the bookmark is the default branch.
+        (options?.workingCopy ? yield* resolveBase("") : null));
 
     const diffArgs = [
       "diff",
@@ -2503,8 +2506,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       );
       return { ...patch, files: stat.files };
     });
-    const readDirty = Effect.gen(function* () {
-      if (input.file?.sourceKind === "branch-range") return yield* readTrackedDiff(null);
+    const readWorkingTree = (ref: string) => Effect.gen(function* () {
       const untracked = yield* executeGit(
         "GitVcsDriver.review.listUntracked",
         cwd,
@@ -2517,13 +2519,13 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         ),
       );
       if (untracked === null) {
-        const tracked = yield* readTrackedDiff("HEAD");
+        const tracked = yield* readTrackedDiff(ref);
         return { ...tracked, files: undefined, stdoutTruncated: true };
       }
       const paths = splitNullSeparatedGitStdoutPaths(untracked).filter(
         (candidate) => !input.file || candidate === input.file.path,
       );
-      if (paths.length === 0) return yield* readTrackedDiff("HEAD");
+      if (paths.length === 0) return yield* readTrackedDiff(ref);
       const env = yield* prepareReviewIndex(cwd, paths).pipe(
         Effect.catchTags({
           PlatformError: (cause) =>
@@ -2538,21 +2540,29 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
             ),
         }),
       );
-      return yield* readTrackedDiff("HEAD", env);
+      return yield* readTrackedDiff(ref, env);
     }).pipe(Effect.scoped);
-    const [dirtyTrackedResult, baseResult] = yield* Effect.all(
-      [
-        readDirty,
-        readTrackedDiff(
-          baseRef && branch && input.file?.sourceKind !== "working-tree"
-            ? `${baseRef}...${options?.headRef ?? "HEAD"}`
-            : null,
-        ),
-      ],
-      { concurrency: 2 },
-    );
+    const readDirty =
+      input.file?.sourceKind === "branch-range" ? readTrackedDiff(null) : readWorkingTree("HEAD");
+    const readBase = Effect.gen(function* () {
+      if (!baseRef || input.file?.sourceKind === "working-tree") return yield* readTrackedDiff(null);
+      if (!options?.workingCopy) {
+        return branch ? yield* readTrackedDiff(`${baseRef}...HEAD`) : yield* readTrackedDiff(null);
+      }
+      // Fork point of the base and HEAD, so the working copy diff holds only this line of work.
+      const forkPoint = yield* runGitStdout(
+        "GitVcsDriver.getReviewDiffPreview.mergeBase",
+        cwd,
+        ["merge-base", baseRef, "HEAD"],
+        true,
+      ).pipe(Effect.map((stdout) => stdout.trim() || baseRef));
+      return yield* readWorkingTree(forkPoint);
+    });
+    const [dirtyTrackedResult, baseResult] = yield* Effect.all([readDirty, readBase], {
+      concurrency: 2,
+    });
     const dirtyFiles = dirtyTrackedResult.files;
-    const baseFiles = baseResult.files;
+    const baseFiles = baseResult.files ?? [];
     const dirtyDiff = dirtyTrackedResult.stdout;
     const baseDiff = baseResult.stdout;
     const hashDiff = (diff: string, files: ReadonlyArray<ReviewDiffFileStat>) =>
@@ -2591,7 +2601,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         kind: "branch-range",
         title: baseRef ? `Against ${baseRef}` : "Against base branch",
         baseRef,
-        headRef: options?.headRef ?? branch ?? "HEAD",
+        headRef: branch ?? "HEAD",
         diff: baseDiff,
         files: baseFiles,
         diffHash: baseDiffHash,

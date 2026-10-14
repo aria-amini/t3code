@@ -56,7 +56,26 @@ export const make = Effect.fn("JujutsuWorkflowDriver.make")(function* () {
     const result = yield* run(cwd, ["log", "--no-graph", "-r", "heads(::@ & bookmarks())",
       "-T", 'local_bookmarks.map(|b| b.name()).join("\\n") ++ "\\n"']);
     const names = [...new Set(result.stdout.trim().split("\n").filter(Boolean))];
-    return names.length === 1 ? names[0]! : null;
+    if (names.length === 0) return null;
+    // Drop bookmarks other workspaces selected, then prefer a feature bookmark over the base branch
+    // so a commit here does not move the base.
+    const here = path.resolve(yield* root(cwd));
+    const listed = yield* workspaces.listWorkspaces(cwd).pipe(Effect.orElseSucceed(() => null));
+    // Without the workspace list, claims cannot be checked, so no bookmark is chosen.
+    if (!listed) return null;
+    const claimed = new Set<string>();
+    for (const workspace of listed.workspaces) {
+      if (path.resolve(workspace.path) === here) continue;
+      const name = yield* fs.readFileString(path.join(workspace.path, ".jj", "t3code-bookmark")).pipe(
+        Effect.map((value) => value.trim()), Effect.orElseSucceed(() => ""));
+      claimed.add(name);
+    }
+    const free = names.filter((name) => !claimed.has(name));
+    if (free.length === 1) return free[0]!;
+    const remote = yield* git.resolvePrimaryRemoteName(cwd).pipe(Effect.orElseSucceed(() => null));
+    const defaultBranch = remote ? yield* git.resolveDefaultBranchName(cwd, remote).pipe(Effect.orElseSucceed(() => null)) : null;
+    const features = free.filter((name) => name !== defaultBranch && name !== "main" && name !== "master");
+    return features.length === 1 ? features[0]! : null;
   });
   const requireBookmark = (cwd: string) => currentBookmark(cwd).pipe(
     Effect.flatMap((name) => name ? Effect.succeed(name) : Effect.fail(
@@ -238,6 +257,9 @@ export const make = Effect.fn("JujutsuWorkflowDriver.make")(function* () {
       const patch = yield* run(cwd, ["diff", "--git", ...args]);
       return { stagedSummary: summary.stdout, stagedPatch: patch.stdout };
     }),
+    getReviewDiffPreview: (input, options) => (
+      options?.branch !== undefined ? Effect.succeed(options.branch) : currentBookmark(input.cwd)
+    ).pipe(Effect.flatMap((branch) => git.getReviewDiffPreview(input, { branch }))),
     commit, createRef, switchRef, createWorktree, pushCurrentBranch, pullCurrentBranch, listRefs,
     renameBranch: (input) => mutate(input.cwd, run(input.cwd, ["bookmark", "rename", input.oldBranch, input.newBranch]).pipe(
       Effect.andThen(selectBookmark(input.cwd, input.newBranch)), Effect.as({ branch: input.newBranch }),

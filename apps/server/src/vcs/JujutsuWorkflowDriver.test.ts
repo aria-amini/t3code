@@ -77,6 +77,60 @@ itJj("creates and switches bookmarks without discarding working-copy changes", (
   }).pipe(Effect.provide(TestLayer)),
 );
 
+itJj("prefers a feature bookmark over the base branch when both sit on the working copy's parent", () =>
+  Effect.gen(function* () {
+    const { cwd, driver } = yield* fixture;
+    jj(cwd, ["bookmark", "create", "feature", "-r", "@-"]);
+    assert.equal((yield* driver.statusDetailsLocal(cwd)).branch, "feature");
+    jj(cwd, ["bookmark", "create", "other", "-r", "@-"]);
+    assert.isNull((yield* driver.statusDetailsLocal(cwd)).branch);
+  }).pipe(Effect.provide(TestLayer)),
+);
+
+itJj("does not adopt the only bookmark on the parent when another workspace selected it", () =>
+  Effect.gen(function* () {
+    const { cwd, driver } = yield* fixture;
+    const workspacePath = (yield* Path.Path).join(cwd, "siblings", "thread");
+    yield* driver.createWorktree({ cwd, refName: "main", newRefName: "thread", path: workspacePath });
+    jj(cwd, ["bookmark", "delete", "main"]);
+    assert.isNull((yield* driver.statusDetailsLocal(cwd)).branch);
+  }).pipe(Effect.provide(TestLayer)),
+);
+
+itJj("reviews the selected bookmark against its base despite the detached Git HEAD", () =>
+  Effect.gen(function* () {
+    const { fs, path, cwd, driver } = yield* fixture;
+    yield* driver.createRef({ cwd, refName: "feature", switchRef: true });
+    yield* fs.writeFileString(path.join(cwd, "committed.txt"), "committed\n");
+    yield* driver.commit(cwd, "feature change", "");
+    yield* fs.writeFileString(path.join(cwd, "dirty.txt"), "dirty\n");
+    const preview = yield* driver.getReviewDiffPreview({ cwd });
+    const range = preview.sources.find((source) => source.kind === "branch-range");
+    assert.equal(range?.baseRef, "main");
+    assert.equal(range?.headRef, "feature");
+    assert.deepEqual(range?.files?.map((file) => file.path), ["committed.txt"]);
+    const dirty = preview.sources.find((source) => source.kind === "working-tree");
+    assert.deepEqual(dirty?.files?.map((file) => file.path), ["dirty.txt"]);
+  }).pipe(Effect.provide(TestLayer)),
+);
+
+itJj("reviews the bookmark tip when the saved bookmark is ahead of the working copy's parent", () =>
+  Effect.gen(function* () {
+    const { fs, path, cwd, driver } = yield* fixture;
+    yield* driver.createRef({ cwd, refName: "feature", switchRef: true });
+    yield* fs.writeFileString(path.join(cwd, "first.txt"), "first\n");
+    const first = yield* driver.commit(cwd, "first", "");
+    yield* fs.writeFileString(path.join(cwd, "second.txt"), "second\n");
+    jj(cwd, ["commit", "-m", "second"]);
+    jj(cwd, ["bookmark", "set", "feature", "-r", "@-"]);
+    jj(cwd, ["new", first.commitSha]);
+    const preview = yield* driver.getReviewDiffPreview({ cwd });
+    const range = preview.sources.find((source) => source.kind === "branch-range");
+    assert.equal(range?.headRef, "feature");
+    assert.sameMembers(range?.files?.map((file) => file.path) ?? [], ["first.txt", "second.txt"]);
+  }).pipe(Effect.provide(TestLayer)),
+);
+
 itJj("creates native jj thread workspaces and lists their selected bookmarks", () =>
   Effect.gen(function* () {
     const { fs, path, cwd, driver } = yield* fixture;

@@ -181,3 +181,5 @@ Use jj for VCS operations. `origin` is `aria-amini/t3code`; `upstream` is `pingd
 - Review the complete patch with `jj diff --git --from aamini/upstream-base --to @`; inspect its size with `--stat`.
 - Rebuild or rebase the fork patch for release upgrades. Get explicit approval before any protected-history replacement or force-push.
 - Pull requests target `aria-amini/t3code` unless the user requests an upstream contribution.
+- Upstream workflows have no runners here. `fork-runtime.yml` disables them on each push to main, and `release.yml` ignores `*-fork.*` tags. Do not edit them otherwise.
+- A push to main publishes the build and its `v<version>` release. Update the running server with `t3 update --yes`. An agent shell lives inside the service's own cgroup, so run it as `systemd-run --user --collect t3 update --yes`; otherwise stopping the service kills the update halfway.

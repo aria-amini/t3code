@@ -4890,6 +4890,225 @@ it.layer(OpenCodeAdapterTestLayer)("OpenCodeAdapterLive", (it) => {
     }),
   );
 
+  for (const scenario of ["busy", "retry", "nested"] as const) {
+    it.effect(`stops active descendants without aborting the root (${scenario})`, () =>
+      Effect.gen(function* () {
+        const adapter = yield* OpenCodeAdapter;
+        const threadId = asThreadId(`thread-scoped-stop-${scenario}`);
+        const rootSessionId = "http://127.0.0.1:9999/session";
+        const busyEvent = promiseWithResolvers<unknown>();
+        const toolEvent = promiseWithResolvers<unknown>();
+        const markerEvent = promiseWithResolvers<unknown>();
+        runtimeMock.state.subscribedEvents = [
+          busyEvent.promise,
+          toolEvent.promise,
+          markerEvent.promise,
+        ];
+        runtimeMock.state.sessionChildrenById.set(rootSessionId, [
+          { id: scenario === "nested" ? "ses_idle_parent" : "ses_child" },
+        ]);
+        if (scenario === "nested")
+          runtimeMock.state.sessionChildrenById.set("ses_idle_parent", [{ id: "ses_child" }]);
+        const marker = yield* adapter.streamEvents.pipe(
+          Stream.filter(
+            (event) => event.threadId === threadId && event.type === "thread.metadata.updated",
+          ),
+          Stream.runHead,
+          Effect.forkChild,
+        );
+        yield* adapter.startSession({
+          provider: ProviderDriverKind.make("opencode"),
+          threadId,
+          runtimeMode: "full-access",
+        });
+        const turn = yield* adapter.sendTurn({
+          threadId,
+          input: "Run a subagent",
+          modelSelection: createModelSelection(
+            ProviderInstanceId.make("opencode"),
+            "opencode/kimi-k3",
+          ),
+        });
+        busyEvent.resolve({
+          type: "session.status",
+          properties: { sessionID: rootSessionId, status: { type: "busy" } },
+        });
+        toolEvent.resolve({
+          type: "message.part.updated",
+          properties: {
+            sessionID: rootSessionId,
+            time: 1,
+            part: {
+              id: "part-agent",
+              sessionID: rootSessionId,
+              messageID: "msg-agent",
+              type: "tool",
+              tool: "task",
+              callID: "call-agent",
+              state: {
+                status: "running",
+                input: {},
+                title: "Subagent",
+                time: { start: yield* Clock.currentTimeMillis },
+              },
+            },
+          },
+        });
+        markerEvent.resolve({
+          type: "session.updated",
+          properties: { info: { id: rootSessionId, title: "Agent tool received" } },
+        });
+        yield* Fiber.join(marker);
+        runtimeMock.state.sessionStatusImplementation = async () => ({
+          data: {
+            [rootSessionId]: { type: "busy" },
+            ses_child: { type: scenario === "retry" ? "retry" : "busy" },
+          },
+        });
+        yield* adapter.interruptTurn(threadId, turn.turnId);
+        NodeAssert.deepEqual(runtimeMock.state.abortCalls, ["ses_child"]);
+        const session = (yield* adapter.listSessions()).find(
+          (entry) => entry.threadId === threadId,
+        );
+        NodeAssert.equal(session?.status, "running");
+        NodeAssert.equal(session?.activeTurnId, turn.turnId);
+        runtimeMock.state.sessionStatusImplementation = async () => ({
+          data: {
+            [rootSessionId]: { type: "busy" },
+            ses_child: { type: "idle" },
+          },
+        });
+        yield* adapter.interruptTurn(threadId, turn.turnId);
+        NodeAssert.deepEqual(
+          runtimeMock.state.abortCalls.slice(1),
+          scenario === "nested"
+            ? [rootSessionId, "ses_idle_parent", "ses_child"]
+            : [rootSessionId, "ses_child"],
+        );
+        NodeAssert.equal(
+          (yield* adapter.listSessions()).find((entry) => entry.threadId === threadId)
+            ?.activeTurnId,
+          undefined,
+        );
+        yield* adapter.stopSession(threadId);
+      }),
+    );
+  }
+
+  for (const scenario of [
+    "no-child",
+    "stale-child",
+    "missing-status",
+    "unrelated-busy",
+    "status-failure",
+    "invalid-status",
+    "child-list-failure",
+    "child-abort-failure",
+  ] as const) {
+    it.effect(`stops the root when no active child can be confirmed (${scenario})`, () =>
+      Effect.gen(function* () {
+        const adapter = yield* OpenCodeAdapter;
+        const threadId = asThreadId(`thread-pending-agent-stop-${scenario}`);
+        const rootSessionId = "http://127.0.0.1:9999/session";
+        const toolEvent = promiseWithResolvers<unknown>();
+        const markerEvent = promiseWithResolvers<unknown>();
+        runtimeMock.state.subscribedEvents = [toolEvent.promise, markerEvent.promise];
+        const marker = yield* adapter.streamEvents.pipe(
+          Stream.filter(
+            (event) => event.threadId === threadId && event.type === "thread.metadata.updated",
+          ),
+          Stream.runHead,
+          Effect.forkChild,
+        );
+        yield* adapter.startSession({
+          provider: ProviderDriverKind.make("opencode"),
+          threadId,
+          runtimeMode: "full-access",
+        });
+        const turn = yield* adapter.sendTurn({
+          threadId,
+          input: "Start a task",
+          modelSelection: createModelSelection(
+            ProviderInstanceId.make("opencode"),
+            "opencode/kimi-k3",
+          ),
+        });
+        toolEvent.resolve({
+          type: "message.part.updated",
+          properties: {
+            sessionID: rootSessionId,
+            time: 1,
+            part: {
+              id: "part-pending",
+              sessionID: rootSessionId,
+              messageID: "msg-pending",
+              type: "tool",
+              tool: "task",
+              callID: "call-pending",
+              state: { status: "pending", input: {}, raw: "" },
+            },
+          },
+        });
+        markerEvent.resolve({
+          type: "session.updated",
+          properties: { info: { id: rootSessionId, title: "Pending task received" } },
+        });
+        yield* Fiber.join(marker);
+        if (scenario !== "no-child") {
+          runtimeMock.state.sessionChildrenById.set(rootSessionId, [{ id: "ses_finished" }]);
+        }
+        runtimeMock.state.sessionStatusImplementation = async () => {
+          if (scenario === "status-failure") throw new Error("status unavailable");
+          return scenario === "invalid-status"
+            ? { data: null }
+            : {
+                data: {
+                  [rootSessionId]: { type: "busy" },
+                  ...(scenario === "missing-status"
+                    ? {}
+                    : {
+                        ses_finished: {
+                          type:
+                            scenario === "child-list-failure" || scenario === "child-abort-failure"
+                              ? "busy"
+                              : "idle",
+                        },
+                      }),
+                  ...(scenario === "unrelated-busy" ? { ses_unrelated: { type: "busy" } } : {}),
+                },
+              };
+        };
+        let cleanupAttempts = 0;
+        if (scenario === "child-list-failure") {
+          runtimeMock.state.sessionChildrenImplementation = async (id) => {
+            if (cleanupAttempts++ === 0) throw new Error("children unavailable");
+            return runtimeMock.state.sessionChildrenById.get(id) ?? [];
+          };
+        }
+        if (scenario === "child-abort-failure") {
+          runtimeMock.state.abortImplementation = async (id) => {
+            if (id === "ses_finished" && cleanupAttempts++ === 0)
+              throw new Error("child abort unavailable");
+          };
+        }
+        yield* adapter.interruptTurn(threadId, turn.turnId);
+        NodeAssert.deepEqual(
+          runtimeMock.state.abortCalls,
+          scenario === "no-child"
+            ? [rootSessionId]
+            : scenario === "child-abort-failure"
+              ? ["ses_finished", rootSessionId, "ses_finished"]
+              : [rootSessionId, "ses_finished"],
+        );
+        const session = (yield* adapter.listSessions()).find(
+          (entry) => entry.threadId === threadId,
+        );
+        NodeAssert.equal(session?.activeTurnId, undefined);
+        yield* adapter.stopSession(threadId);
+      }),
+    );
+  }
+
   it.effect("stops the full OpenCode child tree before it completes the interrupt", () =>
     Effect.gen(function* () {
       const adapter = yield* OpenCodeAdapter;

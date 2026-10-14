@@ -1,12 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import { cliReleaseDownloadBaseUrl } from "@t3tools/shared/cliRelease";
-import * as Effect from "effect/Effect";
-import { HttpClient, HttpClientResponse } from "effect/unstable/http";
-import {
-  checkForkUpdates,
-  resolveForkUpdates,
-  resolveForkUpdateVersion,
-} from "./forkRuntimeChannel.ts";
+import { resolveForkUpdateVersion } from "./forkRuntimeChannel.ts";
 import { compareExactServiceVersions } from "./serviceProtocol.ts";
 
 const assets = [
@@ -72,65 +66,3 @@ it("orders fork builds consistently above all same-core upstream versions", () =
     }
   }
 });
-
-it("lists compatible retained fork builds and only announces a newer upstream base", () => {
-  const builds = [
-    { name: "t3-0.0.45-fork.26001-linux-x64.tar.gz" },
-    { name: "t3-0.0.45-fork.29001-linux-x64.tar.gz" },
-    { name: "t3-0.0.45-fork.29001-linux-x64.tar.gz" },
-    { name: "t3-0.0.46-fork.1-linux-arm64.tar.gz" },
-    { name: "t3-0.0.46-linux-x64.tar.gz" },
-  ];
-  const current = "0.0.45-fork.26001";
-  const available = resolveForkUpdates(current, builds, "linux-x64", "v0.0.46");
-  expect(available).toEqual({
-    currentVersion: current,
-    forkVersions: ["0.0.45-fork.29001", "0.0.45-fork.26001"],
-    upstreamVersion: "0.0.46",
-  });
-  for (const upstream of ["v0.0.45", "v0.0.44", "v0.0.46-preview.1", "fork-runtime"]) {
-    expect(resolveForkUpdates(current, builds, "linux-x64", upstream).upstreamVersion).toBeNull();
-  }
-  expect(resolveForkUpdates(current, builds, "darwin-arm64", "v0.0.46").forkVersions).toEqual([]);
-});
-
-it.effect("checks fork builds and upstream releases through the HTTP client", () =>
-  checkForkUpdates("0.0.45-fork.26001", "linux-x64").pipe(
-    Effect.provideService(
-      HttpClient.HttpClient,
-      HttpClient.make((request) =>
-        Effect.succeed(
-          HttpClientResponse.fromWeb(
-            request,
-            Response.json(
-              request.url.endsWith("/fork-runtime")
-                ? { assets: [{ name: "t3-0.0.45-fork.29001-linux-x64.tar.gz" }] }
-                : { tag_name: "v0.0.46" },
-            ),
-          ),
-        ),
-      ),
-    ),
-    Effect.tap((result) =>
-      Effect.sync(() => {
-        expect(result.forkVersions).toEqual(["0.0.45-fork.29001"]);
-        expect(result.upstreamVersion).toBe("0.0.46");
-      }),
-    ),
-  ),
-);
-
-it.effect("fails visibly when a release source is unavailable", () =>
-  checkForkUpdates("0.0.45-fork.26001", "linux-x64").pipe(
-    Effect.provideService(
-      HttpClient.HttpClient,
-      HttpClient.make((request) =>
-        Effect.succeed(
-          HttpClientResponse.fromWeb(request, new Response("rate limited", { status: 403 })),
-        ),
-      ),
-    ),
-    Effect.flip,
-    Effect.tap((error) => Effect.sync(() => expect(error).toBeDefined())),
-  ),
-);

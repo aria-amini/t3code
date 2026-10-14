@@ -39,9 +39,6 @@ const releaseHttpClient = (order: string[], forkAvailable = true) =>
           assets: forkAvailable ? [{ name: "t3-1.1.0-fork.1-linux-x64.tar.gz" }] : [],
         }));
       }
-      if (request.url.endsWith("/releases/latest")) {
-        return HttpClientResponse.fromWeb(request, Response.json({ tag_name: "v1.1.0" }));
-      }
       if (request.url.endsWith("/SHA256SUMS")) {
         const digest = yield* Effect.promise(() => crypto.subtle.digest("SHA-256", archiveBytes));
         const hex = Array.from(new Uint8Array(digest), (byte) =>
@@ -145,7 +142,6 @@ it.layer(NodeServices.layer)("server self update", (it) => {
       const selfUpdate = yield* ServerSelfUpdate.withRunningThreadContinuation({
         mode: "web",
         selfUpdate: {
-          checkForkUpdates: Effect.never,
           update: (_input, reportProgress = () => Effect.void) =>
             reportProgress("downloading").pipe(
               Effect.andThen(reportProgress("installing")),
@@ -180,7 +176,6 @@ it.layer(NodeServices.layer)("server self update", (it) => {
       const selfUpdate = yield* ServerSelfUpdate.withRunningThreadContinuation({
         mode: "desktop",
         selfUpdate: {
-          checkForkUpdates: Effect.never,
           update: (_input, reportProgress = () => Effect.void) =>
             reportProgress("installing").pipe(
               Effect.as({
@@ -229,7 +224,6 @@ it.layer(NodeServices.layer)("server self update", (it) => {
       const selfUpdate = yield* ServerSelfUpdate.withRunningThreadContinuation({
         mode: "web",
         selfUpdate: {
-          checkForkUpdates: Effect.never,
           update: (_input, reportProgress = () => Effect.void) =>
             reportProgress("installing").pipe(Effect.andThen(Effect.fail(updateError))),
           commitDesktopUpdate: () => Effect.never,
@@ -252,7 +246,6 @@ it.layer(NodeServices.layer)("server self update", (it) => {
       const selfUpdate = yield* ServerSelfUpdate.withRunningThreadContinuation({
         mode: "web",
         selfUpdate: {
-          checkForkUpdates: Effect.never,
           update: (
             _input,
             reportProgress = () => Effect.void,
@@ -286,7 +279,6 @@ it.layer(NodeServices.layer)("server self update", (it) => {
       const selfUpdate = yield* ServerSelfUpdate.withRunningThreadContinuation({
         mode: "desktop",
         selfUpdate: {
-          checkForkUpdates: Effect.never,
           update: () =>
             Effect.succeed({
               targetVersion: "1.2.0",
@@ -323,7 +315,6 @@ it.layer(NodeServices.layer)("server self update", (it) => {
       const selfUpdate = yield* ServerSelfUpdate.withRunningThreadContinuation({
         mode: "desktop",
         selfUpdate: {
-          checkForkUpdates: Effect.never,
           update: () =>
             Effect.succeed({
               targetVersion: "1.2.0",
@@ -357,16 +348,6 @@ it.layer(NodeServices.layer)("server self update", (it) => {
         expect(Cause.hasInterruptsOnly(exit.cause)).toBe(false);
       }
       expect(events).toEqual(["clear"]);
-    }),
-  );
-
-  it.effect("checks available fork versions without installing or restarting", () =>
-    Effect.gen(function* () {
-      const { selfUpdate, order } = yield* makeHarness();
-      const releases = yield* selfUpdate.checkForkUpdates;
-      expect(releases.forkVersions).toEqual(["1.1.0-fork.1"]);
-      expect(releases.upstreamVersion).toBe("1.1.0");
-      expect(order).toEqual([]);
     }),
   );
 

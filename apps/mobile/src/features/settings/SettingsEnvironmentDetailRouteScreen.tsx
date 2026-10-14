@@ -1,8 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { StaticScreenProps } from "@react-navigation/native";
-import type { EnvironmentId, ServerProvider, ServerForkUpdates } from "@t3tools/contracts";
+import type { EnvironmentId, ServerProvider } from "@t3tools/contracts";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
-import { compareSemverVersions } from "@t3tools/shared/semver";
 import { AsyncResult } from "effect/unstable/reactivity";
 import { useEffect, useRef, useState } from "react";
 import { Alert, View } from "react-native";
@@ -50,7 +49,6 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
   const session = useAtomValue(environmentSession.sessionStateValueAtom(environmentId));
   const sessionResult = useAtomValue(environmentSession.sessionStateAtom(environmentId));
   const updateState = useAtomValue(serverEnvironment.updateStateAtom(environmentId));
-  const checkForkUpdates = useAtomCommand(serverEnvironment.checkForkUpdates);
   const updateServer = useAtomCommand(serverEnvironment.updateServer);
   const updateProvider = useAtomCommand(serverEnvironment.updateProvider);
   const refreshProviders = useAtomCommand(serverEnvironment.refreshProviders);
@@ -62,7 +60,6 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
   const [release, setRelease] = useState<{
     fromVersion: string;
     targetVersion: string | null;
-    forkUpdates?: ServerForkUpdates;
   } | null>(null);
   const checkController = useRef<AbortController | null>(null);
   useEffect(() => () => checkController.current?.abort(), []);
@@ -209,25 +206,8 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
                       <Text className="text-sm text-foreground-muted">
                         {checkedRelease.targetVersion
                           ? `Version ${checkedRelease.targetVersion} is available.`
-                          : checkedRelease.forkUpdates?.forkVersions.length === 0
-                            ? "No fork builds are available for this server’s platform."
-                            : "You are up to date."}
+                          : "You are up to date."}
                       </Text>
-                    ) : null}
-                    {checkedRelease?.forkUpdates ? (
-                      <>
-                        <Text selectable className="text-sm text-foreground-muted">
-                          Available fork versions:{" "}
-                          {checkedRelease.forkUpdates.forkVersions.join(", ") ||
-                            "None for this platform"}
-                        </Text>
-                        {checkedRelease.forkUpdates.upstreamVersion ? (
-                          <Text className="text-sm text-foreground-muted">
-                            Upstream {checkedRelease.forkUpdates.upstreamVersion} is available.
-                            Installed fork base: {version?.split("-", 1)[0]}.
-                          </Text>
-                        ) : null}
-                      </>
                     ) : null}
                     {!supportsEnvironmentUpdate(config.environment.capabilities) ? (
                       <Text className="text-sm text-foreground-muted">
@@ -245,22 +225,6 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
                     onPress={() => {
                       if (disabled) return;
                       void run("check", async () => {
-                        if (config.environment.capabilities.serverForkUpdates) {
-                          const checked = await checkForkUpdates({ environmentId, input: {} });
-                          if (AsyncResult.isFailure(checked))
-                            throw squashAtomCommandFailure(checked);
-                          const latest = checked.value.forkVersions[0];
-                          setRelease({
-                            fromVersion: config.environment.serverVersion,
-                            targetVersion:
-                              latest &&
-                              compareSemverVersions(latest, config.environment.serverVersion) > 0
-                                ? latest
-                                : null,
-                            forkUpdates: checked.value,
-                          });
-                          return;
-                        }
                         const controller = new AbortController();
                         checkController.current = controller;
                         const timeout = setTimeout(() => controller.abort(), 20_000);

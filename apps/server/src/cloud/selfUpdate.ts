@@ -4,7 +4,6 @@ import {
   type ServerSelfUpdateInput,
   type ServerSelfUpdateProgressStage,
   type ServerSelfUpdateResult,
-  type ServerForkUpdates,
   type ThreadId,
 } from "@t3tools/contracts";
 import { HostProcessArchitecture, HostProcessPlatform } from "@t3tools/shared/hostProcess";
@@ -23,7 +22,7 @@ import { HttpClient } from "effect/unstable/http";
 
 import { CLI_RELEASE_BASE_URL_ENV, cliArchivePlatformKey } from "@t3tools/shared/cliRelease";
 import packageJson from "../../package.json" with { type: "json" };
-import { checkForkUpdates, latestForkUpdateVersion } from "./forkRuntimeChannel.ts";
+import { latestForkUpdateVersion } from "./forkRuntimeChannel.ts";
 
 import * as ServerConfig from "../config.ts";
 import * as DesktopAppUpdate from "../desktopUpdate/DesktopAppUpdate.ts";
@@ -51,7 +50,6 @@ export function resolveServerSelfUpdateCapability(input: {
 export class ServerSelfUpdate extends Context.Service<
   ServerSelfUpdate,
   {
-    readonly checkForkUpdates: Effect.Effect<ServerForkUpdates, ServerSelfUpdateError>;
     readonly update: (
       input: ServerSelfUpdateInput,
       reportProgress?: (
@@ -141,7 +139,6 @@ export const withRunningThreadContinuation = Effect.fn(
   };
 
   return ServerSelfUpdate.of({
-    checkForkUpdates: input.selfUpdate.checkForkUpdates,
     update,
     commitDesktopUpdate: (requestId) =>
       Effect.gen(function* () {
@@ -351,18 +348,6 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
   });
 
   return ServerSelfUpdate.of({
-    checkForkUpdates: Effect.gen(function* () {
-      if (!packageJson.version.includes("-fork."))
-        return yield* failWith("This server does not use fork releases.");
-      const key = cliArchivePlatformKey(platform, arch);
-      if (!key) return yield* failWith("No fork runtime supports this platform.");
-      return yield* checkForkUpdates(packageJson.version, key).pipe(
-        Effect.provideService(HttpClient.HttpClient, httpClient),
-        Effect.mapError((cause) =>
-          failWith("Could not check fork and upstream releases. Try again.", cause),
-        ),
-      );
-    }),
     update,
     commitDesktopUpdate: (requestId, onHandoffAccepted) =>
       desktopAppUpdate.commit(requestId, onHandoffAccepted),

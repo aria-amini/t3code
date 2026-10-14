@@ -854,13 +854,6 @@ export class ServerProviderUpdateError extends Schema.TaggedError<ServerProvider
   }
 }
 
-export const ServerForkUpdates = Schema.Struct({
-  currentVersion: TrimmedNonEmptyString,
-  forkVersions: Schema.Array(TrimmedNonEmptyString),
-  upstreamVersion: Schema.NullOr(TrimmedNonEmptyString),
-});
-export type ServerForkUpdates = typeof ServerForkUpdates.Type;
-
 export const ServerSelfUpdateInput = Schema.Struct({
   /** Exact npm version of the `t3` package to install (never a dist-tag, so
       the server and the acknowledging client agree on what was requested). */

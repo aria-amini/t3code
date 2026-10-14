@@ -241,7 +241,6 @@ import {
   ServerProviderUpdatedPayload,
   ServerSelfUpdateError,
   ServerSelfUpdateInput,
-  ServerForkUpdates,
   ServerSelfUpdateProgressEvent,
   ServerSelfUpdateResult,
   ServerTraceDiagnosticsResult,
@@ -385,7 +384,6 @@ export const WS_METHODS = {
   serverRefreshProviders: "server.refreshProviders",
   serverUpdateProvider: "server.updateProvider",
   serverUpdateServer: "server.updateServer",
-  serverCheckForkUpdates: "server.checkForkUpdates",
   serverUpdateServerWithProgress: "server.updateServerWithProgress",
   serverCommitDesktopUpdate: "server.commitDesktopUpdate",
   serverUpsertKeybinding: "server.upsertKeybinding",
@@ -607,12 +605,6 @@ const WsProviderInstallRemoveRpc = Rpc.make(WS_METHODS.providerInstallRemove, {
   payload: ProviderSetupInput,
   success: ProviderInstallState,
   error: ProviderSetupRpcError,
-});
-
-const WsServerCheckForkUpdatesRpc = Rpc.make(WS_METHODS.serverCheckForkUpdates, {
-  payload: Schema.Struct({}),
-  success: ServerForkUpdates,
-  error: Schema.Union([ServerSelfUpdateError, EnvironmentAuthorizationError]),
 });
 
 const WsServerUpdateServerRpc = Rpc.make(WS_METHODS.serverUpdateServer, {
@@ -1478,7 +1470,6 @@ export const WsRpcGroup = RpcGroup.make(
   WsProviderInstallSubscribeRpc,
   WsProviderInstallRemoveRpc,
   WsServerUpdateServerRpc,
-  WsServerCheckForkUpdatesRpc,
   WsServerUpdateServerWithProgressRpc,
   WsServerCommitDesktopUpdateRpc,
   WsServerUpsertKeybindingRpc,

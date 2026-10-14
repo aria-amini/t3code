@@ -66,7 +66,6 @@ import {
   SettingsSection,
   useRelativeTimeTick,
 } from "./settingsLayout";
-import { ForkRuntimeUpdates } from "./ForkRuntimeUpdates";
 import { LocalEnvironmentSetting } from "./LocalEnvironmentSetting";
 import { searchableSetting } from "./settingsSearch";
 import { EnvironmentIconMenu } from "./EnvironmentIconPicker";
@@ -1549,7 +1548,6 @@ function SavedBackendListRow({
     enabled &&
     isConnected &&
     versionMismatch !== null &&
-    !environment.serverConfig?.environment.capabilities.serverForkUpdates &&
     (serverUpdateState.status === "idle" || serverUpdateState.status === "failed");
 
   const statusTooltip = `${
@@ -1592,21 +1590,11 @@ function SavedBackendListRow({
         </Tooltip>
       }
       below={
-        <>
-          {environment.serverConfig?.environment.capabilities.serverForkUpdates ? (
-            <ForkRuntimeUpdates
-              key={`${environmentId}:${serverVersion}`}
-              environmentId={environmentId}
-              config={environment.serverConfig}
-              disabled={!enabled || !isConnected || serverUpdateState.status === "running"}
-            />
-          ) : null}
-          {serverUpdateState.status !== "idle" ? (
-            <div className="mt-1 max-w-md">
-              <ServerUpdateProgress state={serverUpdateState} />
-            </div>
-          ) : null}
-        </>
+        serverUpdateState.status !== "idle" ? (
+          <div className="mt-1 max-w-md">
+            <ServerUpdateProgress state={serverUpdateState} />
+          </div>
+        ) : null
       }
     >
       {showUpdateAction ? (
@@ -3355,7 +3343,6 @@ export function ConnectionsSettings() {
                 }
                 control={
                   primaryVersionMismatch &&
-                  !primaryServerConfig?.environment.capabilities.serverForkUpdates &&
                   primaryEnvironmentId !== null &&
                   primaryServerUpdateState.status !== "running" ? (
                     <ServerUpdateAction
@@ -3376,25 +3363,11 @@ export function ConnectionsSettings() {
                           : `Update to ${primaryVersionMismatch.clientVersion}`
                       }
                     />
-                  ) : primaryServerUpdateState.status === "idle" &&
-                    primaryServerConfig &&
-                    !primaryServerConfig.environment.capabilities.serverForkUpdates ? (
+                  ) : primaryServerUpdateState.status === "idle" && primaryServerConfig ? (
                     <span className="text-xs text-muted-foreground">Up to date</span>
                   ) : undefined
                 }
               />
-            ) : null}
-            {canManageLocalBackend &&
-            primaryEnvironmentId !== null &&
-            primaryServerConfig?.environment.capabilities.serverForkUpdates ? (
-              <SettingsRow title="Fork releases">
-                <ForkRuntimeUpdates
-                  key={`${primaryEnvironmentId}:${primaryServerConfig.environment.serverVersion}`}
-                  environmentId={primaryEnvironmentId}
-                  config={primaryServerConfig}
-                  disabled={primaryServerUpdateState.status === "running"}
-                />
-              </SettingsRow>
             ) : null}
             {canManageLocalBackend && desktopBridge ? (
               <>

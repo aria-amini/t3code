@@ -89,3 +89,35 @@ jobs:
           fi
           sort -u release/SHA256SUMS -o release/SHA256SUMS
           gh release upload fork-runtime release/* --clobber
+
+          # Retain this build under its own tag. The version comes from the archive
+          # name so a re-run of only this job still publishes the built version.
+          archive="$(basename release/*-linux-x64.tar.gz)"
+          version="${archive#t3-}"
+          version="${version%-linux-x64.tar.gz}"
+          # The rolling release keeps the cumulative checksums; this release lists only its own archives.
+          mkdir retained
+          cp release/*.tar.gz retained/
+          (cd retained && sha256sum *.tar.gz > SHA256SUMS)
+          if gh release view "v$version" >/dev/null 2>&1; then
+            gh release upload "v$version" retained/* --clobber
+          else
+            gh release create "v$version" retained/* --target "$GITHUB_SHA" --prerelease \
+              --title "Fork runtime $version" \
+              --notes "Based on upstream v${version%%-fork.*}. Built from commit $GITHUB_SHA by workflow run $GITHUB_RUN_ID."
+          fi
+  # New upstream workflows arrive enabled with each release, and none of them
+  # have runners on the fork.
+  quiet-upstream:
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+    steps:
+      - name: Disable upstream workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh workflow list --json id,path \
+            --jq '.[] | select(.path != ".github/workflows/fork-runtime.yml") | .id' |
+            xargs -r -n1 gh workflow disable

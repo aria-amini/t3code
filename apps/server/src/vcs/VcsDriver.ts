@@ -7,6 +7,10 @@ import type {
   VcsInitInput,
   VcsListRemotesResult,
   VcsListWorkspaceFilesResult,
+  VcsCreateWorkspaceInput,
+  VcsListWorkspacesResult,
+  VcsRemoveWorkspaceInput,
+  VcsWorkspace,
   ReviewDiffPreviewInput,
   ReviewDiffPreviewResult,
   VcsRepositoryIdentity,
@@ -85,6 +89,9 @@ export class VcsDriver extends Context.Service<
       relativePaths: ReadonlyArray<string>,
     ) => Effect.Effect<ReadonlyArray<string>, VcsError>;
     readonly initRepository: (input: VcsInitInput) => Effect.Effect<void, VcsError>;
+    readonly createWorkspace?: (input: VcsCreateWorkspaceInput) => Effect.Effect<VcsWorkspace, VcsError>;
+    readonly listWorkspaces?: (cwd: string) => Effect.Effect<VcsListWorkspacesResult, VcsError>;
+    readonly removeWorkspace?: (input: VcsRemoveWorkspaceInput) => Effect.Effect<void, VcsError>;
     readonly getDiffPreview?: (
       input: ReviewDiffPreviewInput,
     ) => Effect.Effect<ReviewDiffPreviewResult, VcsError>;

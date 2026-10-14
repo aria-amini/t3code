@@ -184,7 +184,7 @@ export const make = Effect.gen(function* () {
           }),
       ),
     );
-    if (handle.kind !== "git") {
+    if (handle.kind !== "git" && handle.kind !== "jj") {
       return yield* new GitManagerError({
         operation,
         cwd,
@@ -209,7 +209,7 @@ export const make = Effect.gen(function* () {
           }),
       ),
     );
-    if (handle.kind !== "git") {
+    if (handle.kind !== "git" && handle.kind !== "jj") {
       return yield* new GitCommandError({
         operation,
         command: "vcs-route",
@@ -235,7 +235,7 @@ export const make = Effect.gen(function* () {
       if (!handle) {
         return false;
       }
-      if (handle.kind !== "git") {
+      if (handle.kind !== "git" && handle.kind !== "jj") {
         return yield* new GitManagerError({
           operation,
           cwd,
@@ -264,7 +264,7 @@ export const make = Effect.gen(function* () {
     if (!handle) {
       return false;
     }
-    if (handle.kind !== "git") {
+    if (handle.kind !== "git" && handle.kind !== "jj") {
       return yield* new GitCommandError({
         operation,
         command: "vcs-route",
@@ -286,7 +286,7 @@ export const make = Effect.gen(function* () {
   return GitWorkflowService.of({
     isRepository: (cwd) =>
       registry.detect({ cwd }).pipe(
-        Effect.map((handle) => handle?.kind === "git"),
+        Effect.map((handle) => handle?.kind === "git" || handle?.kind === "jj"),
         Effect.mapError(
           (cause) =>
             new GitManagerError({

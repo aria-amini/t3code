@@ -38,6 +38,7 @@ import {
   windowsLongPathConfigEnv,
 } from "./GitVcsDriverCore.ts";
 import * as GitVcsDriver from "./GitVcsDriver.ts";
+import * as VcsProcess from "./VcsProcess.ts";
 
 const encodeGitCommandError = Schema.encodeEffect(Schema.fromJsonString(GitCommandError));
 
@@ -46,6 +47,7 @@ const layerServerConfig = ServerConfig.layerTest(process.cwd(), {
 });
 const layerTest = GitVcsDriver.layer.pipe(
   Layer.provide(layerServerConfig),
+  Layer.provide(VcsProcess.layer),
   Layer.provideMerge(NodeServices.layer),
 );
 
@@ -319,6 +321,7 @@ it.effect("uses stable diagnostics for every parsed non-repository command", () 
   );
   const layer = GitVcsDriver.layer.pipe(
     Layer.provide(layerServerConfig),
+    Layer.provide(VcsProcess.layer),
     Layer.provideMerge(layerNodeServices),
   );
 
@@ -4006,6 +4009,32 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
       }),
     );
 
+    it.effect("fails a push that never finishes", () => Effect.gen(function* () {
+      const delegate = yield* ChildProcessSpawner.ChildProcessSpawner;
+      const started = yield* Deferred.make<void>();
+      const spawner = ChildProcessSpawner.make((command) => Effect.gen(function* () {
+        if (ChildProcess.isStandardCommand(command) && command.args[0] === "push") {
+          yield* Deferred.succeed(started, undefined);
+          return yield* Effect.never;
+        }
+        return yield* delegate.spawn(command);
+      }));
+      const driver = yield* makeGitVcsDriverCore().pipe(
+        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+        Effect.provide(layerServerConfig),
+      );
+      const cwd = yield* makeTmpDir();
+      const remote = yield* makeTmpDir("git-remote-");
+      yield* initRepoWithCommit(cwd);
+      yield* git(remote, ["init", "--bare"]);
+      yield* git(cwd, ["remote", "add", "origin", remote]);
+      const pushing = yield* driver.pushCurrentBranch(cwd, null).pipe(Effect.forkChild({ startImmediately: true }));
+      yield* Deferred.await(started);
+      yield* TestClock.adjust("16 minutes");
+      const error = yield* Effect.flip(Fiber.join(pushing));
+      assert.equal(error.detail, "Git command timed out.");
+    }));
+
     it.effect("allows pushes to run longer than the default command timeout", () =>
       Effect.gen(function* () {
         const delegate = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -4232,6 +4261,7 @@ describe("Windows long path configuration", () => {
   ) {
     const layer = GitVcsDriver.layer.pipe(
       Layer.provide(layerServerConfig),
+      Layer.provide(VcsProcess.layer),
       Layer.provideMerge(NodeServices.layer),
       Layer.provide(Layer.succeed(HostProcess.Platform, platform)),
     );

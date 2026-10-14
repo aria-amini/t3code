@@ -135,6 +135,22 @@ For a local Git repository without a remote, **Publish Repository** creates a ho
 adds it as `origin`, and pushes your commits. If there are no commits yet, it creates the remote;
 make your first commit before pushing.
 
+## Use Jujutsu
+
+Install `jj` on the machine running your T3 Code server, then run `jj git init --colocate` in
+an existing Git repository. T3 Code automatically uses Jujutsu for colocated repositories when
+the server can run `jj`, and otherwise uses Git.
+To force Git for a repository, set `{"vcs":{"kind":"git"}}` in `.t3code/vcs.json`.
+
+Select or create a bookmark before using T3 Code’s Commit or Push actions. Review against the base
+branch includes the whole working copy, even when the bookmark lags behind local commits. Push advances
+the selected bookmark over those commits. An unnamed, unbookmarked working-copy change stays
+pending; a change already described or bookmarked through `jj` appears as an existing commit.
+
+Pull fetches the remote and rebases the local stack onto its updated tip. Resolve divergent
+bookmarks or merge stacks with `jj` before retrying. Expanding unchanged lines in a local review
+is not yet supported for Jujutsu repositories.
+
 ## Create a pull request
 
 Use a thread's Git actions to commit, push, and create a pull request. T3 Code can generate commit

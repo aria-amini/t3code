@@ -11,7 +11,10 @@ import {
 } from "@t3tools/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Cause from "effect/Cause";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -21,6 +24,7 @@ import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 
 import {
   AVAILABLE_CONNECTION_STATE,
+  ConnectionTransientError,
   PrimaryConnectionTarget,
   type PreparedConnection,
   type SupervisorConnectionState,
@@ -30,6 +34,7 @@ import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import * as Persistence from "../platform/persistence.ts";
 import type { WsRpcProtocolClient } from "../rpc/protocol.ts";
 import type { RpcSession } from "../rpc/session.ts";
+import { RpcPermissionGuard, runStreamGuarded } from "../rpc/client.ts";
 import type { AtomCommandResult } from "./runtime.ts";
 import {
   applyVcsActionProgressEvent,
@@ -38,6 +43,9 @@ import {
   createVcsActionManager,
   createVcsActionTransportId,
   EMPTY_VCS_ACTION_STATE,
+  failVcsActionWhenSessionCloses,
+  settleVcsActionStateForExit,
+  VcsActionTransportLostError,
   getVcsActionTargetKey,
   normalizeVcsActionProgressEvent,
   parseVcsActionTargetKey,
@@ -118,6 +126,185 @@ function cacheStore(onClearVcsRefs: (environmentId: EnvironmentId) => void) {
 }
 
 describe("vcsActionState", () => {
+  it.effect("fails a half-open action when its session closes", () => Effect.gen(function* () {
+    const started = yield* Deferred.make<void>();
+    const closed = yield* Deferred.make<never, ConnectionTransientError>();
+    const supervisor = EnvironmentSupervisor.EnvironmentSupervisor.of({
+      target,
+      state: yield* SubscriptionRef.make(AVAILABLE_CONNECTION_STATE),
+      session: yield* SubscriptionRef.make<Option.Option<RpcSession>>(Option.some({
+        ...session({} as WsRpcProtocolClient), closed: Deferred.await(closed),
+      })),
+      prepared: yield* SubscriptionRef.make(Option.none<PreparedConnection>()),
+      connect: Effect.void, disconnect: Effect.void, retryNow: Effect.void,
+    });
+    const error = new VcsActionTransportLostError({ actionId, action, environmentId, cwd });
+    const running = beginVcsActionState({ operation: "run_change_request", label: "Push", actionId });
+    const stream = Stream.fromEffect(Deferred.succeed(started, undefined)).pipe(Stream.flatMap(() => Stream.never));
+    const fiber = yield* failVcsActionWhenSessionCloses(() => stream, error).pipe(
+      Stream.runDrain, Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
+      Effect.forkChild({ startImmediately: true }),
+    );
+    yield* Deferred.await(started);
+    yield* Deferred.fail(closed, new ConnectionTransientError({ reason: "transport", detail: "disconnected" }));
+    const failure = yield* Effect.flip(Fiber.join(fiber));
+    expect(failure).toBe(error);
+    expect(settleVcsActionStateForExit(running, actionId, Exit.fail(error))).toMatchObject({
+      isRunning: false, error: error.message,
+    });
+    expect(settleVcsActionStateForExit(running, actionId, Exit.interrupt())).toEqual(EMPTY_VCS_ACTION_STATE);
+    expect(settleVcsActionStateForExit(running, "newer-action", Exit.fail(error))).toBeNull();
+  }));
+
+  for (const kind of ["action_finished", "action_failed"] as const) {
+    it.effect(`settles ${kind} before a subsequent session close`, () =>
+      Effect.gen(function* () {
+        const closed = yield* Deferred.make<never, ConnectionTransientError>();
+        const supervisor = EnvironmentSupervisor.EnvironmentSupervisor.of({
+          target,
+          state: yield* SubscriptionRef.make(AVAILABLE_CONNECTION_STATE),
+          session: yield* SubscriptionRef.make<Option.Option<RpcSession>>(
+            Option.some({ ...session({} as WsRpcProtocolClient), closed: Deferred.await(closed) }),
+          ),
+          prepared: yield* SubscriptionRef.make(Option.none<PreparedConnection>()),
+          connect: Effect.void,
+          disconnect: Effect.void,
+          retryNow: Effect.void,
+        });
+        const targetKey = { environmentId, cwd };
+        const transportActionId = createVcsActionTransportId(targetKey, actionId);
+        const terminal: GitActionProgressEvent =
+          kind === "action_finished"
+            ? { kind, actionId: transportActionId, action, cwd, result }
+            : {
+                kind,
+                actionId: transportActionId,
+                action,
+                cwd,
+                phase: "push",
+                message: "remote rejected push",
+              };
+        const stream = Stream.make({ ...terminal, actionId: "unrelated" }, terminal).pipe(
+          Stream.concat(Stream.never),
+        );
+        const observed: GitActionProgressEvent[] = [];
+        const exit = yield* consumeVcsActionProgress(
+          failVcsActionWhenSessionCloses(
+            () => stream,
+            new VcsActionTransportLostError({ actionId, action, environmentId, cwd }),
+          ),
+          {
+            target: targetKey,
+            transportActionId,
+            actionId,
+            action,
+            onProgress: (event) =>
+              Effect.sync(() => {
+                observed.push(event);
+              }).pipe(
+                Effect.andThen(
+                  Deferred.fail(
+                    closed,
+                    new ConnectionTransientError({
+                      reason: "transport",
+                      detail: "closed after terminal event",
+                    }),
+                  ),
+                ),
+                Effect.asVoid,
+              ),
+          },
+        ).pipe(
+          Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
+          Effect.exit,
+        );
+        expect(observed).toHaveLength(1);
+        if (kind === "action_finished") expect(exit).toEqual(Exit.succeed(result));
+        else {
+          expect(Exit.isFailure(exit)).toBe(true);
+          if (Exit.isFailure(exit))
+            expect(Cause.squash(exit.cause)).toBeInstanceOf(VcsActionRemoteFailureError);
+        }
+      }),
+    );
+  }
+
+  it.effect("allows server follow-up work after a terminal progress event", () =>
+    Effect.gen(function* () {
+      let completed = false;
+      const targetKey = { environmentId, cwd };
+      const transportActionId = createVcsActionTransportId(targetKey, actionId);
+      const terminal: GitActionProgressEvent = {
+        kind: "action_finished",
+        actionId: transportActionId,
+        action,
+        cwd,
+        result,
+      };
+      const lateFailure: GitActionProgressEvent = {
+        kind: "action_failed",
+        actionId: transportActionId,
+        action,
+        cwd,
+        phase: "push",
+        message: "follow-up failed",
+      };
+      const stream = Stream.make(terminal, lateFailure).pipe(
+        Stream.concat(
+          Stream.fromEffect(
+            Effect.sync(() => {
+              completed = true;
+            }),
+          ).pipe(Stream.drain),
+        ),
+      );
+      const observed: GitActionProgressEvent[] = [];
+      const actual = yield* consumeVcsActionProgress(stream, {
+        target: targetKey,
+        transportActionId,
+        actionId,
+        action,
+        onProgress: (event) =>
+          Effect.sync(() => {
+            observed.push(event);
+          }),
+      });
+      expect(actual).toEqual(result);
+      expect(observed.map((event) => event.kind)).toEqual(["action_finished"]);
+      expect(completed).toBe(true);
+    }),
+  );
+
+  it.effect("uses the captured session if reconnect replaces it before the RPC starts", () =>
+    Effect.gen(function* () {
+      const event: GitActionProgressEvent = { actionId, action, cwd, kind: "action_started", phases: [] };
+      const captured = session({
+        [WS_METHODS.gitRunStackedAction]: () => Stream.succeed(event),
+      } as unknown as WsRpcProtocolClient);
+      const replacement = session({
+        [WS_METHODS.gitRunStackedAction]: () => Stream.die("Used the replacement session"),
+      } as unknown as WsRpcProtocolClient);
+      const sessions = yield* SubscriptionRef.make(Option.some(captured));
+      const supervisor = EnvironmentSupervisor.EnvironmentSupervisor.of({
+        target, session: sessions,
+        state: yield* SubscriptionRef.make(AVAILABLE_CONNECTION_STATE),
+        prepared: yield* SubscriptionRef.make(Option.none<PreparedConnection>()),
+        connect: Effect.void, disconnect: Effect.void, retryNow: Effect.void,
+      });
+      const events = yield* failVcsActionWhenSessionCloses((selected) =>
+        Stream.unwrap(SubscriptionRef.set(sessions, Option.some(replacement)).pipe(
+          Effect.as(runStreamGuarded(WS_METHODS.gitRunStackedAction, { actionId, cwd, action }, selected)),
+        )),
+        new VcsActionTransportLostError({ actionId, action, environmentId, cwd }),
+      ).pipe(
+        Stream.runCollect,
+        Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
+        Effect.provideService(RpcPermissionGuard, { authorize: () => Effect.void }),
+      );
+      expect(events).toEqual([event]);
+    }),
+  );
+
   it("preserves malformed target key diagnostics and the native cause without copying the key", () => {
     const key = "not-json-with-credential=do-not-log";
     let error: unknown;

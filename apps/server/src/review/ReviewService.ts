@@ -138,7 +138,7 @@ export const make = Effect.gen(function* () {
 
     const getDriverDiffPreview = handle.driver.getDiffPreview;
     if (!getDriverDiffPreview) {
-      if (handle.kind === "git") {
+      if (handle.kind === "git" || handle.kind === "jj") {
         return yield* git.getReviewDiffPreview(input);
       }
       return yield* new VcsUnsupportedOperationError({

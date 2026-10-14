@@ -12,13 +12,18 @@ import {
 import * as Cause from "effect/Cause";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
+import * as SubscriptionRef from "effect/SubscriptionRef";
 import { AsyncResult, Atom, type AtomRegistry } from "effect/unstable/reactivity";
 
 import type { EnvironmentRegistry } from "../connection/registry.ts";
+import { EnvironmentSupervisor } from "../connection/supervisor.ts";
 import { EnvironmentCacheStore } from "../platform/persistence.ts";
 import { runStream } from "../rpc/client.ts";
+import type { RpcSession } from "../rpc/session.ts";
 import {
   createRuntimeCommand,
   runStreamInEnvironment,
@@ -128,6 +133,15 @@ export class VcsActionMissingTerminalEventError extends Schema.TaggedError<VcsAc
   }
 }
 
+export class VcsActionTransportLostError extends Schema.TaggedError<VcsActionTransportLostError>()(
+  "VcsActionTransportLostError",
+  { actionId: Schema.String, action: GitStackedAction, environmentId: EnvironmentId, cwd: Schema.String },
+) {
+  override get message(): string {
+    return `Source control action '${this.action}' lost its connection before it finished.`;
+  }
+}
+
 export class VcsActionTargetKeyParseError extends Schema.TaggedError<VcsActionTargetKeyParseError>()(
   "VcsActionTargetKeyParseError",
   {
@@ -143,6 +157,7 @@ export class VcsActionTargetKeyParseError extends Schema.TaggedError<VcsActionTa
 export const VcsActionExecutionError = Schema.Union([
   VcsActionRemoteFailureError,
   VcsActionMissingTerminalEventError,
+  VcsActionTransportLostError,
 ]);
 export type VcsActionExecutionError = typeof VcsActionExecutionError.Type;
 
@@ -256,6 +271,29 @@ export function normalizeVcsActionProgressEvent(
   };
 }
 
+export function settleVcsActionStateForExit(
+  current: VcsActionState, actionId: string, exit: Exit.Exit<GitRunStackedActionResult, unknown>,
+): VcsActionState | null {
+  if (current.actionId !== actionId || !current.isRunning || Exit.isSuccess(exit)) return null;
+  return Cause.hasInterruptsOnly(exit.cause) ? EMPTY_VCS_ACTION_STATE :
+    failVcsActionState("run_change_request", actionId, Cause.squash(exit.cause));
+}
+
+// A half-open connection can leave the progress stream pending after its session closes.
+export function failVcsActionWhenSessionCloses<A, E, R>(
+  makeStream: (session: RpcSession) => Stream.Stream<A, E, R>, error: VcsActionTransportLostError,
+): Stream.Stream<A, E | VcsActionTransportLostError, R | EnvironmentSupervisor> {
+  return Stream.unwrap(Effect.gen(function* () {
+    const supervisor = yield* EnvironmentSupervisor;
+    const session = Option.getOrUndefined(yield* SubscriptionRef.get(supervisor.session));
+    if (!session) return Stream.fail(error);
+    const lost = Stream.fromEffect(Effect.ignore(session.closed)).pipe(
+      Stream.flatMap(() => Stream.fail(error)),
+    );
+    return Stream.merge(makeStream(session), lost, { haltStrategy: "either" });
+  }));
+}
+
 export function consumeVcsActionProgress<E, R>(
   stream: Stream.Stream<GitActionProgressEvent, E, R>,
   input: {
@@ -276,7 +314,7 @@ export function consumeVcsActionProgress<E, R>(
           input.actionId,
           event,
         );
-        if (normalized === null) {
+        if (normalized === null || terminalEvent !== null) {
           return Effect.void;
         }
         if (normalized.kind === "action_finished" || normalized.kind === "action_failed") {
@@ -284,6 +322,9 @@ export function consumeVcsActionProgress<E, R>(
         }
         return input.onProgress(normalized);
       }),
+      // Keep draining a healthy RPC: the server can still be linking a created PR.
+      // Once a terminal event arrived, a later transport error cannot change its result.
+      Effect.catch((error) => (terminalEvent === null ? Effect.fail(error) : Effect.void)),
       Effect.flatMap(() => {
         if (terminalEvent?.kind === "action_finished") {
           return Effect.succeed(terminalEvent.result);
@@ -471,7 +512,9 @@ export function createVcsActionManager<R, E>(
         return consumeVcsActionProgress(
           runStreamInEnvironment(
             target.environmentId,
-            runStream(WS_METHODS.gitRunStackedAction, rpcInput),
+            failVcsActionWhenSessionCloses((session) => runStream(WS_METHODS.gitRunStackedAction, rpcInput, session),
+              new VcsActionTransportLostError({ actionId: input.actionId, action: input.action,
+                environmentId: target.environmentId, cwd: target.cwd })),
           ),
           {
             target,
@@ -496,15 +539,10 @@ export function createVcsActionManager<R, E>(
           },
         ).pipe(
           Effect.ensuring(invalidateCachedVcsRefs(registry, target)),
-          Effect.tapError((error) =>
+          Effect.onExit((exit) =>
             Effect.sync(() => {
-              const current = registry.get(stateAtom);
-              if (current.actionId === input.actionId && current.isRunning) {
-                registry.set(
-                  stateAtom,
-                  failVcsActionState("run_change_request", input.actionId, error),
-                );
-              }
+              const next = settleVcsActionStateForExit(registry.get(stateAtom), input.actionId, exit);
+              if (next !== null) registry.set(stateAtom, next);
             }),
           ),
         );

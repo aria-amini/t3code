@@ -322,7 +322,7 @@ export class GitVcsDriver extends Context.Service<
     ) => Effect.Effect<GitRangeContext, GitCommandError>;
     readonly getReviewDiffPreview: (
       input: ReviewDiffPreviewInput,
-      options?: { readonly branch?: string | null },
+      options?: { readonly branch?: string | null; readonly headRef?: string },
     ) =>Effect.Effect<ReviewDiffPreviewResult, GitCommandError>;
     readonly getReviewDiffFileContents: (
       input: ReviewDiffFileContentsInput,

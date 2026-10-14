@@ -2410,7 +2410,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
 
   const getReviewDiffPreview = Effect.fn("getReviewDiffPreview")(function* (
     input: ReviewDiffPreviewInput,
-    options?: { readonly branch?: string | null },
+    options?: { readonly branch?: string | null; readonly headRef?: string },
   ) {
     const pathArgs = input.file
       ? [input.file.path, ...(input.file.previousPath ? [input.file.previousPath] : [])].map(
@@ -2545,7 +2545,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         readDirty,
         readTrackedDiff(
           baseRef && branch && input.file?.sourceKind !== "working-tree"
-            ? `${baseRef}...${options?.branch ?? "HEAD"}`
+            ? `${baseRef}...${options?.headRef ?? "HEAD"}`
             : null,
         ),
       ],
@@ -2591,7 +2591,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         kind: "branch-range",
         title: baseRef ? `Against ${baseRef}` : "Against base branch",
         baseRef,
-        headRef: branch ?? "HEAD",
+        headRef: options?.headRef ?? branch ?? "HEAD",
         diff: baseDiff,
         files: baseFiles,
         diffHash: baseDiffHash,

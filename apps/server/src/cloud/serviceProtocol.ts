@@ -247,7 +247,11 @@ export function decodeServiceLauncherChildMessage(
     typeof value.targetVersion === "string" &&
     typeof value.dbPath === "string"
   ) {
-    return { type: value.type, targetVersion: value.targetVersion, dbPath: value.dbPath };
+    return {
+      type: value.type,
+      targetVersion: value.targetVersion,
+      dbPath: value.dbPath,
+    };
   }
   return value.type === "prepared" && typeof value.updateId === "string"
     ? { type: value.type, updateId: value.updateId }

@@ -82,14 +82,19 @@ export const resolveNewestVersion = Effect.fn("cli.update.resolve_newest")(funct
     );
     const releases = yield* decodeReleaseIndex(body).pipe(
       Effect.mapError(
-        () => new CliUpdateError({ reason: "The t3 release index had an unexpected shape." }),
+        () =>
+          new CliUpdateError({
+            reason: "The t3 release index had an unexpected shape.",
+          }),
       ),
     );
     const version = newestCliReleaseVersion(releases, channel);
     if (version !== undefined) return version;
     if (releases.length === 0) break;
   }
-  return yield* new CliUpdateError({ reason: `No published ${channel} release was found.` });
+  return yield* new CliUpdateError({
+    reason: `No published ${channel} release was found.`,
+  });
 });
 
 export const resolveUpdateVersion = Effect.fn("cli.update.resolve_version")(function* (input: {
@@ -148,13 +153,14 @@ export const repointLauncher = Effect.fn("cli.update.repoint_launcher")(function
     const current = yield* fs.readFileString(shimPath).pipe(Effect.option);
     const quoted = Option.isSome(current) ? windowsShimTarget(current.value) : undefined;
     if (quoted === undefined || !ownsTarget(quoted)) return Option.none<string>();
-    yield* fs
-      .writeFileString(shimPath, `@echo off\r\n"${input.targetEntryPath}" %*`)
-      .pipe(
-        Effect.mapError(
-          () => new CliUpdateError({ reason: `Could not rewrite the t3 launcher at ${shimPath}.` }),
-        ),
-      );
+    yield* fs.writeFileString(shimPath, `@echo off\r\n"${input.targetEntryPath}" %*`).pipe(
+      Effect.mapError(
+        () =>
+          new CliUpdateError({
+            reason: `Could not rewrite the t3 launcher at ${shimPath}.`,
+          }),
+      ),
+    );
     return Option.some(shimPath);
   }
 
@@ -167,7 +173,9 @@ export const repointLauncher = Effect.fn("cli.update.repoint_launcher")(function
     Effect.andThen(fs.rename(tempLink, input.launchedAs)),
     Effect.mapError(
       () =>
-        new CliUpdateError({ reason: `Could not repoint the t3 launcher at ${input.launchedAs}.` }),
+        new CliUpdateError({
+          reason: `Could not repoint the t3 launcher at ${input.launchedAs}.`,
+        }),
     ),
   );
   return Option.some(input.launchedAs);
@@ -318,7 +326,11 @@ const belongsToBootService = Effect.fn("cli.update.belongs_to_boot_service")(fun
     const ppid = Option.isSome(parent) && parent.value.code === 0 ? parent.value.stdout.trim() : "";
     if (!/^\d+$/.test(ppid)) return false;
     const command = yield* runner
-      .run({ command: "ps", args: ["-o", "command=", "-p", ppid], timeout: Duration.seconds(5) })
+      .run({
+        command: "ps",
+        args: ["-o", "command=", "-p", ppid],
+        timeout: Duration.seconds(5),
+      })
       .pipe(
         Effect.map((result) => (result.code === 0 ? result.stdout : "")),
         Effect.orElseSucceed(() => ""),
@@ -378,7 +390,10 @@ const runUpdate = Effect.fn("cli.update.run")(function* (input: {
       });
     }
     const confirmed = yield* Prompt.run(
-      Prompt.Confirm({ message: "Install the preview build anyway?", initial: false }),
+      Prompt.Confirm({
+        message: "Install the preview build anyway?",
+        initial: false,
+      }),
     ).pipe(Effect.catchTags({ QuitError: () => Effect.succeed(false) }));
     if (!confirmed) {
       yield* Console.log("Left as is.");
@@ -485,7 +500,10 @@ const runUpdate = Effect.fn("cli.update.run")(function* (input: {
         .pipe(
           Effect.mapError(
             (cause) =>
-              new PinnedRuntimeInstallError({ step: "verifying the downloaded t3", cause }),
+              new PinnedRuntimeInstallError({
+                step: "verifying the downloaded t3",
+                cause,
+              }),
           ),
           Effect.flatMap((result) =>
             result.code === 0 && /\bv(\S+)\s*$/.exec(result.stdout)?.[1] === targetVersion
@@ -532,7 +550,10 @@ const runUpdate = Effect.fn("cli.update.run")(function* (input: {
     );
     servicePlan = yield* BootService.BootService.pipe(
       Effect.flatMap((target) =>
-        target.install({ allowDowngrade: input.allowDowngrade, start: restartService }),
+        target.install({
+          allowDowngrade: input.allowDowngrade,
+          start: restartService,
+        }),
       ),
       Effect.provide(
         BootService.layer({

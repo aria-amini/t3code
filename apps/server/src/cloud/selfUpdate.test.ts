@@ -70,7 +70,9 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-self-update-test-" });
+  const baseDir = yield* fs.makeTempDirectoryScoped({
+    prefix: "t3-self-update-test-",
+  });
   const order: string[] = [];
   const runner = ProcessRunner.ProcessRunner.of({
     run: (input) =>
@@ -188,7 +190,9 @@ it.layer(NodeServices.layer)("server self update", (it) => {
     Effect.gen(function* () {
       const threadId = ThreadId.make("thread-running-desktop");
       const events: string[] = [];
-      const commitError = new ServerSelfUpdateError({ reason: "install failed" });
+      const commitError = new ServerSelfUpdateError({
+        reason: "install failed",
+      });
       const selfUpdate = yield* ServerSelfUpdate.withRunningThreadContinuation({
         mode: "desktop",
         selfUpdate: {
@@ -235,8 +239,12 @@ it.layer(NodeServices.layer)("server self update", (it) => {
 
   it.effect("reports a failed continuation-marker cleanup", () =>
     Effect.gen(function* () {
-      const updateError = new ServerSelfUpdateError({ reason: "update failed" });
-      const clearError = new ServerSelfUpdateError({ reason: "marker cleanup failed" });
+      const updateError = new ServerSelfUpdateError({
+        reason: "update failed",
+      });
+      const clearError = new ServerSelfUpdateError({
+        reason: "marker cleanup failed",
+      });
       const selfUpdate = yield* ServerSelfUpdate.withRunningThreadContinuation({
         mode: "web",
         selfUpdate: {
@@ -327,7 +335,9 @@ it.layer(NodeServices.layer)("server self update", (it) => {
   it.effect("clears continuation markers for mixed failure and interrupt causes", () =>
     Effect.gen(function* () {
       const events: string[] = [];
-      const commitError = new ServerSelfUpdateError({ reason: "install failed" });
+      const commitError = new ServerSelfUpdateError({
+        reason: "install failed",
+      });
       const selfUpdate = yield* ServerSelfUpdate.withRunningThreadContinuation({
         mode: "desktop",
         selfUpdate: {
@@ -414,7 +424,10 @@ it.layer(NodeServices.layer)("server self update", (it) => {
           run: (reportProgress) =>
             reportProgress("downloading").pipe(
               Effect.andThen(reportProgress("installing")),
-              Effect.as({ targetVersion: "1.2.0", method: "desktop-app" as const }),
+              Effect.as({
+                targetVersion: "1.2.0",
+                method: "desktop-app" as const,
+              }),
             ),
           commit: () => Effect.never,
         },
@@ -422,7 +435,10 @@ it.layer(NodeServices.layer)("server self update", (it) => {
       const result = yield* selfUpdate.update({ targetVersion: "1.1.0" }, (stage) =>
         Effect.sync(() => void stages.push(stage)),
       );
-      expect(result).toEqual({ targetVersion: "1.2.0", method: "desktop-app" });
+      expect(result).toEqual({
+        targetVersion: "1.2.0",
+        method: "desktop-app",
+      });
       expect(stages).toEqual(["downloading", "installing"]);
       expect(order).toEqual([]);
     }),

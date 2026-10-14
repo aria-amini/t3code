@@ -5,15 +5,80 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 import * as Path from "effect/Path";
+import { ChildProcessSpawner } from "effect/process";
+import { VcsProcessSpawnError } from "@t3tools/contracts";
 
+import * as VcsProcess from "./VcsProcess.ts";
 import * as VcsProjectConfig from "./VcsProjectConfig.ts";
 
 const layerTest = VcsProjectConfig.layer.pipe(
+  Layer.provide(
+    Layer.mock(VcsProcess.VcsProcess)({
+      run: () =>
+        Effect.succeed({
+          exitCode: ChildProcessSpawner.ExitCode(0),
+          stdout: "jj 0.45.1\n",
+          stderr: "",
+          stdoutTruncated: false,
+          stderrTruncated: false,
+        }),
+    }),
+  ),
   Layer.provide(NodeServices.layer),
   Layer.provideMerge(NodeServices.layer),
 );
 
 describe("VcsProjectConfig", () => {
+  it.effect.each([true, false])(
+    "caches jj availability (%s) without overriding an explicit choice",
+    (available) =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const root = yield* fs.makeTempDirectoryScoped({
+          prefix: "t3-vcs-jj-availability-",
+        });
+        for (const directory of [".jj", ".git", ".t3code", "src"]) {
+          yield* fs.makeDirectory(path.join(root, directory));
+        }
+        let probes = 0;
+        const config = yield* VcsProjectConfig.make.pipe(
+          Effect.provideService(
+            VcsProcess.VcsProcess,
+            VcsProcess.VcsProcess.of({
+              run: (input) => {
+                probes += 1;
+                return available
+                  ? Effect.succeed({
+                      exitCode: ChildProcessSpawner.ExitCode(0),
+                      stdout: "jj 0.45.1\n",
+                      stderr: "",
+                      stdoutTruncated: false,
+                      stderrTruncated: false,
+                    })
+                  : Effect.fail(
+                      new VcsProcessSpawnError({
+                        operation: input.operation,
+                        command: input.command,
+                        cwd: input.cwd,
+                        cause: new Error("jj is missing"),
+                      }),
+                    );
+              },
+            }),
+          ),
+        );
+        assert.equal(yield* config.resolveKind({ cwd: root }), available ? "jj" : "auto");
+        assert.equal(
+          yield* config.resolveKind({ cwd: path.join(root, "src") }),
+          available ? "jj" : "auto",
+        );
+        assert.equal(probes, 1);
+        yield* fs.writeFileString(path.join(root, ".t3code", "vcs.json"), '{"vcs":{"kind":"jj"}}');
+        assert.equal(yield* config.resolveKind({ cwd: root }), "jj");
+        assert.equal(probes, 1);
+      }).pipe(Effect.provide(NodeServices.layer)),
+  );
   it.layer(layerTest)("uses an explicit requested VCS kind before config", (it) => {
     it.effect("returns the requested kind", () =>
       Effect.gen(function* () {
@@ -93,6 +158,45 @@ describe("VcsProjectConfig", () => {
         });
       }).pipe(Effect.provide(Logger.layer([logger], { mergeWithExisting: false })));
     });
+  });
+
+  it.layer(layerTest)("uses jj for colocated repositories", (it) => {
+    it.effect("detects the nearest repository root, and lets vcs.json pin git", () =>
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const mkdirs = (...dirs: string[]) =>
+          Effect.forEach(dirs, (dir) => fileSystem.makeDirectory(dir, { recursive: true }));
+        const root = yield* fileSystem.makeTempDirectoryScoped({
+          prefix: "t3-vcs-config-test-",
+        });
+        const nested = path.join(root, "packages", "app");
+        const gitOnlyInside = path.join(root, "vendor", "lib");
+        const jjOnly = path.join(root, "jj-only");
+        yield* mkdirs(
+          path.join(root, ".jj"),
+          path.join(root, ".git"),
+          nested,
+          path.join(gitOnlyInside, ".git"),
+          path.join(jjOnly, ".jj"),
+        );
+
+        const config = yield* VcsProjectConfig.VcsProjectConfig;
+        assert.equal(yield* config.resolveKind({ cwd: root }), "jj");
+        assert.equal(yield* config.resolveKind({ cwd: nested }), "jj");
+        // A plain git repository nested inside one is its own repository.
+        assert.equal(yield* config.resolveKind({ cwd: gitOnlyInside }), "auto");
+        // jj without a Git backend is not colocated, so nothing is chosen for it.
+        assert.equal(yield* config.resolveKind({ cwd: jjOnly }), "auto");
+
+        yield* mkdirs(path.join(root, ".t3code"));
+        yield* fileSystem.writeFileString(
+          path.join(root, ".t3code", "vcs.json"),
+          JSON.stringify({ vcs: { kind: "git" } }),
+        );
+        assert.equal(yield* config.resolveKind({ cwd: nested }), "git");
+      }),
+    );
   });
 
   it.layer(layerTest)("falls back to auto when no config exists", (it) => {

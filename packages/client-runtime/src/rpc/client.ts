@@ -213,6 +213,7 @@ export const requestGuarded = Effect.fn("EnvironmentRpc.request")(function* <
 export function runStreamGuarded<TTag extends EnvironmentStreamCommandRpcTag>(
   tag: TTag,
   input: EnvironmentRpcInput<TTag>,
+  session?: RpcSession,
 ): Stream.Stream<
   EnvironmentRpcStreamValue<TTag>,
   | EnvironmentRpcStreamFailure<TTag>
@@ -222,7 +223,7 @@ export function runStreamGuarded<TTag extends EnvironmentStreamCommandRpcTag>(
 > {
   return Stream.unwrap(
     authorizeRequest(tag, input).pipe(
-      Effect.andThen(currentSession()),
+      Effect.andThen(session === undefined ? currentSession() : Effect.succeed(session)),
       Effect.map((session) => {
         const method = session.client[tag] as (
           input: EnvironmentRpcInput<TTag>,

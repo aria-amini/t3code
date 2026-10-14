@@ -14,6 +14,7 @@ import { GitCommandError, SourceControlProviderError } from "@t3tools/contracts"
 
 import * as ServerConfig from "../config.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
+import * as VcsProcess from "../vcs/VcsProcess.ts";
 import * as BitbucketApi from "@t3tools/source-control-bitbucket/server/BitbucketApi";
 import * as BitbucketSourceControlProvider from "@t3tools/source-control-bitbucket/server/BitbucketSourceControlProvider";
 import type * as SourceControlProvider from "@t3tools/source-control-core/server/SourceControlProvider";
@@ -344,6 +345,7 @@ it.effect.each(["--bare", "source.git"])(
     }).pipe(
       Effect.provide(
         GitVcsDriver.layer.pipe(
+          Layer.provide(VcsProcess.layer),
           Layer.provide(
             ServerConfig.layerTest(process.cwd(), {
               prefix: "t3-clone-options-config-",

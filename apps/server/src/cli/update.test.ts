@@ -27,8 +27,14 @@ import {
 afterEach(() => vi.restoreAllMocks());
 
 it.effect.each([
-  { environment: { GH_TOKEN: " gh-token ", GITHUB_TOKEN: "github-token" }, token: "gh-token" },
-  { environment: { GH_TOKEN: "  ", GITHUB_TOKEN: " github-token " }, token: "github-token" },
+  {
+    environment: { GH_TOKEN: " gh-token ", GITHUB_TOKEN: "github-token" },
+    token: "gh-token",
+  },
+  {
+    environment: { GH_TOKEN: "  ", GITHUB_TOKEN: " github-token " },
+    token: "github-token",
+  },
   { environment: { GITHUB_TOKEN: "github-token" }, token: "github-token" },
   { environment: { GH_TOKEN: "  ", GITHUB_TOKEN: "  " }, token: undefined },
   { environment: {}, token: undefined },
@@ -65,7 +71,9 @@ it.effect("authenticates each release page until the requested channel is found"
       return Effect.succeed(HttpClientResponse.fromWeb(request, Response.json([{ tag_name }])));
     });
     const version = yield* resolveNewestVersion("stable").pipe(
-      Effect.provideService(HostProcess.Environment, { GH_TOKEN: "gh-token" }),
+      Effect.provideService(HostProcess.Environment, {
+        GH_TOKEN: "gh-token",
+      }),
       Effect.provideService(HttpClient.HttpClient, httpClient),
     );
     assert.equal(version, "1.2.3");
@@ -197,7 +205,9 @@ it.layer(NodeServices.layer)("t3 update launcher", (it) => {
       );
       const absent = yield* resolveLauncherPath.pipe(
         Effect.provideService(HostProcess.InvokedAs, "t3"),
-        Effect.provideService(HostProcess.Environment, { PATH: path.join(root, "missing") }),
+        Effect.provideService(HostProcess.Environment, {
+          PATH: path.join(root, "missing"),
+        }),
         Effect.provideService(HostProcess.WorkingDirectory, root),
       );
 
@@ -215,7 +225,9 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))("t3 update servic
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
-        const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-update-service-" });
+        const baseDir = yield* fs.makeTempDirectoryScoped({
+          prefix: "t3-update-service-",
+        });
         const targetVersion = "999.0.0";
         const runtime = pinnedRuntimePaths(path, baseDir, targetVersion, "linux");
         yield* fs.makeDirectory(runtime.versionDir, { recursive: true });
@@ -256,12 +268,9 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))("t3 update servic
           }),
         );
         const lines: string[] = [];
-        yield* Command.runWith(updateCommand, { version: packageJson.version })([
-          targetVersion,
-          "--yes",
-          "--base-dir",
-          baseDir,
-        ]).pipe(
+        yield* Command.runWith(updateCommand, {
+          version: packageJson.version,
+        })([targetVersion, "--yes", "--base-dir", baseDir]).pipe(
           Effect.provideService(HostProcess.Platform, "linux"),
           Effect.provideService(HostProcess.IsExecutable, false),
           Effect.provideService(HostProcess.Environment, {}),

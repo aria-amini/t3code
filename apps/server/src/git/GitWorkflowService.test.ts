@@ -31,12 +31,12 @@ function layer(input: {
 }
 
 it.layer(NodeServices.layer)("GitWorkflowService", (it) => {
-  it.effect("reports a non-Git VCS repository as not a Git repository", () =>
+  it.effect("recognizes a Jujutsu repository for source-control workflows", () =>
     Effect.gen(function* () {
       const workflow = yield* GitWorkflowService.GitWorkflowService;
       const isRepository = yield* workflow.isRepository("/jj-repo");
 
-      assert.equal(isRepository, false);
+      assert.equal(isRepository, true);
     }).pipe(
       Effect.provide(
         layer({
@@ -229,7 +229,9 @@ it.layer(NodeServices.layer)("GitWorkflowService", (it) => {
   it.effect("finds a name among the refs of every namespace", () =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
-      const cwd = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-ref-named-" });
+      const cwd = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "t3-ref-named-",
+      });
       const workflow = yield* GitWorkflowService.GitWorkflowService;
       const driver = yield* GitVcsDriver.GitVcsDriver;
       for (const args of [
@@ -252,16 +254,19 @@ it.layer(NodeServices.layer)("GitWorkflowService", (it) => {
         GitWorkflowService.layer.pipe(
           Layer.provide(
             Layer.mock(VcsDriverRegistry.VcsDriverRegistry)({
-              resolve: () => Effect.succeed({ kind: "git" } as VcsDriverRegistry.VcsDriverHandle),
+              resolve: () =>
+                Effect.succeed({
+                  kind: "git",
+                } as VcsDriverRegistry.VcsDriverHandle),
             }),
           ),
           Layer.provide(Layer.mock(GitManager.GitManager)({})),
           Layer.provideMerge(GitVcsDriver.layer),
           Layer.provideMerge(VcsProcess.layer),
           Layer.provideMerge(
-            ServerConfig.layerTest(process.cwd(), { prefix: "t3-ref-named-" }).pipe(
-              Layer.provide(NodeServices.layer),
-            ),
+            ServerConfig.layerTest(process.cwd(), {
+              prefix: "t3-ref-named-",
+            }).pipe(Layer.provide(NodeServices.layer)),
           ),
           Layer.provideMerge(NodeServices.layer),
         ),

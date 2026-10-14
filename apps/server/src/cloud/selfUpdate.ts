@@ -192,11 +192,16 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
   // A managed server starting means its launcher has settled on a version, so runtimes left by
   // earlier updates can go.
   if (launcher.managed) {
-    yield* prunePinnedRuntimes({ baseDir: serverConfig.baseDir, keep: [packageJson.version] }).pipe(
+    yield* prunePinnedRuntimes({
+      baseDir: serverConfig.baseDir,
+      keep: [packageJson.version],
+    }).pipe(
       Effect.tap((removed) =>
         removed.length === 0
           ? Effect.void
-          : Effect.logInfo("Removed unused t3 runtimes.", { versions: removed }),
+          : Effect.logInfo("Removed unused t3 runtimes.", {
+              versions: removed,
+            }),
       ),
       Effect.forkScoped,
     );

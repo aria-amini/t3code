@@ -6,7 +6,45 @@ import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 
-import { repointLauncher, resolveLauncherPath } from "./update.ts";
+import { HttpClient, HttpClientResponse } from "effect/http";
+import { repointLauncher, resolveLauncherPath, resolveUpdateVersion } from "./update.ts";
+
+it.effect("keeps automatic CLI updates on the fork channel", () =>
+  Effect.gen(function* () {
+    const urls: string[] = [];
+    const client = HttpClient.make((request) =>
+      Effect.sync(() => {
+        urls.push(request.url);
+        return HttpClientResponse.fromWeb(
+          request,
+          Response.json({
+            assets: [
+              { name: "t3-0.0.45-fork.2-linux-arm64.tar.gz" },
+              { name: "t3-0.0.46-fork.1-linux-x64.tar.gz" },
+            ],
+          }),
+        );
+      }),
+    );
+    const version = yield* resolveUpdateVersion({ currentVersion: "0.0.45-fork.1" }).pipe(
+      Effect.provideService(HttpClient.HttpClient, client),
+      Effect.provideService(HostProcess.Platform, "linux"),
+      Effect.provideService(HostProcess.Architecture, "arm64"),
+    );
+    assert.equal(version, "0.0.45-fork.2");
+    assert.deepEqual(urls, [
+      "https://api.github.com/repos/aria-amini/t3code/releases/tags/fork-runtime",
+    ]);
+    assert.equal(
+      yield* resolveUpdateVersion({
+        currentVersion: "0.0.45-fork.2",
+        requestedVersion: "0.0.45-fork.1",
+      }).pipe(Effect.provideService(HttpClient.HttpClient, client)),
+      "0.0.45-fork.1",
+    );
+    assert.equal(urls.length, 1);
+  }),
+);
 
 it.layer(NodeServices.layer)("t3 update launcher", (it) => {
   it.effect("repoints a symlink that lives in a runtime versions tree", () =>

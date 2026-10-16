@@ -109,7 +109,7 @@ function decodeServiceUpdate(value: unknown): ServiceUpdateRecord | undefined {
   return undefined;
 }
 
-/** SemVer precedence for exact versions. Build metadata is ignored. */
+/** Fork builds supersede upstream versions of the same core; all other ordering follows SemVer. */
 export function compareExactServiceVersions(left: string, right: string): number {
   const parse = (version: string) => {
     const withoutBuild = version.split("+", 1)[0] ?? version;
@@ -128,6 +128,11 @@ export function compareExactServiceVersions(left: string, right: string): number
     const x = a.core[index] ?? 0n;
     const y = b.core[index] ?? 0n;
     if (x !== y) return x < y ? -1 : 1;
+  }
+  const isFork = (parts: string[]) =>
+    parts.length === 2 && parts[0] === "fork" && /^\d+$/.test(parts[1] ?? "");
+  if (isFork(a.prerelease) !== isFork(b.prerelease)) {
+    return isFork(a.prerelease) ? 1 : -1;
   }
   if (a.prerelease.length === 0 || b.prerelease.length === 0) {
     return a.prerelease.length === b.prerelease.length ? 0 : a.prerelease.length === 0 ? 1 : -1;

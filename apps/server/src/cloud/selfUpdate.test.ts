@@ -19,6 +19,7 @@ import { SERVICE_LAUNCHER_PROTOCOL } from "./serviceProtocol.ts";
 import * as ServerSelfUpdate from "./selfUpdate.ts";
 
 interface HarnessOptions {
+  readonly forkAvailable?: boolean;
   readonly mode?: "web" | "desktop";
   readonly managed?: boolean;
   readonly preflight?: "ready" | "blocked";
@@ -30,9 +31,17 @@ interface HarnessOptions {
 // and the tarball, and the fake runner stands in for tar before it answers
 // the staged preflight.
 const archiveBytes = new TextEncoder().encode("not really a tarball");
-const releaseHttpClient = (order: string[]) =>
+const releaseHttpClient = (order: string[], forkAvailable = true) =>
   HttpClient.make((request) =>
     Effect.gen(function* () {
+      if (request.url.endsWith("/releases/tags/fork-runtime")) {
+        return HttpClientResponse.fromWeb(
+          request,
+          Response.json({
+            assets: forkAvailable ? [{ name: "t3-1.1.0-fork.1-linux-x64.tar.gz" }] : [],
+          }),
+        );
+      }
       if (request.url.endsWith("/SHA256SUMS")) {
         const digest = yield* Effect.promise(() => crypto.subtle.digest("SHA-256", archiveBytes));
         const hex = Array.from(new Uint8Array(digest), (byte) =>
@@ -40,10 +49,13 @@ const releaseHttpClient = (order: string[]) =>
         ).join("");
         return HttpClientResponse.fromWeb(
           request,
-          new Response(`${hex}  t3-1.1.0-linux-x64.tar.gz\n`),
+          new Response(`${hex}  t3-1.1.0-fork.1-linux-x64.tar.gz\n`),
         );
       }
       order.push("download");
+      expect(request.url).toBe(
+        "https://github.com/aria-amini/t3code/releases/download/fork-runtime/t3-1.1.0-fork.1-linux-x64.tar.gz",
+      );
       return HttpClientResponse.fromWeb(request, new Response(archiveBytes));
     }),
   );
@@ -77,10 +89,10 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
         order.push("preflight");
         const result =
           options.preflight === "blocked"
-            ? { status: "blocked", version: "1.1.0", reason: "local update required" }
+            ? { status: "blocked", version: "1.1.0-fork.1", reason: "local update required" }
             : {
                 status: "ready",
-                version: "1.1.0",
+                version: "1.1.0-fork.1",
                 launcherProtocol: SERVICE_LAUNCHER_PROTOCOL,
               };
         return {
@@ -119,7 +131,7 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
         run: () => Effect.die("unexpected desktop app update run"),
       },
     ),
-    Effect.provideService(HttpClient.HttpClient, releaseHttpClient(order)),
+    Effect.provideService(HttpClient.HttpClient, releaseHttpClient(order, options.forkAvailable)),
     Effect.provideService(HostProcess.Platform, "linux"),
     Effect.provideService(HostProcess.Architecture, "x64"),
     Effect.provide(ServerConfig.layer({ ...config, mode: options.mode ?? "web" })),
@@ -347,11 +359,20 @@ it.layer(NodeServices.layer)("server self update", (it) => {
     Effect.gen(function* () {
       const { selfUpdate, order } = yield* makeHarness();
       expect(yield* selfUpdate.update({ targetVersion: "1.1.0" })).toEqual({
-        targetVersion: "1.1.0",
+        targetVersion: "1.1.0-fork.1",
         method: "boot-service",
         updateId: "launcher-id",
       });
       expect(order).toEqual(["download", "extract", "preflight", "accept"]);
+    }),
+  );
+
+  it.effect("blocks an unavailable fork build before any install", () =>
+    Effect.gen(function* () {
+      const { selfUpdate, order } = yield* makeHarness({ forkAvailable: false });
+      const error = yield* selfUpdate.update({ targetVersion: "1.1.0" }).pipe(Effect.flip);
+      expect(error.reason).toBe("The fork runtime channel has no build for 1.1.0.");
+      expect(order).toEqual([]);
     }),
   );
 

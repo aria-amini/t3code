@@ -1,14 +1,14 @@
-import * as NodeCrypto from "node:crypto";
 import * as NodeBuffer from "node:buffer";
 
 import * as Context from "effect/Context";
+import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
-import { ChildProcessSpawner } from "effect/unstable/process";
+import { ChildProcessSpawner } from "effect/process";
 
 import {
   GitCommandError,
@@ -31,7 +31,6 @@ import {
   type VcsStatusInput,
   type VcsStatusResult,
   type WorktreeSubmodules,
-  VcsUnsupportedOperationError,
 } from "@t3tools/contracts";
 import {
   makeGitVcsDriverCore,
@@ -40,11 +39,6 @@ import {
 } from "./GitVcsDriverCore.ts";
 import * as VcsDriver from "./VcsDriver.ts";
 import * as VcsProcess from "./VcsProcess.ts";
-import { makeJujutsuWorkspaceOps } from "./JujutsuWorkspaces.ts";
-import { ServerConfig } from "../config.ts";
-import { parseRemoteNames, parseRemoteRefWithRemoteNames } from "../git/remoteRefs.ts";
-import * as JujutsuWorkflowDriver from "./JujutsuWorkflowDriver.ts";
-import * as VcsProjectConfig from "./VcsProjectConfig.ts";
 
 export interface ExecuteGitInput {
   readonly operation: string;
@@ -82,10 +76,18 @@ export interface GitStatusDetails {
   upstreamRef: string | null;
   hasWorkingTreeChanges: boolean;
   workingTree: VcsStatusResult["workingTree"];
+  branchChanges?: VcsStatusResult["branchChanges"];
   hasUpstream: boolean;
   aheadCount: number;
   behindCount: number;
   aheadOfDefaultCount: number;
+}
+
+export interface GitLocalStatusOptions {
+  /** Skip revision walks and return zero divergence counts for local-only consumers. */
+  readonly includeDivergence?: boolean;
+  /** Also read the diff panel's Changes totals. Failures leave them out. */
+  readonly includeBranchChanges?: boolean;
 }
 
 export interface GitRemoteStatusDetails {
@@ -154,6 +156,8 @@ export interface CreateWorktreeOptions {
    * own t3.json.
    */
   readonly submodules?: WorktreeSubmodules | null;
+  /** The `worktreesDirectory` setting, used when the input has no explicit path. */
+  readonly worktreesDirectory?: string;
 }
 
 export interface GitCommitProgress {
@@ -170,9 +174,16 @@ export interface GitCommitProgress {
 }
 
 export interface GitCommitOptions {
-  readonly filePaths?: readonly string[];
   readonly timeoutMs?: number;
   readonly progress?: GitCommitProgress;
+  /** Stage the current working tree immediately before committing. */
+  readonly stage?: { readonly filePaths?: readonly string[] };
+}
+
+export interface GitDeleteLocalBranchInput {
+  readonly cwd: string;
+  readonly refName: string;
+  readonly force?: boolean;
 }
 
 export interface GitPushResult {
@@ -189,6 +200,8 @@ export interface GitRangeContext {
 }
 
 export interface GitRenameBranchInput {
+  /** Fail on a name collision instead of appending a numeric suffix. */
+  exactName?: boolean;
   cwd: string;
   oldBranch: string;
   newBranch: string;
@@ -296,7 +309,10 @@ export class GitVcsDriver extends Context.Service<
     readonly execute: (input: ExecuteGitInput) => Effect.Effect<ExecuteGitResult, GitCommandError>;
     readonly status: (input: VcsStatusInput) => Effect.Effect<VcsStatusResult, GitCommandError>;
     readonly statusDetails: (cwd: string) => Effect.Effect<GitStatusDetails, GitCommandError>;
-    readonly statusDetailsLocal: (cwd: string) => Effect.Effect<GitStatusDetails, GitCommandError>;
+    readonly statusDetailsLocal: (
+      cwd: string,
+      options?: GitLocalStatusOptions,
+    ) => Effect.Effect<GitStatusDetails, GitCommandError>;
     readonly statusDetailsRemote: (
       cwd: string,
       options?: GitRemoteStatusOptions,
@@ -322,11 +338,6 @@ export class GitVcsDriver extends Context.Service<
     ) => Effect.Effect<GitRangeContext, GitCommandError>;
     readonly getReviewDiffPreview: (
       input: ReviewDiffPreviewInput,
-      options?: {
-        readonly branch?: string | null;
-        readonly workingCopy?: string;
-        readonly workingTreeBase?: string;
-      },
     ) => Effect.Effect<ReviewDiffPreviewResult, GitCommandError>;
     readonly getReviewDiffFileContents: (
       input: ReviewDiffFileContentsInput,
@@ -334,6 +345,11 @@ export class GitVcsDriver extends Context.Service<
     readonly readConfigValue: (
       cwd: string,
       key: string,
+    ) => Effect.Effect<string | null, GitCommandError>;
+    /** Returns the branch name of a local or remote-tracking ref, excluding tags and commits. */
+    readonly resolveBranchName: (
+      cwd: string,
+      refName: string,
     ) => Effect.Effect<string | null, GitCommandError>;
     readonly listRefs: (
       input: VcsListRefsInput,
@@ -387,6 +403,14 @@ export class GitVcsDriver extends Context.Service<
     readonly pruneWorktrees: (input: {
       readonly cwd: string;
     }) => Effect.Effect<void, GitCommandError>;
+    /**
+     * Absolute paths of every live worktree of the repository at `cwd`, the
+     * main checkout included. Worktrees whose directory is gone are left out.
+     */
+    readonly listWorktreePaths: (cwd: string) => Effect.Effect<string[], GitCommandError>;
+    readonly deleteLocalBranch: (
+      input: GitDeleteLocalBranchInput,
+    ) => Effect.Effect<void, GitCommandError>;
     readonly renameBranch: (
       input: GitRenameBranchInput,
     ) => Effect.Effect<GitRenameBranchResult, GitCommandError>;
@@ -401,7 +425,7 @@ export class GitVcsDriver extends Context.Service<
   }
 >()("t3/vcs/GitVcsDriver") {}
 
-export const WORKSPACE_FILES_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
+const WORKSPACE_FILES_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const CHECKPOINT_RECOVERY_MAX_CANDIDATES = 64;
 const CHECKPOINT_RECOVERY_TIMEOUT = "5 seconds";
 const GIT_CHECK_IGNORE_MAX_STDIN_BYTES = 256 * 1024;
@@ -522,7 +546,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const vcsProcess = yield* VcsProcess.VcsProcess;
-  const jjWorkspaces = yield* makeJujutsuWorkspaceOps();
+  const crypto = yield* Crypto.Crypto;
   const capabilities = {
     kind: "git" as const,
     supportsWorktrees: true,
@@ -725,56 +749,6 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
       maxOutputBytes: 64 * 1024,
     }).pipe(Effect.asVoid);
 
-  const requireJjWorkspaceRepository = Effect.fn("GitVcsDriver.requireJjWorkspaceRepository")(
-    function* (operation: string, cwd: string) {
-      const result = yield* vcsProcess.run({
-        operation,
-        command: "jj",
-        args: ["--no-pager", "workspace", "root"],
-        cwd,
-        allowNonZeroExit: true,
-        timeoutMs: 5_000,
-        maxOutputBytes: 16_000,
-      });
-      if (result.exitCode !== 0) {
-        return yield* new VcsUnsupportedOperationError({
-          operation,
-          kind: "git",
-          detail: "jj workspace operations require a colocated jj repository (.git + .jj).",
-        });
-      }
-    },
-  );
-  const createWorkspace: NonNullable<VcsDriver.VcsDriver["Service"]["createWorkspace"]> = (input) =>
-    requireJjWorkspaceRepository("GitVcsDriver.createWorkspace", input.cwd).pipe(
-      Effect.andThen(jjWorkspaces.createWorkspace(input)),
-      Effect.flatMap((workspace) =>
-        fileSystem.exists(path.join(workspace.path, ".git")).pipe(
-          Effect.orElseSucceed(() => false),
-          Effect.flatMap((exists) =>
-            exists
-              ? Effect.succeed(workspace)
-              : Effect.fail(
-                  new VcsUnsupportedOperationError({
-                    operation: "GitVcsDriver.createWorkspace",
-                    kind: "git",
-                    detail:
-                      "jj workspace creation did not register a git worktree (.git is missing).",
-                  }),
-                ),
-          ),
-        ),
-      ),
-    );
-  const listWorkspaces: NonNullable<VcsDriver.VcsDriver["Service"]["listWorkspaces"]> = (cwd) =>
-    requireJjWorkspaceRepository("GitVcsDriver.listWorkspaces", cwd).pipe(
-      Effect.andThen(jjWorkspaces.listWorkspaces(cwd)),
-    );
-  const removeWorkspace: NonNullable<VcsDriver.VcsDriver["Service"]["removeWorkspace"]> = (input) =>
-    requireJjWorkspaceRepository("GitVcsDriver.removeWorkspace", input.cwd).pipe(
-      Effect.andThen(jjWorkspaces.removeWorkspace(input)),
-    );
-
   const resolveHeadCommit = (cwd: string) =>
     execute({
       operation: "GitVcsDriver.checkpoints.resolveHeadCommit",
@@ -848,10 +822,8 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
         "sparse.expectFilesOutsideOfPatterns=false",
       ];
       const gitCommonDir = yield* resolveGitCommonDir(input.cwd);
-      const tempIndexPath = path.join(
-        gitCommonDir,
-        `t3-checkpoint-index-${NodeCrypto.randomUUID()}`,
-      );
+      const indexId = yield* crypto.randomUUIDv4().pipe(Effect.orDie);
+      const tempIndexPath = path.join(gitCommonDir, `t3-checkpoint-index-${indexId}`);
       const commitEnv: NodeJS.ProcessEnv = {
         ...process.env,
         GIT_INDEX_FILE: tempIndexPath,
@@ -1082,10 +1054,18 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
         }
 
         const message = `t3 checkpoint ref=${input.checkpointRef}`;
+        // HEAD is the parent so listAuthoredPaths can see how HEAD moved between checkpoints.
         const commitTreeResult = yield* execute({
           operation,
           cwd: input.cwd,
-          args: [...durableWrite, "commit-tree", treeOid, "-m", message],
+          args: [
+            ...durableWrite,
+            "commit-tree",
+            treeOid,
+            ...(headExists ? ["-p", "HEAD"] : []),
+            "-m",
+            message,
+          ],
           env: commitEnv,
         });
         const commitOid = commitTreeResult.stdout.trim();
@@ -1139,7 +1119,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
         });
       }
       // Restoring away the last tracked file can remove a nested workspace directory.
-      yield* fileSystem.makeDirectory(input.cwd, { recursive: true }).pipe(
+      const recreateWorkspace = fileSystem.makeDirectory(input.cwd, { recursive: true }).pipe(
         Effect.mapError(
           (cause) =>
             new VcsProcessExitError({
@@ -1151,6 +1131,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
             }),
         ),
       );
+      yield* recreateWorkspace;
       const cleaned = yield* execute({
         operation,
         cwd: input.cwd,
@@ -1175,6 +1156,8 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
             detail: cleaned.stderr.trim() || "Could not clean the checkpoint workspace.",
           });
       }
+      // On Windows the same clean can remove './' and exit 0.
+      yield* recreateWorkspace;
 
       const headExists = yield* hasHeadCommit(input.cwd);
       if (headExists) {
@@ -1190,6 +1173,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
 
     diffCheckpoints: Effect.fn("GitVcsDriver.checkpoints.diffCheckpoints")(function* (input) {
       const operation = "GitVcsDriver.checkpoints.diffCheckpoints";
+      if (input.filePaths?.length === 0) return "";
       yield* Effect.annotateCurrentSpan({
         "checkpoint.cwd": input.cwd,
         "checkpoint.from_ref": input.fromCheckpointRef,
@@ -1235,6 +1219,10 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
           ...(input.ignoreWhitespace ? ["--ignore-all-space"] : []),
           `${fromRevision}^{commit}`,
           `${input.toCheckpointRef}^{commit}`,
+          // Paths are repository-relative, while cwd can be a subdirectory.
+          ...(input.filePaths
+            ? ["--", ...input.filePaths.map((file) => `:(top,literal)${file}`)]
+            : []),
         ],
         allowNonZeroExit: true,
         maxOutputBytes: CHECKPOINT_DIFF_MAX_OUTPUT_BYTES,
@@ -1252,6 +1240,55 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
       }
 
       return result.stdout;
+    }),
+
+    listAuthoredPaths: Effect.fn("GitVcsDriver.checkpoints.listAuthoredPaths")(function* (input) {
+      const operation = "GitVcsDriver.checkpoints.listAuthoredPaths";
+      const heads = yield* execute({
+        operation,
+        cwd: input.cwd,
+        args: [
+          "log",
+          "--no-walk=unsorted",
+          "--format=%P %ct",
+          `${input.fromCheckpointRef}^{commit}`,
+          `${input.toCheckpointRef}^{commit}`,
+        ],
+      });
+      // Each line is "<parent> <committer time>". The parent is the HEAD at capture.
+      const [fromLine = "", toLine = ""] = heads.stdout.trimEnd().split("\n");
+      const [startHead = "", capturedAt = ""] = fromLine.split(" ");
+      const [endHead = ""] = toLine.split(" ");
+      if (startHead === "" || endHead === "" || startHead === endHead) {
+        return null;
+      }
+
+      const listPaths = (args: ReadonlyArray<string>) =>
+        execute({
+          operation,
+          cwd: input.cwd,
+          args: [...args, "--name-only", "-z", "--no-renames", "--no-ext-diff"],
+          maxOutputBytes: CHECKPOINT_DIFF_MAX_OUTPUT_BYTES,
+          outputMode: "error",
+        }).pipe(Effect.map((result) => result.stdout.split("\0")));
+      // Remerge diff lists a merge's paths only where the result differs from Git's
+      // automatic merge, so a merge keeps its conflict fixes and drops clean upstream changes.
+      const pathLists = yield* Effect.all(
+        [
+          listPaths(["diff", startHead, `${input.fromCheckpointRef}^{commit}`]),
+          listPaths(["diff", endHead, `${input.toCheckpointRef}^{commit}`]),
+          listPaths(["log", "--format=", "--diff-merges=remerge", `${endHead}..${startHead}`]),
+          listPaths([
+            "log",
+            "--format=",
+            "--diff-merges=remerge",
+            `--since=@${capturedAt}`,
+            `${startHead}..${endHead}`,
+          ]),
+        ],
+        { concurrency: "unbounded" },
+      );
+      return new Set(pathLists.flat().filter((path) => path.length > 0));
     }),
 
     deleteCheckpointRefs: Effect.fn("GitVcsDriver.checkpoints.deleteCheckpointRefs")(
@@ -1281,9 +1318,6 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
     listRemotes,
     filterIgnoredPaths,
     initRepository,
-    createWorkspace,
-    listWorkspaces,
-    removeWorkspace,
   };
 });
 
@@ -1294,233 +1328,8 @@ export const makeVcsDriver = Effect.gen(function* () {
 
 export const make = Effect.gen(function* () {
   const git = yield* makeGitVcsDriverCore();
-  const jj = yield* JujutsuWorkflowDriver.make(git);
-  const projectConfig = yield* VcsProjectConfig.make;
-  const jjWorkspaces = yield* makeJujutsuWorkspaceOps();
-  const fileSystem = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const { worktreesDir } = yield* ServerConfig;
-  const isColocated = Effect.fn("GitVcsDriver.isColocated")(function* (cwd: string) {
-    const result = yield* git.execute({
-      operation: "GitVcsDriver.isColocated",
-      cwd,
-      args: ["rev-parse", "--show-toplevel"],
-      allowNonZeroExit: true,
-    });
-    return (
-      result.exitCode === 0 &&
-      (yield* fileSystem
-        .exists(path.join(result.stdout.trim(), ".jj"))
-        .pipe(Effect.orElseSucceed(() => false))) &&
-      (yield* projectConfig.isJjAvailable)
-    );
-  });
-  const workspaceError = (operation: string, cwd: string) => (cause: unknown) =>
-    new GitCommandError({
-      operation,
-      cwd,
-      command: "jj workspace",
-      detail: "jj workspace operation failed.",
-      cause,
-    });
-  const pruneJjWorkspaces = Effect.fn("GitVcsDriver.pruneJjWorkspaces")(function* (cwd: string) {
-    const { workspaces } = yield* jjWorkspaces.listWorkspaces(cwd);
-    for (const workspace of workspaces) {
-      if (workspace.name !== "default" && !(yield* fileSystem.exists(workspace.path))) {
-        yield* jjWorkspaces.removeWorkspace({ cwd, name: workspace.name });
-      }
-    }
-  });
-  const createJjWorktree = Effect.fn("GitVcsDriver.createJjWorktree")(function* (
-    input: VcsCreateWorktreeInput,
-    options?: CreateWorktreeOptions,
-  ) {
-    yield* pruneJjWorkspaces(input.cwd);
-    const operation = "GitVcsDriver.createJjWorktree";
-    if (input.newRefName)
-      yield* git.execute({
-        operation,
-        cwd: input.cwd,
-        args: ["check-ref-format", "--branch", input.newRefName],
-      });
-    const name = (input.newRefName ?? input.refName).replace(/\//g, "-");
-    const { commitSha } = yield* git.resolveCommit({ cwd: input.cwd, revision: input.refName });
-    const workspace = yield* jjWorkspaces.createWorkspace({
-      cwd: input.cwd,
-      name,
-      revision: commitSha,
-      path: input.path ?? path.join(worktreesDir, path.basename(input.cwd), name),
-    });
-    return yield* Effect.gen(function* () {
-      if (options?.progress?.onWorktreeClaimed)
-        yield* options.progress.onWorktreeClaimed(workspace.path);
-      if (!(yield* fileSystem.exists(path.join(workspace.path, ".git")))) {
-        return yield* new GitCommandError({
-          operation,
-          command: "jj workspace add",
-          cwd: input.cwd,
-          detail: "jj workspace creation did not register a git worktree (.git is missing).",
-        });
-      }
-      // jj leaves Git HEAD detached. Attach a branch so Git commits survive jj imports.
-      let refName = input.newRefName ?? input.refName;
-      if (input.newRefName) {
-        yield* git.execute({ operation, cwd: workspace.path, args: ["checkout", "-b", refName] });
-      } else {
-        const checkout = yield* git.execute({
-          operation,
-          cwd: workspace.path,
-          args: ["checkout", refName],
-          allowNonZeroExit: true,
-        });
-        if (checkout.exitCode !== 0) {
-          refName = name;
-          // `-b` fails on an existing branch; `-B` would move that unrelated branch to this workspace.
-          yield* git.execute({ operation, cwd: workspace.path, args: ["checkout", "-b", name] });
-        }
-      }
-      if (input.newRefName && input.baseRefName) {
-        const remotes = yield* git.execute({ operation, cwd: input.cwd, args: ["remote"] });
-        const base = parseRemoteRefWithRemoteNames(
-          input.baseRefName,
-          parseRemoteNames(remotes.stdout),
-        );
-        yield* git.execute({
-          operation,
-          cwd: input.cwd,
-          args: ["config", `branch.${refName}.gh-merge-base`, base?.branchName ?? input.baseRefName],
-        });
-      }
-      yield* git.initializeWorktreeSubmodules(workspace.path, options);
-      return { worktree: { path: workspace.path, refName } };
-    }).pipe(
-      Effect.onError(() =>
-        jjWorkspaces
-          .removeWorkspace({
-            cwd: input.cwd,
-            name: workspace.name,
-            deleteDirectory: true,
-          })
-          .pipe(Effect.ignoreCause({ log: true })),
-      ),
-    );
-  });
-  const removeJjWorktree = Effect.fn("GitVcsDriver.removeJjWorktree")(function* (
-    input: VcsRemoveWorktreeInput,
-  ) {
-    const { workspaces } = yield* jjWorkspaces.listWorkspaces(input.cwd);
-    const workspace = workspaces.find(
-      (entry) => path.resolve(entry.path) === path.resolve(input.path),
-    );
-    // Git supplies the dirty-file and main-worktree safeguards before jj forgets the registration.
-    yield* git.removeWorktree(input);
-    if (workspace) yield* jjWorkspaces.removeWorkspace({ cwd: input.cwd, name: workspace.name });
-  });
-  const compatibility = GitVcsDriver.of({
-    ...git,
-    createWorktree: (input, progress) =>
-      isColocated(input.cwd).pipe(
-        Effect.flatMap((colocated) =>
-          colocated
-            ? git
-                .withListRefsInvalidation(input.cwd, createJjWorktree(input, progress))
-                .pipe(Effect.mapError(workspaceError("GitVcsDriver.createJjWorktree", input.cwd)))
-            : git.createWorktree(input, progress),
-        ),
-      ),
-    removeWorktree: (input) =>
-      isColocated(input.cwd).pipe(
-        Effect.flatMap((colocated) =>
-          colocated
-            ? removeJjWorktree(input).pipe(
-                Effect.mapError(workspaceError("GitVcsDriver.removeJjWorktree", input.cwd)),
-              )
-            : git.removeWorktree(input),
-        ),
-      ),
-    pruneWorktrees: (input) =>
-      isColocated(input.cwd).pipe(
-        Effect.flatMap((colocated) =>
-          colocated
-            ? git
-                .pruneWorktrees(input)
-                .pipe(
-                  Effect.andThen(pruneJjWorkspaces(input.cwd)),
-                  Effect.mapError(workspaceError("GitVcsDriver.pruneJjWorkspaces", input.cwd)),
-                )
-            : git.pruneWorktrees(input),
-        ),
-      ),
-  });
-  const route = <A>(
-    cwd: string,
-    gitAction: Effect.Effect<A, GitCommandError>,
-    jjAction: Effect.Effect<A, GitCommandError>,
-  ) =>
-    projectConfig
-      .resolveKind({ cwd })
-      .pipe(Effect.flatMap((kind) => (kind === "jj" ? jjAction : gitAction)));
-  return GitVcsDriver.of({
-    ...compatibility,
-    status: (input) => route(input.cwd, compatibility.status(input), jj.status(input)),
-    statusDetails: (cwd) => route(cwd, compatibility.statusDetails(cwd), jj.statusDetails(cwd)),
-    statusDetailsLocal: (cwd) =>
-      route(cwd, compatibility.statusDetailsLocal(cwd), jj.statusDetailsLocal(cwd)),
-    statusDetailsRemote: (cwd, options) =>
-      route(
-        cwd,
-        compatibility.statusDetailsRemote(cwd, options),
-        jj.statusDetailsRemote(cwd, options),
-      ),
-    getReviewDiffPreview: (input, options) =>
-      route(
-        input.cwd,
-        compatibility.getReviewDiffPreview(input, options),
-        jj.getReviewDiffPreview(input, options),
-      ),
-    prepareCommitContext: (cwd, paths) =>
-      route(
-        cwd,
-        compatibility.prepareCommitContext(cwd, paths),
-        jj.prepareCommitContext(cwd, paths),
-      ),
-    commit: (cwd, subject, body, options) =>
-      route(
-        cwd,
-        compatibility.commit(cwd, subject, body, options),
-        jj.commit(cwd, subject, body, options),
-      ),
-    pushCurrentBranch: (cwd, fallback, options) =>
-      route(
-        cwd,
-        compatibility.pushCurrentBranch(cwd, fallback, options),
-        jj.pushCurrentBranch(cwd, fallback, options),
-      ),
-    pullCurrentBranch: (cwd) =>
-      route(cwd, compatibility.pullCurrentBranch(cwd), jj.pullCurrentBranch(cwd)),
-    createRef: (input) => route(input.cwd, compatibility.createRef(input), jj.createRef(input)),
-    switchRef: (input) => route(input.cwd, compatibility.switchRef(input), jj.switchRef(input)),
-    createWorktree: (input, options) =>
-      route(
-        input.cwd,
-        compatibility.createWorktree(input, options),
-        jj.createWorktree(input, options),
-      ),
-    removeWorktree: (input) =>
-      route(input.cwd, compatibility.removeWorktree(input), jj.removeWorktree(input)),
-    listRefs: (input) => route(input.cwd, compatibility.listRefs(input), jj.listRefs(input)),
-    renameBranch: (input) =>
-      route(input.cwd, compatibility.renameBranch(input), jj.renameBranch(input)),
-    fetchRemote: (input) =>
-      route(input.cwd, compatibility.fetchRemote(input), jj.fetchRemote(input)),
-    resolveRemoteTrackingCommit: (input) =>
-      route(
-        input.cwd,
-        compatibility.resolveRemoteTrackingCommit(input),
-        jj.resolveRemoteTrackingCommit(input),
-      ),
-  });
+  return GitVcsDriver.of(git);
 });
 
-export const vcsLayer = Layer.effect(VcsDriver.VcsDriver, makeVcsDriver);
+export const layerVcs = Layer.effect(VcsDriver.VcsDriver, makeVcsDriver);
 export const layer = Layer.effect(GitVcsDriver, make);

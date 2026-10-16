@@ -6,7 +6,7 @@ import {
   type ServerSelfUpdateResult,
   type ThreadId,
 } from "@t3tools/contracts";
-import { HostProcessArchitecture, HostProcessPlatform } from "@t3tools/shared/hostProcess";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Cause from "effect/Cause";
 import * as Config from "effect/Config";
 import * as Context from "effect/Context";
@@ -18,11 +18,9 @@ import * as Ref from "effect/Ref";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
-import { HttpClient } from "effect/unstable/http";
+import { HttpClient } from "effect/http";
 
-import { CLI_RELEASE_BASE_URL_ENV, cliArchivePlatformKey } from "@t3tools/shared/cliRelease";
-import packageJson from "../../package.json" with { type: "json" };
-import { latestForkUpdateVersion } from "./forkRuntimeChannel.ts";
+import { CLI_RELEASE_BASE_URL_ENV } from "@t3tools/shared/cliRelease";
 
 import * as ServerConfig from "../config.ts";
 import * as DesktopAppUpdate from "../desktopUpdate/DesktopAppUpdate.ts";
@@ -178,8 +176,8 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
   const runner = yield* ProcessRunner.ProcessRunner;
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const platform = yield* HostProcessPlatform;
-  const arch = yield* HostProcessArchitecture;
+  const platform = yield* HostProcess.Platform;
+  const arch = yield* HostProcess.Architecture;
   // Archive-distributed targets download from GitHub Releases. The client is
   // optional so callers without one (tests, npm-only hosts) still construct.
   const httpClient = yield* HttpClient.HttpClient;
@@ -215,20 +213,9 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
       );
     }
 
-    let targetVersion = input.targetVersion.trim();
+    const targetVersion = input.targetVersion.trim();
     if (!isExactServiceVersion(targetVersion)) {
       return yield* failWith(`'${targetVersion}' is not an exact t3 version.`);
-    }
-    if (yield* Ref.get(inFlight)) return yield* failWith("A server update is already in progress.");
-    if (packageJson.version.includes("-fork.")) {
-      const platformKey = cliArchivePlatformKey(platform, arch);
-      if (!platformKey) return yield* failWith("No fork runtime supports this platform.");
-      const forkVersion = yield* latestForkUpdateVersion(targetVersion, platformKey).pipe(
-        Effect.provideService(HttpClient.HttpClient, httpClient),
-        Effect.mapError((cause) => failWith("The fork runtime channel is unreachable.", cause)),
-      );
-      if (!forkVersion) return yield* failWith(`The fork runtime channel has no build for ${targetVersion}.`);
-      targetVersion = forkVersion;
     }
     if (yield* Ref.getAndSet(inFlight, true)) {
       return yield* failWith("A server update is already in progress.");

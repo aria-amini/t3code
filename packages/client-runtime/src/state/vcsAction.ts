@@ -7,29 +7,26 @@ import {
   type GitRunStackedActionResult,
   GitStackedAction,
   type ThreadId,
+  type ProjectId,
   WS_METHODS,
 } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
-import * as Exit from "effect/Exit";
-import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import * as SubscriptionRef from "effect/SubscriptionRef";
-import { AsyncResult, Atom, type AtomRegistry } from "effect/unstable/reactivity";
+import { AsyncResult, Atom, type AtomRegistry } from "effect/reactivity";
 
 import type { EnvironmentRegistry } from "../connection/registry.ts";
-import { EnvironmentSupervisor } from "../connection/supervisor.ts";
-import { EnvironmentCacheStore } from "../platform/persistence.ts";
-import { runStream } from "../rpc/client.ts";
-import type { RpcSession } from "../rpc/session.ts";
+import * as Persistence from "../platform/persistence.ts";
+import { runStreamGuarded, RpcPermissionGuard } from "../rpc/client.ts";
 import {
   createRuntimeCommand,
   runStreamInEnvironment,
   type AtomCommand,
   type AtomCommandResult,
 } from "./runtime.ts";
+import { createCommandPermissions } from "./commandPermissions.ts";
 import { vcsCommandScheduler } from "./vcsCommandScheduler.ts";
 import { invalidateCachedVcsRefs } from "./vcsRefInvalidation.ts";
 
@@ -84,6 +81,7 @@ export interface RunVcsStackedActionInput {
   readonly filePaths?: ReadonlyArray<string>;
   /** The thread the action runs beside; the server links a pull request it creates to it. */
   readonly threadId?: ThreadId;
+  readonly projectId?: ProjectId;
   readonly onProgress?: (event: GitActionProgressEvent) => void;
 }
 
@@ -133,15 +131,6 @@ export class VcsActionMissingTerminalEventError extends Schema.TaggedError<VcsAc
   }
 }
 
-export class VcsActionTransportLostError extends Schema.TaggedError<VcsActionTransportLostError>()(
-  "VcsActionTransportLostError",
-  { actionId: Schema.String, action: GitStackedAction, environmentId: EnvironmentId, cwd: Schema.String },
-) {
-  override get message(): string {
-    return `Source control action '${this.action}' lost its connection before it finished.`;
-  }
-}
-
 export class VcsActionTargetKeyParseError extends Schema.TaggedError<VcsActionTargetKeyParseError>()(
   "VcsActionTargetKeyParseError",
   {
@@ -157,7 +146,6 @@ export class VcsActionTargetKeyParseError extends Schema.TaggedError<VcsActionTa
 export const VcsActionExecutionError = Schema.Union([
   VcsActionRemoteFailureError,
   VcsActionMissingTerminalEventError,
-  VcsActionTransportLostError,
 ]);
 export type VcsActionExecutionError = typeof VcsActionExecutionError.Type;
 
@@ -271,29 +259,6 @@ export function normalizeVcsActionProgressEvent(
   };
 }
 
-export function settleVcsActionStateForExit(
-  current: VcsActionState, actionId: string, exit: Exit.Exit<GitRunStackedActionResult, unknown>,
-): VcsActionState | null {
-  if (current.actionId !== actionId || !current.isRunning || Exit.isSuccess(exit)) return null;
-  return Cause.hasInterruptsOnly(exit.cause) ? EMPTY_VCS_ACTION_STATE :
-    failVcsActionState("run_change_request", actionId, Cause.squash(exit.cause));
-}
-
-// A half-open connection can leave the progress stream pending after its session closes.
-export function failVcsActionWhenSessionCloses<A, E, R>(
-  makeStream: (session: RpcSession) => Stream.Stream<A, E, R>, error: VcsActionTransportLostError,
-): Stream.Stream<A, E | VcsActionTransportLostError, R | EnvironmentSupervisor> {
-  return Stream.unwrap(Effect.gen(function* () {
-    const supervisor = yield* EnvironmentSupervisor;
-    const session = Option.getOrUndefined(yield* SubscriptionRef.get(supervisor.session));
-    if (!session) return Stream.fail(error);
-    const lost = Stream.fromEffect(Effect.ignore(session.closed)).pipe(
-      Stream.flatMap(() => Stream.fail(error)),
-    );
-    return Stream.merge(makeStream(session), lost, { haltStrategy: "either" });
-  }));
-}
-
 export function consumeVcsActionProgress<E, R>(
   stream: Stream.Stream<GitActionProgressEvent, E, R>,
   input: {
@@ -314,7 +279,7 @@ export function consumeVcsActionProgress<E, R>(
           input.actionId,
           event,
         );
-        if (normalized === null || terminalEvent !== null) {
+        if (normalized === null) {
           return Effect.void;
         }
         if (normalized.kind === "action_finished" || normalized.kind === "action_failed") {
@@ -322,9 +287,6 @@ export function consumeVcsActionProgress<E, R>(
         }
         return input.onProgress(normalized);
       }),
-      // Keep draining a healthy RPC: the server can still be linking a created PR.
-      // Once a terminal event arrived, a later transport error cannot change its result.
-      Effect.catch((error) => (terminalEvent === null ? Effect.fail(error) : Effect.void)),
       Effect.flatMap(() => {
         if (terminalEvent?.kind === "action_finished") {
           return Effect.succeed(terminalEvent.result);
@@ -432,14 +394,17 @@ export function applyVcsActionProgressEvent(
       };
     case "action_finished":
       return {
-        ...EMPTY_VCS_ACTION_STATE,
+        ...current,
+        isRunning: true,
         actionId: event.actionId,
         action: event.action,
         operation: "run_change_request",
+        error: null,
       };
     case "action_failed":
       return {
-        ...EMPTY_VCS_ACTION_STATE,
+        ...current,
+        isRunning: true,
         actionId: event.actionId,
         action: event.action,
         operation: "run_change_request",
@@ -449,7 +414,7 @@ export function applyVcsActionProgressEvent(
 }
 
 export function createVcsActionManager<R, E>(
-  runtime: Atom.AtomRuntime<EnvironmentRegistry | EnvironmentCacheStore | R, E>,
+  runtime: Atom.AtomRuntime<EnvironmentRegistry | Persistence.EnvironmentCacheStore | R, E>,
 ) {
   const runStackedActionCommands = new Map<
     string,
@@ -471,7 +436,7 @@ export function createVcsActionManager<R, E>(
     const target = targetKey === null ? null : parseVcsActionTargetKey(targetKey);
     const stateAtom = targetKey === null ? EMPTY_VCS_ACTION_ATOM : vcsActionStateAtom(targetKey);
     const command = createRuntimeCommand<
-      EnvironmentRegistry | EnvironmentCacheStore | R,
+      EnvironmentRegistry | Persistence.EnvironmentCacheStore | R,
       E,
       RunVcsStackedActionInput,
       GitRunStackedActionResult,
@@ -508,13 +473,18 @@ export function createVcsActionManager<R, E>(
           ...(input.featureBranch ? { featureBranch: true } : {}),
           ...(input.filePaths?.length ? { filePaths: [...input.filePaths] } : {}),
           ...(input.threadId !== undefined ? { threadId: input.threadId } : {}),
+          ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
         };
+        const clearOwnedState = Effect.sync(() => {
+          const current = registry.get(stateAtom);
+          if (current.actionId === input.actionId) {
+            registry.set(stateAtom, EMPTY_VCS_ACTION_STATE);
+          }
+        });
         return consumeVcsActionProgress(
           runStreamInEnvironment(
             target.environmentId,
-            failVcsActionWhenSessionCloses((session) => runStream(WS_METHODS.gitRunStackedAction, rpcInput, session),
-              new VcsActionTransportLostError({ actionId: input.actionId, action: input.action,
-                environmentId: target.environmentId, cwd: target.cwd })),
+            runStreamGuarded(WS_METHODS.gitRunStackedAction, rpcInput),
           ),
           {
             target,
@@ -538,13 +508,24 @@ export function createVcsActionManager<R, E>(
               }),
           },
         ).pipe(
+          Effect.provideService(RpcPermissionGuard, {
+            authorize: (id, method, payload) =>
+              createCommandPermissions(runtime, method).authorize(registry, id, payload),
+          }),
           Effect.ensuring(invalidateCachedVcsRefs(registry, target)),
-          Effect.onExit((exit) =>
+          Effect.tap(() => clearOwnedState),
+          Effect.tapError((error) =>
             Effect.sync(() => {
-              const next = settleVcsActionStateForExit(registry.get(stateAtom), input.actionId, exit);
-              if (next !== null) registry.set(stateAtom, next);
+              const current = registry.get(stateAtom);
+              if (current.actionId === input.actionId && current.isRunning) {
+                registry.set(
+                  stateAtom,
+                  failVcsActionState("run_change_request", input.actionId, error),
+                );
+              }
             }),
           ),
+          Effect.onInterrupt(() => clearOwnedState),
         );
       },
     });

@@ -5,79 +5,16 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 import * as Path from "effect/Path";
-import { ChildProcessSpawner } from "effect/unstable/process";
-import { VcsProcessSpawnError } from "@t3tools/contracts";
 
-import * as VcsProcess from "./VcsProcess.ts";
 import * as VcsProjectConfig from "./VcsProjectConfig.ts";
 
-const TestLayer = VcsProjectConfig.layer.pipe(
-  Layer.provide(
-    Layer.mock(VcsProcess.VcsProcess)({
-      run: () =>
-        Effect.succeed({
-          exitCode: ChildProcessSpawner.ExitCode(0),
-          stdout: "jj 0.45.1\n",
-          stderr: "",
-          stdoutTruncated: false,
-          stderrTruncated: false,
-        }),
-    }),
-  ),
+const layerTest = VcsProjectConfig.layer.pipe(
   Layer.provide(NodeServices.layer),
   Layer.provideMerge(NodeServices.layer),
 );
 
 describe("VcsProjectConfig", () => {
-  for (const available of [true, false]) {
-    it.effect(`caches jj availability (${available}) without overriding an explicit choice`, () =>
-      Effect.gen(function* () {
-        const fs = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const root = yield* fs.makeTempDirectoryScoped({ prefix: "t3-vcs-jj-availability-" });
-        for (const directory of [".jj", ".git", ".t3code", "src"]) {
-          yield* fs.makeDirectory(path.join(root, directory));
-        }
-        let probes = 0;
-        const config = yield* VcsProjectConfig.make.pipe(
-          Effect.provideService(
-            VcsProcess.VcsProcess,
-            VcsProcess.VcsProcess.of({
-              run: (input) => {
-                probes += 1;
-                return available
-                  ? Effect.succeed({
-                      exitCode: ChildProcessSpawner.ExitCode(0),
-                      stdout: "jj 0.45.1\n",
-                      stderr: "",
-                      stdoutTruncated: false,
-                      stderrTruncated: false,
-                    })
-                  : Effect.fail(
-                      new VcsProcessSpawnError({
-                        operation: input.operation,
-                        command: input.command,
-                        cwd: input.cwd,
-                        cause: new Error("jj is missing"),
-                      }),
-                    );
-              },
-            }),
-          ),
-        );
-        assert.equal(yield* config.resolveKind({ cwd: root }), available ? "jj" : "auto");
-        assert.equal(
-          yield* config.resolveKind({ cwd: path.join(root, "src") }),
-          available ? "jj" : "auto",
-        );
-        assert.equal(probes, 1);
-        yield* fs.writeFileString(path.join(root, ".t3code", "vcs.json"), '{"vcs":{"kind":"jj"}}');
-        assert.equal(yield* config.resolveKind({ cwd: root }), "jj");
-        assert.equal(probes, 1);
-      }).pipe(Effect.provide(NodeServices.layer)),
-    );
-  }
-  it.layer(TestLayer)("uses an explicit requested VCS kind before config", (it) => {
+  it.layer(layerTest)("uses an explicit requested VCS kind before config", (it) => {
     it.effect("returns the requested kind", () =>
       Effect.gen(function* () {
         const config = yield* VcsProjectConfig.VcsProjectConfig;
@@ -91,7 +28,7 @@ describe("VcsProjectConfig", () => {
     );
   });
 
-  it.layer(TestLayer)("discovers .t3code/vcs.json from nested workspaces", (it) => {
+  it.layer(layerTest)("discovers .t3code/vcs.json from nested workspaces", (it) => {
     it.effect("returns the configured kind", () =>
       Effect.gen(function* () {
         const fileSystem = yield* FileSystem.FileSystem;
@@ -105,7 +42,6 @@ describe("VcsProjectConfig", () => {
         yield* fileSystem.makeDirectory(nested, { recursive: true });
         yield* fileSystem.writeFileString(
           path.join(configDir, "vcs.json"),
-          // @effect-diagnostics-next-line preferSchemaOverJson:off
           JSON.stringify({ vcs: { kind: "jj" } }),
         );
 
@@ -117,7 +53,7 @@ describe("VcsProjectConfig", () => {
     );
   });
 
-  it.layer(TestLayer)("continues to parent configs after a candidate inspect failure", (it) => {
+  it.layer(layerTest)("continues to parent configs after a candidate inspect failure", (it) => {
     it.effect("logs the failed candidate and returns the parent config", () => {
       const messages: unknown[] = [];
       const logger = Logger.make<unknown, void>(({ message }) => {
@@ -135,7 +71,6 @@ describe("VcsProjectConfig", () => {
         yield* fileSystem.makeDirectory(configDir, { recursive: true });
         yield* fileSystem.writeFileString(
           path.join(configDir, "vcs.json"),
-          // @effect-diagnostics-next-line preferSchemaOverJson:off
           JSON.stringify({ vcs: { kind: "jj" } }),
         );
 
@@ -160,45 +95,7 @@ describe("VcsProjectConfig", () => {
     });
   });
 
-  it.layer(TestLayer)("uses jj for colocated repositories", (it) => {
-    it.effect("detects the nearest repository root, and lets vcs.json pin git", () =>
-      Effect.gen(function* () {
-        const fileSystem = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const mkdirs = (...dirs: string[]) =>
-          Effect.forEach(dirs, (dir) => fileSystem.makeDirectory(dir, { recursive: true }));
-        const root = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-vcs-config-test-" });
-        const nested = path.join(root, "packages", "app");
-        const gitOnlyInside = path.join(root, "vendor", "lib");
-        const jjOnly = path.join(root, "jj-only");
-        yield* mkdirs(
-          path.join(root, ".jj"),
-          path.join(root, ".git"),
-          nested,
-          path.join(gitOnlyInside, ".git"),
-          path.join(jjOnly, ".jj"),
-        );
-
-        const config = yield* VcsProjectConfig.VcsProjectConfig;
-        assert.equal(yield* config.resolveKind({ cwd: root }), "jj");
-        assert.equal(yield* config.resolveKind({ cwd: nested }), "jj");
-        // A plain git repository nested inside one is its own repository.
-        assert.equal(yield* config.resolveKind({ cwd: gitOnlyInside }), "auto");
-        // jj without a Git backend is not colocated, so nothing is chosen for it.
-        assert.equal(yield* config.resolveKind({ cwd: jjOnly }), "auto");
-
-        yield* mkdirs(path.join(root, ".t3code"));
-        yield* fileSystem.writeFileString(
-          path.join(root, ".t3code", "vcs.json"),
-          // @effect-diagnostics-next-line preferSchemaOverJson:off
-          JSON.stringify({ vcs: { kind: "git" } }),
-        );
-        assert.equal(yield* config.resolveKind({ cwd: nested }), "git");
-      }),
-    );
-  });
-
-  it.layer(TestLayer)("falls back to auto when no config exists", (it) => {
+  it.layer(layerTest)("falls back to auto when no config exists", (it) => {
     it.effect("returns auto", () =>
       Effect.gen(function* () {
         const fileSystem = yield* FileSystem.FileSystem;
@@ -213,7 +110,7 @@ describe("VcsProjectConfig", () => {
     );
   });
 
-  it.layer(TestLayer)("falls back to auto when config JSON is malformed", (it) => {
+  it.layer(layerTest)("falls back to auto when config JSON is malformed", (it) => {
     it.effect("returns auto and logs the failed operation and path", () => {
       const messages: unknown[] = [];
       const logger = Logger.make<unknown, void>(({ message }) => {
@@ -251,7 +148,7 @@ describe("VcsProjectConfig", () => {
     });
   });
 
-  it.layer(TestLayer)("falls back to auto when the config path cannot be read", (it) => {
+  it.layer(layerTest)("falls back to auto when the config path cannot be read", (it) => {
     it.effect("retains the read failure context", () => {
       const messages: unknown[] = [];
       const logger = Logger.make<unknown, void>(({ message }) => {
@@ -285,7 +182,7 @@ describe("VcsProjectConfig", () => {
     });
   });
 
-  it.layer(TestLayer)("falls back to auto when config kind is invalid", (it) => {
+  it.layer(layerTest)("falls back to auto when config kind is invalid", (it) => {
     it.effect("returns auto", () =>
       Effect.gen(function* () {
         const fileSystem = yield* FileSystem.FileSystem;

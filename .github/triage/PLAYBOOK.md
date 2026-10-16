@@ -99,6 +99,9 @@ API if `gh` is missing or not logged in). Then check whether the problem is alre
 fixed in a release newer than the version the bug happened on: compare versions,
 read release notes and recent commits touching the relevant code.
 
+If the affected version is `unknown` or an untagged nightly, version comparison is unavailable.
+Use other evidence to establish its order relative to a release before making that comparison.
+
 If the user is behind and the fix likely shipped, say so plainly and give them the
 exact update command for how they run the CLI (the context file records how it was
 launched).

@@ -109,8 +109,11 @@ trusted policy and reassess changed submission evidence; neither example grants 
 
 ## Apply the outcome
 
-Do not automatically close a PR if a maintainer in the trusted `TRIAGE_EXEMPTIONS.td` list has
-commented or submitted a review, including on earlier heads, or if `triage:keep-open` is present.
+Do not automatically close a PR if a verified maintainer commented or submitted a review, including on earlier heads.
+Verify authority through GitHub's repository collaborator-permission API; accept `admin`, `maintain`, or `write` permission.
+The trusted `TRIAGE_EXEMPTIONS.td` list grants author bypasses, not maintainer authority.
+If an authority check fails, leave the PR open and report the missing access.
+If `triage:keep-open` is present, leave the PR open.
 Leave protected PRs open for maintainer decision. This does not grant an author exemption,
 eligibility, or review approval.
 

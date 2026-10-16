@@ -88,6 +88,9 @@ export const OPENCODE_PROVIDER = ProviderDriverKind.make("opencode");
 export const OPENCODE_DEFAULT_INSTANCE_ID = defaultInstanceIdForDriver(OPENCODE_PROVIDER);
 export const OPENCODE_SDK_PROTOCOL = "opencode-sdk.sse" as const;
 const DEFAULT_OPENCODE_SETTINGS = Schema.decodeSync(OpenCodeSettings)({});
+const decodeSessionStatuses = Schema.decodeUnknownEffect(
+  Schema.Record(Schema.String, Schema.Struct({ type: Schema.Literals(["idle", "busy", "retry"]) })),
+);
 
 const makeOpenCodeMessageId = Effect.fnUntraced(function* (
   clock: Ref.Ref<{ readonly epochMillis: number; readonly counter: number }>,
@@ -285,6 +288,7 @@ interface ActiveOpenCodeTurn {
   readonly parts: Map<string, Exclude<OpenCodePart, ToolPart>>;
   readonly partIdsByMessage: Map<string, Set<string>>;
   readonly toolNamesByCallId: Map<string, string>;
+  readonly inFlightAgentToolPartIds: Set<string>;
   mcpServerNames?: ReadonlyArray<string>;
   readonly providerTurn: OrchestrationV2ProviderTurn;
   nextItemOrdinal: number;
@@ -1062,24 +1066,28 @@ export const makeOpenCodeAdapterV2 = Effect.fn("makeOpenCodeAdapterV2")(function
             ),
           );
 
-        const abortDescendants = (rootId: string) =>
+        const abortDescendants = (rootId: string, activeSessionIds?: ReadonlySet<string>) =>
           Effect.gen(function* () {
             const visited = new Set([rootId]);
             const semaphore = Semaphore.makeUnsafe(8);
+            let abortedCount = 0;
             const visit = (
               sessionId: string,
               abort: boolean,
             ): Effect.Effect<OpenCodeRuntime.OpenCodeRuntimeError | undefined> =>
               Effect.gen(function* () {
-                const abortResult = abort
-                  ? yield* sdkCall("session.abort", { sessionID: sessionId }, (signal) =>
-                      client.session.abort({ sessionID: sessionId }, { signal }),
-                    ).pipe(
-                      semaphore.withPermit,
-                      Effect.catchIf(isOpenCodeNotFound, () => Effect.void),
-                      Effect.result,
-                    )
-                  : undefined;
+                const abortResult =
+                  abort && (activeSessionIds === undefined || activeSessionIds.has(sessionId))
+                    ? yield* sdkCall("session.abort", { sessionID: sessionId }, (signal) =>
+                        client.session.abort({ sessionID: sessionId }, { signal }),
+                      ).pipe(
+                        semaphore.withPermit,
+                        Effect.as(true),
+                        Effect.catchIf(isOpenCodeNotFound, () => Effect.succeed(false)),
+                        Effect.result,
+                      )
+                    : undefined;
+                if (abortResult?._tag === "Success" && abortResult.success) abortedCount += 1;
                 const childrenResult = yield* sdkCall(
                   "session.children",
                   { sessionID: sessionId },
@@ -1105,6 +1113,7 @@ export const makeOpenCodeAdapterV2 = Effect.fn("makeOpenCodeAdapterV2")(function
               });
             const failure = yield* visit(rootId, false);
             if (failure) return yield* Effect.fail(failure);
+            return abortedCount;
           }).pipe(Effect.timeout("15 seconds"));
 
         const updateProviderSession = (
@@ -2262,6 +2271,7 @@ export const makeOpenCodeAdapterV2 = Effect.fn("makeOpenCodeAdapterV2")(function
             parts: new Map(),
             partIdsByMessage: new Map(),
             toolNamesByCallId: new Map(),
+            inFlightAgentToolPartIds: new Set(),
             providerTurn,
             nextItemOrdinal: 1,
             nativeUserMessageId: message.id,
@@ -2485,6 +2495,13 @@ export const makeOpenCodeAdapterV2 = Effect.fn("makeOpenCodeAdapterV2")(function
           if (part.type === "tool") {
             // Approval routing needs the tool name, without retaining its input and output.
             turn.toolNamesByCallId.set(part.callID, part.tool);
+            if (part.tool === "task" || part.tool === "agent") {
+              if (part.state.status === "completed" || part.state.status === "error") {
+                turn.inFlightAgentToolPartIds.delete(part.callID);
+              } else {
+                turn.inFlightAgentToolPartIds.add(part.callID);
+              }
+            }
           } else {
             turn.parts.set(part.id, part);
             const ids = turn.partIdsByMessage.get(part.messageID) ?? new Set<string>();
@@ -3196,6 +3213,7 @@ export const makeOpenCodeAdapterV2 = Effect.fn("makeOpenCodeAdapterV2")(function
                 parts: new Map(),
                 partIdsByMessage: new Map(),
                 toolNamesByCallId: new Map(),
+                inFlightAgentToolPartIds: new Set(),
                 providerTurn,
                 nextItemOrdinal: turnInput.providerTurnOrdinal * 100 + 1,
                 nativeUserMessageId: null,
@@ -3436,6 +3454,29 @@ export const makeOpenCodeAdapterV2 = Effect.fn("makeOpenCodeAdapterV2")(function
                   `OpenCode turn ${interruptInput.providerTurnId} is not active`,
                 );
               }
+              // A confirmed active child can stop while the root continues its agent tool call.
+              if (turn.inFlightAgentToolPartIds.size > 0) {
+                const stoppedChildren = yield* sdkCall("session.status", undefined, (signal) =>
+                  client.session.status(undefined, { signal }),
+                ).pipe(
+                  Effect.flatMap((response) => decodeSessionStatuses(response.data)),
+                  Effect.timeout("1 second"),
+                  Effect.flatMap((statuses) => {
+                    const active = new Set(
+                      Object.entries(statuses)
+                        .filter(([id, status]) => id !== sessionId && status.type !== "idle")
+                        .map(([id]) => id),
+                    );
+                    return active.size === 0
+                      ? Effect.succeed(0)
+                      : abortDescendants(sessionId, active);
+                  }),
+                  Effect.timeout("10 seconds"),
+                  Effect.orElseSucceed(() => 0),
+                );
+                if (stoppedChildren > 0) return;
+              }
+              turn.inFlightAgentToolPartIds.clear();
               turn.interrupted = true;
               for (const controller of commandControllers.get(sessionId) ?? []) controller.abort();
               const admissionWasPending = turn.admissionPending;

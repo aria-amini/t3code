@@ -241,6 +241,147 @@ const makeOpenCodeRuntimeHarness = Effect.fn("makeOpenCodeRuntimeHarness")(funct
 });
 
 describe("OpenCodeAdapterV2", () => {
+  it.effect.each([
+    "busy",
+    "retry",
+    "nested",
+    "idle",
+    "missing-status",
+    "unrelated-busy",
+    "status-failure",
+    "invalid-status",
+    "child-list-failure",
+    "child-abort-failure",
+    "completed-tool",
+  ] as const)("preserves scoped subagent Stop behavior (%s)", (scenario) =>
+    Effect.gen(function* () {
+      const nativeEvents = asyncEventStream();
+      const aborts: string[] = [];
+      const session = { id: "root", time: { created: 1, updated: 1 } };
+      let childActive = true;
+      let cleanupAttempts = 0;
+      const harness = yield* makeOpenCodeRuntimeHarness(`scoped-stop-${scenario}`, "root", {
+        event: { subscribe: async () => ({ stream: nativeEvents.stream }) },
+        session: {
+          create: async () => ({ data: session }),
+          get: async () => ({ data: session }),
+          messages: async () => ({ data: [] }),
+          promptAsync: async () => ({ data: true }),
+          status: async () => {
+            if (scenario === "status-failure") throw new Error("status unavailable");
+            if (scenario === "invalid-status") return { data: null };
+            return {
+              data: {
+                root: { type: "busy" },
+                ...(scenario === "missing-status"
+                  ? {}
+                  : {
+                      child: {
+                        type:
+                          childActive && scenario !== "idle" && scenario !== "unrelated-busy"
+                            ? scenario === "retry"
+                              ? "retry"
+                              : "busy"
+                            : "idle",
+                      },
+                    }),
+                ...(scenario === "unrelated-busy" ? { unrelated: { type: "busy" } } : {}),
+              },
+            };
+          },
+          children: async ({ sessionID }: { sessionID: string }) => {
+            if (scenario === "child-list-failure" && cleanupAttempts++ === 0) {
+              throw new Error("children unavailable");
+            }
+            return {
+              data:
+                sessionID === "root"
+                  ? [{ id: scenario === "nested" ? "idle-parent" : "child" }]
+                  : sessionID === "idle-parent"
+                    ? [{ id: "child" }]
+                    : [],
+            };
+          },
+          abort: async ({ sessionID }: { sessionID: string }) => {
+            aborts.push(sessionID);
+            if (
+              scenario === "child-abort-failure" &&
+              sessionID === "child" &&
+              cleanupAttempts++ === 0
+            ) {
+              throw new Error("abort unavailable");
+            }
+            return { data: true };
+          },
+        },
+      });
+      yield* harness.startTurn();
+      yield* Effect.promise(() =>
+        nativeEvents.push({
+          type: "session.status",
+          properties: { sessionID: "root", status: { type: "busy" } },
+        }),
+      );
+      const toolEvent = (status: "running" | "completed") => ({
+        type: "message.part.updated",
+        properties: {
+          part: {
+            id: "agent-part",
+            sessionID: "root",
+            messageID: "assistant",
+            type: "tool",
+            tool: "task",
+            callID: "agent-call",
+            state: {
+              status,
+              input: {},
+              title: "Subagent",
+              output: "done",
+              metadata: {},
+              time: { start: 1, ...(status === "completed" ? { end: 2 } : {}) },
+            },
+          },
+        },
+      });
+      yield* Effect.promise(() => nativeEvents.push(toolEvent("running")));
+      if (scenario === "completed-tool") {
+        yield* Effect.promise(() => nativeEvents.push(toolEvent("completed")));
+      }
+      const snapshot = yield* harness.runtime.readThreadSnapshot({
+        providerThread: harness.providerThread,
+      });
+      const turn = snapshot.providerTurns.at(-1)!;
+      const interrupt = harness.runtime.interruptTurn({
+        providerThread: harness.providerThread,
+        providerTurnId: turn.id,
+      });
+      yield* interrupt;
+      if (scenario === "busy" || scenario === "retry" || scenario === "nested") {
+        assert.deepEqual(aborts, ["child"]);
+        const running = yield* harness.runtime.readThreadSnapshot({
+          providerThread: harness.providerThread,
+        });
+        assert.equal(running.providerTurns.at(-1)?.status, "running");
+        childActive = false;
+        yield* interrupt;
+        assert.deepEqual(
+          aborts,
+          scenario === "nested"
+            ? ["child", "root", "idle-parent", "child"]
+            : ["child", "root", "child"],
+        );
+      } else {
+        assert.deepEqual(
+          aborts,
+          scenario === "child-abort-failure" ? ["child", "root", "child"] : ["root", "child"],
+        );
+      }
+    }).pipe(
+      Effect.provide(Layer.merge(IdAllocator.layer, McpProviderSessions.layer)),
+      Effect.scoped,
+    ),
+  );
+
   it.effect.each(["completed", "failed", "unresolved", "unavailable", "reconnect"] as const)(
     "normalizes OpenCode step usage for %s turns",
     (ending) =>

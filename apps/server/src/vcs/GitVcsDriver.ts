@@ -31,6 +31,7 @@ import {
   type VcsStatusInput,
   type VcsStatusResult,
   type WorktreeSubmodules,
+  VcsUnsupportedOperationError,
 } from "@t3tools/contracts";
 import {
   makeGitVcsDriverCore,
@@ -39,6 +40,13 @@ import {
 } from "./GitVcsDriverCore.ts";
 import * as VcsDriver from "./VcsDriver.ts";
 import * as VcsProcess from "./VcsProcess.ts";
+import { makeJujutsuWorkspaceOps } from "./JujutsuWorkspaces.ts";
+import { ServerConfig } from "../config.ts";
+import { parseRemoteNames, parseRemoteRefWithRemoteNames } from "../git/remoteRefs.ts";
+import * as JujutsuWorkflowDriver from "./JujutsuWorkflowDriver.ts";
+import * as VcsProjectConfig from "./VcsProjectConfig.ts";
+import * as HostProcess from "@t3tools/shared/HostProcess";
+import { resolveWorktreesDirectory } from "../worktreesDirectory.ts";
 
 export interface ExecuteGitInput {
   readonly operation: string;
@@ -338,6 +346,11 @@ export class GitVcsDriver extends Context.Service<
     ) => Effect.Effect<GitRangeContext, GitCommandError>;
     readonly getReviewDiffPreview: (
       input: ReviewDiffPreviewInput,
+      options?: {
+        readonly branch?: string | null;
+        readonly workingCopy?: string;
+        readonly workingTreeBase?: string;
+      },
     ) => Effect.Effect<ReviewDiffPreviewResult, GitCommandError>;
     readonly getReviewDiffFileContents: (
       input: ReviewDiffFileContentsInput,
@@ -425,7 +438,7 @@ export class GitVcsDriver extends Context.Service<
   }
 >()("t3/vcs/GitVcsDriver") {}
 
-const WORKSPACE_FILES_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
+export const WORKSPACE_FILES_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const CHECKPOINT_RECOVERY_MAX_CANDIDATES = 64;
 const CHECKPOINT_RECOVERY_TIMEOUT = "5 seconds";
 const GIT_CHECK_IGNORE_MAX_STDIN_BYTES = 256 * 1024;
@@ -546,6 +559,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const vcsProcess = yield* VcsProcess.VcsProcess;
+  const jjWorkspaces = yield* makeJujutsuWorkspaceOps();
   const crypto = yield* Crypto.Crypto;
   const capabilities = {
     kind: "git" as const,
@@ -748,6 +762,56 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
       timeoutMs: 10_000,
       maxOutputBytes: 64 * 1024,
     }).pipe(Effect.asVoid);
+
+  const requireJjWorkspaceRepository = Effect.fn("GitVcsDriver.requireJjWorkspaceRepository")(
+    function* (operation: string, cwd: string) {
+      const result = yield* vcsProcess.run({
+        operation,
+        command: "jj",
+        args: ["--no-pager", "workspace", "root"],
+        cwd,
+        allowNonZeroExit: true,
+        timeoutMs: 5_000,
+        maxOutputBytes: 16_000,
+      });
+      if (result.exitCode !== 0) {
+        return yield* new VcsUnsupportedOperationError({
+          operation,
+          kind: "git",
+          detail: "jj workspace operations require a colocated jj repository (.git + .jj).",
+        });
+      }
+    },
+  );
+  const createWorkspace: NonNullable<VcsDriver.VcsDriver["Service"]["createWorkspace"]> = (input) =>
+    requireJjWorkspaceRepository("GitVcsDriver.createWorkspace", input.cwd).pipe(
+      Effect.andThen(jjWorkspaces.createWorkspace(input)),
+      Effect.flatMap((workspace) =>
+        fileSystem.exists(path.join(workspace.path, ".git")).pipe(
+          Effect.orElseSucceed(() => false),
+          Effect.flatMap((exists) =>
+            exists
+              ? Effect.succeed(workspace)
+              : Effect.fail(
+                  new VcsUnsupportedOperationError({
+                    operation: "GitVcsDriver.createWorkspace",
+                    kind: "git",
+                    detail:
+                      "jj workspace creation did not register a git worktree (.git is missing).",
+                  }),
+                ),
+          ),
+        ),
+      ),
+    );
+  const listWorkspaces: NonNullable<VcsDriver.VcsDriver["Service"]["listWorkspaces"]> = (cwd) =>
+    requireJjWorkspaceRepository("GitVcsDriver.listWorkspaces", cwd).pipe(
+      Effect.andThen(jjWorkspaces.listWorkspaces(cwd)),
+    );
+  const removeWorkspace: NonNullable<VcsDriver.VcsDriver["Service"]["removeWorkspace"]> = (input) =>
+    requireJjWorkspaceRepository("GitVcsDriver.removeWorkspace", input.cwd).pipe(
+      Effect.andThen(jjWorkspaces.removeWorkspace(input)),
+    );
 
   const resolveHeadCommit = (cwd: string) =>
     execute({
@@ -1318,6 +1382,9 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
     listRemotes,
     filterIgnoredPaths,
     initRepository,
+    createWorkspace,
+    listWorkspaces,
+    removeWorkspace,
   };
 });
 
@@ -1328,8 +1395,265 @@ export const makeVcsDriver = Effect.gen(function* () {
 
 export const make = Effect.gen(function* () {
   const git = yield* makeGitVcsDriverCore();
-  return GitVcsDriver.of(git);
+  const jj = yield* JujutsuWorkflowDriver.make(git);
+  const projectConfig = yield* VcsProjectConfig.make;
+  const jjWorkspaces = yield* makeJujutsuWorkspaceOps();
+  const fileSystem = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const { worktreesDir } = yield* ServerConfig;
+  const isColocated = Effect.fn("GitVcsDriver.isColocated")(function* (cwd: string) {
+    const result = yield* git.execute({
+      operation: "GitVcsDriver.isColocated",
+      cwd,
+      args: ["rev-parse", "--show-toplevel"],
+      allowNonZeroExit: true,
+    });
+    return (
+      result.exitCode === 0 &&
+      (yield* fileSystem
+        .exists(path.join(result.stdout.trim(), ".jj"))
+        .pipe(Effect.orElseSucceed(() => false))) &&
+      (yield* projectConfig.isJjAvailable)
+    );
+  });
+  const workspaceError = (operation: string, cwd: string) => (cause: unknown) =>
+    new GitCommandError({
+      operation,
+      cwd,
+      command: "jj workspace",
+      detail: "jj workspace operation failed.",
+      cause,
+    });
+  const pruneJjWorkspaces = Effect.fn("GitVcsDriver.pruneJjWorkspaces")(function* (cwd: string) {
+    const { workspaces } = yield* jjWorkspaces.listWorkspaces(cwd);
+    for (const workspace of workspaces) {
+      if (workspace.name !== "default" && !(yield* fileSystem.exists(workspace.path))) {
+        yield* jjWorkspaces.removeWorkspace({ cwd, name: workspace.name });
+      }
+    }
+  });
+  const createJjWorktree = Effect.fn("GitVcsDriver.createJjWorktree")(function* (
+    input: VcsCreateWorktreeInput,
+    options?: CreateWorktreeOptions,
+  ) {
+    yield* pruneJjWorkspaces(input.cwd);
+    const operation = "GitVcsDriver.createJjWorktree";
+    if (input.newRefName)
+      yield* git.execute({
+        operation,
+        cwd: input.cwd,
+        args: ["check-ref-format", "--branch", input.newRefName],
+      });
+    const name = (input.newRefName ?? input.refName).replace(/\//g, "-");
+    const { commitSha } = yield* git.resolveCommit({ cwd: input.cwd, revision: input.refName });
+    let directory = input.path;
+    if (directory == null) {
+      const parent = resolveWorktreesDirectory(
+        options?.worktreesDirectory ?? "",
+        worktreesDir,
+        path,
+        yield* HostProcess.HomeDirectory,
+      );
+      if (parent === null) {
+        return yield* new GitCommandError({
+          operation,
+          command: "jj workspace add",
+          cwd: input.cwd,
+          detail:
+            "The worktree location must be an absolute folder, not a drive root. Change it in Settings → Storage.",
+        });
+      }
+      const repository = yield* git.execute({
+        operation,
+        cwd: input.cwd,
+        args: ["rev-parse", "--show-toplevel"],
+      });
+      directory = path.join(parent, path.basename(repository.stdout.trim()), name);
+    }
+    const workspace = yield* jjWorkspaces.createWorkspace({
+      cwd: input.cwd,
+      name,
+      revision: commitSha,
+      path: directory,
+    });
+    return yield* Effect.gen(function* () {
+      if (options?.progress?.onWorktreeClaimed)
+        yield* options.progress.onWorktreeClaimed(workspace.path);
+      if (!(yield* fileSystem.exists(path.join(workspace.path, ".git")))) {
+        return yield* new GitCommandError({
+          operation,
+          command: "jj workspace add",
+          cwd: input.cwd,
+          detail: "jj workspace creation did not register a git worktree (.git is missing).",
+        });
+      }
+      // jj leaves Git HEAD detached. Attach a branch so Git commits survive jj imports.
+      let refName = input.newRefName ?? input.refName;
+      if (input.newRefName) {
+        yield* git.execute({ operation, cwd: workspace.path, args: ["checkout", "-b", refName] });
+      } else {
+        const checkout = yield* git.execute({
+          operation,
+          cwd: workspace.path,
+          args: ["checkout", refName],
+          allowNonZeroExit: true,
+        });
+        if (checkout.exitCode !== 0) {
+          refName = name;
+          // `-b` fails on an existing branch; `-B` would move that unrelated branch to this workspace.
+          yield* git.execute({ operation, cwd: workspace.path, args: ["checkout", "-b", name] });
+        }
+      }
+      if (input.newRefName && input.baseRefName) {
+        const remotes = yield* git.execute({ operation, cwd: input.cwd, args: ["remote"] });
+        const base = parseRemoteRefWithRemoteNames(
+          input.baseRefName,
+          parseRemoteNames(remotes.stdout),
+        );
+        yield* git.execute({
+          operation,
+          cwd: input.cwd,
+          args: [
+            "config",
+            `branch.${refName}.gh-merge-base`,
+            base?.branchName ?? input.baseRefName,
+          ],
+        });
+      }
+      yield* git.initializeWorktreeSubmodules(workspace.path, options);
+      return { worktree: { path: workspace.path, refName } };
+    }).pipe(
+      Effect.onError(() =>
+        jjWorkspaces
+          .removeWorkspace({
+            cwd: input.cwd,
+            name: workspace.name,
+            deleteDirectory: true,
+          })
+          .pipe(Effect.ignoreCause({ log: true })),
+      ),
+    );
+  });
+  const removeJjWorktree = Effect.fn("GitVcsDriver.removeJjWorktree")(function* (
+    input: VcsRemoveWorktreeInput,
+  ) {
+    const { workspaces } = yield* jjWorkspaces.listWorkspaces(input.cwd);
+    const workspace = workspaces.find(
+      (entry) => path.resolve(entry.path) === path.resolve(input.path),
+    );
+    // Git supplies the dirty-file and main-worktree safeguards before jj forgets the registration.
+    yield* git.removeWorktree(input);
+    if (workspace) yield* jjWorkspaces.removeWorkspace({ cwd: input.cwd, name: workspace.name });
+  });
+  const compatibility = GitVcsDriver.of({
+    ...git,
+    createWorktree: (input, progress) =>
+      isColocated(input.cwd).pipe(
+        Effect.flatMap((colocated) =>
+          colocated
+            ? git
+                .withListRefsInvalidation(input.cwd, createJjWorktree(input, progress))
+                .pipe(Effect.mapError(workspaceError("GitVcsDriver.createJjWorktree", input.cwd)))
+            : git.createWorktree(input, progress),
+        ),
+      ),
+    removeWorktree: (input) =>
+      isColocated(input.cwd).pipe(
+        Effect.flatMap((colocated) =>
+          colocated
+            ? removeJjWorktree(input).pipe(
+                Effect.mapError(workspaceError("GitVcsDriver.removeJjWorktree", input.cwd)),
+              )
+            : git.removeWorktree(input),
+        ),
+      ),
+    pruneWorktrees: (input) =>
+      isColocated(input.cwd).pipe(
+        Effect.flatMap((colocated) =>
+          colocated
+            ? git
+                .pruneWorktrees(input)
+                .pipe(
+                  Effect.andThen(pruneJjWorkspaces(input.cwd)),
+                  Effect.mapError(workspaceError("GitVcsDriver.pruneJjWorkspaces", input.cwd)),
+                )
+            : git.pruneWorktrees(input),
+        ),
+      ),
+  });
+  const route = <A>(
+    cwd: string,
+    gitAction: Effect.Effect<A, GitCommandError>,
+    jjAction: Effect.Effect<A, GitCommandError>,
+  ) =>
+    projectConfig
+      .resolveKind({ cwd })
+      .pipe(Effect.flatMap((kind) => (kind === "jj" ? jjAction : gitAction)));
+  return GitVcsDriver.of({
+    ...compatibility,
+    status: (input) => route(input.cwd, compatibility.status(input), jj.status(input)),
+    statusDetails: (cwd) => route(cwd, compatibility.statusDetails(cwd), jj.statusDetails(cwd)),
+    statusDetailsLocal: (cwd, options) =>
+      route(
+        cwd,
+        compatibility.statusDetailsLocal(cwd, options),
+        jj.statusDetailsLocal(cwd, options),
+      ),
+    statusDetailsRemote: (cwd, options) =>
+      route(
+        cwd,
+        compatibility.statusDetailsRemote(cwd, options),
+        jj.statusDetailsRemote(cwd, options),
+      ),
+    getReviewDiffPreview: (input, options) =>
+      route(
+        input.cwd,
+        compatibility.getReviewDiffPreview(input, options),
+        jj.getReviewDiffPreview(input, options),
+      ),
+    prepareCommitContext: (cwd, paths) =>
+      route(
+        cwd,
+        compatibility.prepareCommitContext(cwd, paths),
+        jj.prepareCommitContext(cwd, paths),
+      ),
+    commit: (cwd, subject, body, options) =>
+      route(
+        cwd,
+        compatibility.commit(cwd, subject, body, options),
+        jj.commit(cwd, subject, body, options),
+      ),
+    pushCurrentBranch: (cwd, fallback, options) =>
+      route(
+        cwd,
+        compatibility.pushCurrentBranch(cwd, fallback, options),
+        jj.pushCurrentBranch(cwd, fallback, options),
+      ),
+    pullCurrentBranch: (cwd) =>
+      route(cwd, compatibility.pullCurrentBranch(cwd), jj.pullCurrentBranch(cwd)),
+    createRef: (input) => route(input.cwd, compatibility.createRef(input), jj.createRef(input)),
+    switchRef: (input) => route(input.cwd, compatibility.switchRef(input), jj.switchRef(input)),
+    createWorktree: (input, options) =>
+      route(
+        input.cwd,
+        compatibility.createWorktree(input, options),
+        jj.createWorktree(input, options),
+      ),
+    removeWorktree: (input) =>
+      route(input.cwd, compatibility.removeWorktree(input), jj.removeWorktree(input)),
+    listRefs: (input) => route(input.cwd, compatibility.listRefs(input), jj.listRefs(input)),
+    renameBranch: (input) =>
+      route(input.cwd, compatibility.renameBranch(input), jj.renameBranch(input)),
+    fetchRemote: (input) =>
+      route(input.cwd, compatibility.fetchRemote(input), jj.fetchRemote(input)),
+    resolveRemoteTrackingCommit: (input) =>
+      route(
+        input.cwd,
+        compatibility.resolveRemoteTrackingCommit(input),
+        jj.resolveRemoteTrackingCommit(input),
+      ),
+  });
 });
 
 export const layerVcs = Layer.effect(VcsDriver.VcsDriver, makeVcsDriver);
-export const layer = Layer.effect(GitVcsDriver, make);
+export const layer = Layer.effect(GitVcsDriver, make).pipe(Layer.provide(VcsProcess.layer));

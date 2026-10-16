@@ -173,5 +173,5 @@ Use jj for VCS operations. `origin` is `aria-amini/t3code`; `upstream` is `pingd
 - Review the complete patch with `jj diff --git --from aamini/upstream-base --to @`; inspect its size with `--stat`.
 - Rebuild or rebase the fork patch for release upgrades. Get explicit approval before any protected-history replacement or force-push.
 - Pull requests target `aria-amini/t3code` unless the user requests an upstream contribution.
-- Upstream workflows have no runners here. `fork-runtime.yml` disables them on each push to main, and `release.yml` ignores `*-fork.*` tags. Do not edit them otherwise.
+- Fork CI uses GitHub-hosted runners. `fork-runtime.yml` keeps CI and fork publication active, and disables other workflows on each push to main. `release.yml` ignores `*-fork.*` tags.
 - A push to main publishes the build and its `v<version>` release. On this machine, update the running server with `mise run t3-update`. The global task runs the update in a separate systemd unit and logs before/after versions to `~/.local/state/t3-update/latest.log`. Use `mise run t3-update -- --status` to inspect without restarting. An agent shell lives inside the service's own cgroup, so a direct update can kill itself halfway.

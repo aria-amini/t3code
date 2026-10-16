@@ -112,8 +112,8 @@ jobs:
               --title "Fork runtime $version" \
               --notes "Based on upstream v${version%%-fork.*}. Built from commit $GITHUB_SHA by workflow run $GITHUB_RUN_ID."
           fi
-  # New upstream workflows arrive enabled with each release, and none of them
-  # have runners on the fork.
+  # New upstream workflows arrive enabled with each release. Keep only CI and
+  # fork publication active to avoid upstream deployment and release jobs.
   quiet-upstream:
     runs-on: ubuntu-24.04
     permissions:
@@ -125,5 +125,5 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           gh workflow list --json id,path \
-            --jq '.[] | select(.path != ".github/workflows/fork-runtime.yml") | .id' |
+            --jq '.[] | select(.path != ".github/workflows/fork-runtime.yml" and .path != ".github/workflows/ci.yml") | .id' |
             xargs -r -n1 gh workflow disable

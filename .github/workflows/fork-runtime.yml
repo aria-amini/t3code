@@ -1,0 +1,129 @@
+name: Publish Fork Runtime
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-runtime
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - { runner: ubuntu-24.04, arch: x64 }
+          - { runner: ubuntu-24.04-arm, arch: arm64 }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set unique fork version
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const path = "apps/server/package.json";
+            const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+            const build = BigInt(process.env.GITHUB_RUN_NUMBER) * 1000n + BigInt(process.env.GITHUB_RUN_ATTEMPT);
+            pkg.version = pkg.version.replace(/-fork\.\d+$/, `-fork.${build}`);
+            fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");
+          '
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build runtime
+        run: |
+          vp run --filter t3 build:bundle
+          vp run --filter @t3tools/web build
+          mkdir -p apps/server/dist/client apps/server/dist/resource-monitor/linux-${{ matrix.arch }}
+          cp -a apps/web/dist/. apps/server/dist/client/
+          cargo build --release --locked --manifest-path native/resource-monitor/Cargo.toml
+          cp native/resource-monitor/target/release/t3-resource-monitor apps/server/dist/resource-monitor/linux-${{ matrix.arch }}/
+      - name: Build executable
+        env:
+          VP_NODE_VERSION: "26.8.2"
+        run: node apps/server/scripts/cli.ts build-exe --verbose
+      - name: Package and test archive
+        run: |
+          version="$(node -p 'require("./apps/server/package.json").version')"
+          node scripts/build-cli-archive.ts --platform linux --arch ${{ matrix.arch }} --version "$version" --output-dir release
+          node scripts/smoke-cli-archive.ts --archive release/*.tar.gz --expect-version "$version"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: fork-runtime-${{ matrix.arch }}
+          path: release/*
+          if-no-files-found: error
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: fork-runtime-*
+          merge-multiple: true
+          path: release
+      - name: Publish runtime
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if ! gh release view fork-runtime >/dev/null 2>&1; then
+            gh release create fork-runtime --target "$GITHUB_SHA" --prerelease --title "Fork runtime"
+          else
+            assets="$(gh release view fork-runtime --json assets --jq '.assets[].name')"
+            if grep -Fxq 'SHA256SUMS' <<< "$assets"; then
+              mkdir -p previous
+              gh release download fork-runtime --pattern SHA256SUMS --dir previous
+            elif grep -Eq '\.(tar\.gz|tgz|zip)$' <<< "$assets"; then
+              echo "Fork runtime archives exist without SHA256SUMS." >&2
+              exit 1
+            fi
+          fi
+          (cd release && sha256sum *.tar.gz > SHA256SUMS)
+          if [ -f previous/SHA256SUMS ]; then
+            cat previous/SHA256SUMS >> release/SHA256SUMS
+          fi
+          sort -u release/SHA256SUMS -o release/SHA256SUMS
+          gh release upload fork-runtime release/* --clobber
+
+          # Retain this build under its own tag. The version comes from the archive
+          # name so a re-run of only this job still publishes the built version.
+          archive="$(basename release/*-linux-x64.tar.gz)"
+          version="${archive#t3-}"
+          version="${version%-linux-x64.tar.gz}"
+          # The rolling release keeps the cumulative checksums; this release lists only its own archives.
+          mkdir retained
+          cp release/*.tar.gz retained/
+          (cd retained && sha256sum *.tar.gz > SHA256SUMS)
+          if gh release view "v$version" >/dev/null 2>&1; then
+            gh release upload "v$version" retained/* --clobber
+          else
+            gh release create "v$version" retained/* --target "$GITHUB_SHA" --prerelease \
+              --title "Fork runtime $version" \
+              --notes "Based on upstream v${version%%-fork.*}. Built from commit $GITHUB_SHA by workflow run $GITHUB_RUN_ID."
+          fi
+  # New upstream workflows arrive enabled with each release, and none of them
+  # have runners on the fork.
+  quiet-upstream:
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+    steps:
+      - name: Disable upstream workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh workflow list --json id,path \
+            --jq '.[] | select(.path != ".github/workflows/fork-runtime.yml") | .id' |
+            xargs -r -n1 gh workflow disable

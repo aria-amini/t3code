@@ -53,7 +53,7 @@ export function cliReleaseDownloadBaseUrl(
   baseUrl: string | undefined = CLI_RELEASE_DEFAULT_BASE_URL,
 ): string {
   if (baseUrl === CLI_RELEASE_DEFAULT_BASE_URL && /^\d+\.\d+\.\d+-fork\.\d+$/.test(version)) {
-    return "https://github.com/aria-amini/t3code/releases/download/fork-runtime";
+    return `https://github.com/aria-amini/t3code/releases/download/v${version}`;
   }
   return `${(baseUrl?.trim() || CLI_RELEASE_DEFAULT_BASE_URL).replace(/\/+$/, "")}/v${version}`;
 }

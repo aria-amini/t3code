@@ -3,12 +3,19 @@ import * as Schema from "effect/Schema";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 import { cliArchiveFileName, type CliArchivePlatformKey } from "@t3tools/shared/cliRelease";
 import { compareSemverVersions, parseSemver } from "@t3tools/shared/semver";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 
 const Assets = Schema.Array(Schema.Struct({ name: Schema.String }));
-const Release = Schema.Struct({ id: Schema.Number });
+const Releases = Schema.Array(
+  Schema.Struct({
+    tag_name: Schema.String,
+    draft: Schema.optional(Schema.Boolean),
+    assets: Assets,
+  }),
+);
 const API_URL = "https://api.github.com/repos/aria-amini/t3code/releases";
-const ASSETS_PAGE_SIZE = 100;
-const MAX_ASSET_PAGES = 10;
+const RELEASE_PAGE_SIZE = 100;
+const MAX_RELEASE_PAGES = 10;
 
 export function resolveForkUpdateVersion(
   requested: string,
@@ -34,22 +41,28 @@ export const latestForkUpdateVersion = Effect.fn("cloud.fork_runtime_channel.lat
   platform: CliArchivePlatformKey,
 ) {
   const client = yield* HttpClient.HttpClient;
-  const getJson = <S extends Schema.Top>(url: string, schema: S) =>
-    client.execute(HttpClientRequest.get(url)).pipe(
-      Effect.flatMap(HttpClientResponse.filterStatusOk),
-      Effect.flatMap(HttpClientResponse.schemaBodyJson(schema)),
-      Effect.timeout("10 seconds"),
-    );
-  // The release object embeds only its first assets, and the rolling release keeps every build.
-  const release = yield* getJson(`${API_URL}/tags/fork-runtime`, Release);
+  const environment = yield* HostProcess.Environment;
+  const token = environment.GH_TOKEN?.trim() || environment.GITHUB_TOKEN?.trim();
   const assets: Array<{ readonly name: string }> = [];
-  for (let page = 1; page <= MAX_ASSET_PAGES; page++) {
-    const batch = yield* getJson(
-      `${API_URL}/${release.id}/assets?per_page=${ASSETS_PAGE_SIZE}&page=${page}`,
-      Assets,
-    );
-    assets.push(...batch);
-    if (batch.length < ASSETS_PAGE_SIZE) break;
+  for (let page = 1; page <= MAX_RELEASE_PAGES; page++) {
+    const request = HttpClientRequest.get(
+      `${API_URL}?per_page=${RELEASE_PAGE_SIZE}&page=${page}`,
+    ).pipe(HttpClientRequest.setHeader("Accept", "application/vnd.github+json"));
+    const releases = yield* client
+      .execute(
+        token ? HttpClientRequest.setHeader(request, "Authorization", `Bearer ${token}`) : request,
+      )
+      .pipe(
+        Effect.flatMap(HttpClientResponse.filterStatusOk),
+        Effect.flatMap(HttpClientResponse.schemaBodyJson(Releases)),
+        Effect.timeout("10 seconds"),
+      );
+    for (const release of releases) {
+      if (release.draft || !/^v\d+\.\d+\.\d+-fork\.\d+$/u.test(release.tag_name)) continue;
+      const fileName = cliArchiveFileName(release.tag_name.slice(1), platform);
+      assets.push(...release.assets.filter((asset) => asset.name === fileName));
+    }
+    if (releases.length < RELEASE_PAGE_SIZE) break;
   }
   return resolveForkUpdateVersion(requested, assets, platform);
 });

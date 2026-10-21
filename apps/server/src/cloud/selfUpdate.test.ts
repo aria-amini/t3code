@@ -37,13 +37,19 @@ const releaseHttpClient = (
 ) =>
   HttpClient.make((request) =>
     Effect.gen(function* () {
-      if (request.url.endsWith("/releases/tags/fork-runtime")) {
-        return HttpClientResponse.fromWeb(request, Response.json({ id: 7 }));
-      }
-      if (request.url.includes("/releases/7/assets")) {
+      if (request.url.startsWith("https://api.github.com/repos/aria-amini/t3code/releases?")) {
         return HttpClientResponse.fromWeb(
           request,
-          Response.json(forkAvailable ? [{ name: "t3-1.1.0-fork.1-linux-x64.tar.gz" }] : []),
+          Response.json(
+            forkAvailable
+              ? [
+                  {
+                    tag_name: "v1.1.0-fork.1",
+                    assets: [{ name: "t3-1.1.0-fork.1-linux-x64.tar.gz" }],
+                  },
+                ]
+              : [],
+          ),
         );
       }
       if (request.url.endsWith("/SHA256SUMS")) {
@@ -59,7 +65,7 @@ const releaseHttpClient = (
       if (beforeDownload) yield* beforeDownload;
       order.push("download");
       expect(request.url).toBe(
-        "https://github.com/aria-amini/t3code/releases/download/fork-runtime/t3-1.1.0-fork.1-linux-x64.tar.gz",
+        "https://github.com/aria-amini/t3code/releases/download/v1.1.0-fork.1/t3-1.1.0-fork.1-linux-x64.tar.gz",
       );
       return HttpClientResponse.fromWeb(request, new Response(archiveBytes));
     }),

@@ -87,14 +87,14 @@ it.effect("keeps automatic CLI updates on the fork channel", () =>
     const client = HttpClient.make((request) =>
       Effect.sync(() => {
         urls.push(request.url);
-        if (request.url.endsWith("/releases/tags/fork-runtime")) {
-          return HttpClientResponse.fromWeb(request, Response.json({ id: 7 }));
-        }
         return HttpClientResponse.fromWeb(
           request,
           Response.json([
-            { name: "t3-0.0.45-fork.2-linux-arm64.tar.gz" },
-            { name: "t3-0.0.46-fork.1-linux-x64.tar.gz" },
+            {
+              tag_name: "v0.0.45-fork.2",
+              assets: [{ name: "t3-0.0.45-fork.2-linux-arm64.tar.gz" }],
+            },
+            { tag_name: "v0.0.46-fork.1", assets: [{ name: "t3-0.0.46-fork.1-linux-x64.tar.gz" }] },
           ]),
         );
       }),
@@ -108,8 +108,7 @@ it.effect("keeps automatic CLI updates on the fork channel", () =>
     );
     assert.equal(version, "0.0.45-fork.2");
     assert.deepEqual(urls, [
-      "https://api.github.com/repos/aria-amini/t3code/releases/tags/fork-runtime",
-      "https://api.github.com/repos/aria-amini/t3code/releases/7/assets?per_page=100&page=1",
+      "https://api.github.com/repos/aria-amini/t3code/releases?per_page=100&page=1",
     ]);
     assert.equal(
       yield* resolveUpdateVersion({
@@ -118,7 +117,7 @@ it.effect("keeps automatic CLI updates on the fork channel", () =>
       }).pipe(Effect.provideService(HttpClient.HttpClient, client)),
       "0.0.45-fork.1",
     );
-    assert.equal(urls.length, 2);
+    assert.equal(urls.length, 1);
   }),
 );
 

@@ -6,22 +6,15 @@ import * as Path from "effect/Path";
 import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
-const oldChecksum = `${"a".repeat(64)}  t3-0.0.45-fork.1-linux-x64.tar.gz`;
 const mockGh = `#!/bin/bash
 set -euo pipefail
+[[ "$3" == v0.1.1-fork.999 ]] || exit 19
 case "$1 $2" in
   'release view')
-    if [[ "$*" == *--json* ]]; then
-      case "$SCENARIO" in
-        checksums|download-failure) printf '%s\\n' SHA256SUMS old.tar.gz ;;
-        archives-only) echo old.tar.gz ;;
-        query-failure) exit 17 ;;
-      esac
-    fi ;;
-  'release download')
-    if [[ "$SCENARIO" == download-failure ]]; then exit 18; fi
-    printf '%s\\n' "$OLD_CHECKSUM" > previous/SHA256SUMS ;;
-  'release upload'|'release create') echo "$*" >> uploads ;;
+    [[ "$SCENARIO" != new ]] ;;
+  'release upload'|'release create')
+    [[ "$SCENARIO" != upload-failure ]] || exit 18
+    echo "$*" >> uploads ;;
   *) exit 19 ;;
 esac
 `;
@@ -34,14 +27,9 @@ const collect = <E>(stream: Stream.Stream<Uint8Array, E>) =>
     ),
   );
 
-for (const scenario of [
-  "empty",
-  "checksums",
-  "archives-only",
-  "download-failure",
-  "query-failure",
-]) {
-  it.effect(`publishes rolling fork runtime safely with ${scenario}`, () =>
+it.effect.each(["new", "retry", "upload-failure"])(
+  "publishes only the versioned release (%s)",
+  (scenario) =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
@@ -64,8 +52,12 @@ for (const scenario of [
       yield* fs.writeFileString(path.join(cwd, "bin/gh"), mockGh);
       yield* fs.chmod(path.join(cwd, "bin/gh"), 0o755);
       yield* fs.writeFileString(
-        path.join(cwd, "release/t3-0.0.45-fork.999-linux-x64.tar.gz"),
-        "runtime archive",
+        path.join(cwd, "release/t3-0.1.1-fork.999-linux-x64.tar.gz"),
+        "x64 runtime archive",
+      );
+      yield* fs.writeFileString(
+        path.join(cwd, "release/t3-0.1.1-fork.999-linux-arm64.tar.gz"),
+        "arm64 runtime archive",
       );
       const child = yield* spawner.spawn(
         ChildProcess.make("bash", ["-euo", "pipefail", "-c", script!], {
@@ -73,7 +65,6 @@ for (const scenario of [
           env: {
             PATH: `${path.join(cwd, "bin")}:${process.env.PATH}`,
             SCENARIO: scenario,
-            OLD_CHECKSUM: oldChecksum,
             GITHUB_SHA: "test-sha",
             GITHUB_RUN_ID: "test-run",
           },
@@ -83,20 +74,24 @@ for (const scenario of [
         [collect(child.stdout), collect(child.stderr), child.exitCode],
         { concurrency: "unbounded" },
       );
-      if (scenario === "empty" || scenario === "checksums") {
+      if (scenario !== "upload-failure") {
         assert.equal(Number(exitCode), 0, stderr);
-        const rolling = yield* fs.readFileString(path.join(cwd, "release/SHA256SUMS"));
-        assert.include(rolling, "t3-0.0.45-fork.999-linux-x64.tar.gz");
-        assert.equal(rolling.includes(oldChecksum), scenario === "checksums");
-        const retained = yield* fs.readFileString(path.join(cwd, "retained/SHA256SUMS"));
-        assert.notInclude(retained, oldChecksum);
+        const checksums = yield* fs.readFileString(path.join(cwd, "release/SHA256SUMS"));
+        assert.equal(checksums.trim().split("\n").length, 2);
+        for (const arch of ["x64", "arm64"]) {
+          assert.include(checksums, `t3-0.1.1-fork.999-linux-${arch}.tar.gz`);
+        }
         const uploads = yield* fs.readFileString(path.join(cwd, "uploads"));
-        assert.include(uploads, "release upload fork-runtime");
-        assert.include(uploads, "release upload v0.0.45-fork.999");
+        assert.include(
+          uploads,
+          scenario === "new" ? "release create v0.1.1-fork.999" : "release upload v0.1.1-fork.999",
+        );
+        assert.include(uploads, "release/SHA256SUMS");
+        assert.include(uploads, "release/t3-0.1.1-fork.999-linux-arm64.tar.gz");
+        assert.include(uploads, "release/t3-0.1.1-fork.999-linux-x64.tar.gz");
       } else {
         assert.notEqual(Number(exitCode), 0);
         assert.isFalse(yield* fs.exists(path.join(cwd, "uploads")));
       }
     }).pipe(Effect.provide(NodeServices.layer)),
-  );
-}
+);

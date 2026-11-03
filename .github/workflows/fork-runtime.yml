@@ -47,8 +47,6 @@ jobs:
           cargo build --release --locked --manifest-path native/resource-monitor/Cargo.toml
           cp native/resource-monitor/target/release/t3-resource-monitor apps/server/dist/resource-monitor/linux-${{ matrix.arch }}/
       - name: Build executable
-        env:
-          VP_NODE_VERSION: "26.8.2"
         run: node apps/server/scripts/cli.ts build-exe --verbose
       - name: Package and test archive
         run: |

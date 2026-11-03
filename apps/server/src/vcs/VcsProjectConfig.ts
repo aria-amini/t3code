@@ -8,6 +8,7 @@ import * as Schema from "effect/Schema";
 
 import { VcsDriverKind, type VcsDriverKind as VcsDriverKindType } from "@t3tools/contracts";
 import { fromLenientJson } from "@t3tools/shared/schemaJson";
+import * as VcsProcess from "./VcsProcess.ts";
 
 const ProjectVcsConfig = Schema.Struct({
   vcs: Schema.optional(
@@ -44,6 +45,7 @@ export class VcsProjectConfigError extends Schema.TaggedError<VcsProjectConfigEr
 export class VcsProjectConfig extends Context.Service<
   VcsProjectConfig,
   {
+    readonly isJjAvailable: Effect.Effect<boolean>;
     readonly resolveKind: (
       input: VcsProjectConfigResolveInput,
     ) => Effect.Effect<VcsDriverKindType | "auto">;
@@ -68,6 +70,22 @@ const logVcsProjectConfigError = (error: VcsProjectConfigError) =>
 export const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
+  const vcsProcess = yield* VcsProcess.VcsProcess;
+  const isJjAvailable = yield* Effect.cached(
+    vcsProcess
+      .run({
+        operation: "VcsProjectConfig.jjVersion",
+        command: "jj",
+        args: ["--version"],
+        cwd: ".",
+        timeoutMs: 5_000,
+        maxOutputBytes: 16_384,
+      })
+      .pipe(
+        Effect.as(true),
+        Effect.orElseSucceed(() => false),
+      ),
+  );
 
   const findConfigPath = Effect.fn("VcsProjectConfig.findConfigPath")(function* (cwd: string) {
     let current = cwd;
@@ -95,6 +113,24 @@ export const make = Effect.gen(function* () {
       if (parent === current) {
         return Option.none();
       }
+      current = parent;
+    }
+  });
+
+  // The nearest repository root decides, so a plain Git repository nested inside a colocated jj
+  // repository stays Git. An explicit vcs.json choice is resolved before this detection.
+  const hasColocatedJj = Effect.fn("VcsProjectConfig.hasColocatedJj")(function* (cwd: string) {
+    const exists = (candidate: string) =>
+      fileSystem.exists(candidate).pipe(Effect.orElseSucceed(() => false));
+    let current = path.resolve(cwd);
+    while (true) {
+      const [jj, git] = yield* Effect.all([
+        exists(path.join(current, ".jj")),
+        exists(path.join(current, ".git")),
+      ]);
+      if (jj || git) return jj && git;
+      const parent = path.dirname(current);
+      if (parent === current) return false;
       current = parent;
     }
   });
@@ -135,7 +171,7 @@ export const make = Effect.gen(function* () {
       return input.requestedKind;
     }
 
-    return yield* findConfigPath(input.cwd).pipe(
+    const configured = yield* findConfigPath(input.cwd).pipe(
       Effect.flatMap(
         Option.match({
           onNone: () => Effect.succeed("auto" as const),
@@ -147,9 +183,12 @@ export const make = Effect.gen(function* () {
           logVcsProjectConfigError(error).pipe(Effect.as("auto" as const)),
       }),
     );
+    if (configured !== "auto") return configured;
+    return (yield* hasColocatedJj(input.cwd)) && (yield* isJjAvailable) ? "jj" : "auto";
   });
 
   return VcsProjectConfig.of({
+    isJjAvailable,
     resolveKind,
   });
 });

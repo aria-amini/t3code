@@ -24,6 +24,7 @@ import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as ServerConfig from "./config.ts";
 import * as StorageCleanup from "./storageCleanup.ts";
 import * as GitVcsDriver from "./vcs/GitVcsDriver.ts";
+import * as VcsProcess from "./vcs/VcsProcess.ts";
 import * as GitManager from "./git/GitManager.ts";
 import * as Settings from "./serverSettings.ts";
 import * as ProjectionStore from "./orchestration-v2/ProjectionStore.ts";
@@ -580,6 +581,7 @@ const pausedMeasurementFixture = (storageCleanup?: StorageCleanupSettings) =>
     return { ...fixture, measuring, resume };
   });
 const cleanupTestLayer = GitVcsDriver.layer.pipe(
+  Layer.provide(VcsProcess.layer),
   Layer.provideMerge(ServerConfig.layerTest(process.cwd(), { prefix: "storage-cleanup-" })),
   Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
 );

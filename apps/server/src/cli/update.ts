@@ -2,6 +2,7 @@ import * as HostProcess from "@t3tools/shared/HostProcess";
 import {
   CLI_RELEASE_BASE_URL_ENV,
   CLI_RELEASE_CHANNELS,
+  cliArchivePlatformKey,
   cliReleaseIndexPageUrl,
   cliReleaseChannelOf,
   newestCliReleaseVersion,
@@ -22,6 +23,7 @@ import { FetchHttpClient, HttpClient, HttpClientRequest, HttpClientResponse } fr
 
 import packageJson from "../../package.json" with { type: "json" };
 import * as BootService from "../cloud/bootService.ts";
+import { latestForkUpdateVersion } from "../cloud/forkRuntimeChannel.ts";
 import {
   ensurePinnedRuntimeInstalled,
   launcherOwnsVersionsDir,
@@ -136,6 +138,47 @@ export const resolveMirrorVersion = Effect.fn("cli.update.resolve_mirror")(funct
     return yield* unreadable;
   }
   return version;
+});
+
+export const resolveUpdateVersion = Effect.fn("cli.update.resolve_version")(function* (input: {
+  readonly currentVersion: string;
+  readonly requestedVersion?: string;
+  readonly channel?: CliReleaseChannel;
+  readonly mirror?: { readonly organization: string; readonly feedUrl: string };
+}) {
+  if (input.requestedVersion !== undefined) return input.requestedVersion;
+  if (input.mirror !== undefined) {
+    return yield* resolveMirrorVersion(
+      input.mirror,
+      input.channel ?? cliReleaseChannelOf(input.currentVersion),
+    );
+  }
+  if (input.channel === undefined && input.currentVersion.includes("-fork.")) {
+    const platform = yield* HostProcess.Platform;
+    const arch = yield* HostProcess.Architecture;
+    const key = cliArchivePlatformKey(platform, arch);
+    if (!key)
+      return yield* new CliUpdateError({
+        reason: "No fork runtime supports this platform.",
+      });
+    const version = yield* latestForkUpdateVersion(
+      input.currentVersion.split("-", 1)[0]!,
+      key,
+    ).pipe(
+      Effect.mapError(
+        () =>
+          new CliUpdateError({
+            reason: "Could not list fork runtime releases.",
+          }),
+      ),
+    );
+    if (!version)
+      return yield* new CliUpdateError({
+        reason: "No published fork runtime was found.",
+      });
+    return version;
+  }
+  return yield* resolveNewestVersion(input.channel ?? cliReleaseChannelOf(input.currentVersion));
 });
 
 /**
@@ -382,13 +425,12 @@ export const runUpdate = Effect.fn("cli.update.run")(function* (input: {
   }
   const progress = createUpdateProgress();
   progress.status("Checking for updates...");
-  const targetVersion = yield* (
-    input.requestedVersion !== undefined
-      ? Effect.succeed(input.requestedVersion)
-      : mirror === undefined
-        ? resolveNewestVersion(channel)
-        : resolveMirrorVersion(mirror, channel)
-  ).pipe(Effect.ensuring(Effect.sync(progress.finish)));
+  const targetVersion = yield* resolveUpdateVersion({
+    currentVersion,
+    ...(input.channel === undefined ? {} : { channel: input.channel }),
+    ...(input.requestedVersion === undefined ? {} : { requestedVersion: input.requestedVersion }),
+    ...(mirror === undefined ? {} : { mirror }),
+  }).pipe(Effect.ensuring(Effect.sync(progress.finish)));
   const targetChannel = cliReleaseChannelOf(targetVersion);
 
   const currentChannel = cliReleaseChannelOf(currentVersion);

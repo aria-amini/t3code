@@ -43,11 +43,19 @@ export function cliArchiveFileName(version: string, platformKey: CliArchivePlatf
 
 const CLI_RELEASE_DEFAULT_BASE_URL = `https://github.com/${CLI_RELEASE_REPOSITORY}/releases/download`;
 
+// Fork builds are published on the fork's own releases, never upstream's.
+function forkReleaseBaseUrl(version: string, baseUrl: string | undefined): string {
+  const requested = baseUrl?.trim() || CLI_RELEASE_DEFAULT_BASE_URL;
+  return requested === CLI_RELEASE_DEFAULT_BASE_URL && /^\d+\.\d+\.\d+-fork\.\d+$/.test(version)
+    ? "https://github.com/aria-amini/t3code/releases/download"
+    : requested;
+}
+
 export function cliReleaseDownloadBaseUrl(
   version: string,
   baseUrl: string | undefined = CLI_RELEASE_DEFAULT_BASE_URL,
 ): string {
-  return `${(baseUrl?.trim() || CLI_RELEASE_DEFAULT_BASE_URL).replace(/\/+$/, "")}/v${version}`;
+  return `${forkReleaseBaseUrl(version, baseUrl).replace(/\/+$/, "")}/v${version}`;
 }
 
 /** `segments` added to `baseUrl`'s path, keeping its query, such as a signed mirror URL's token. */
@@ -63,7 +71,7 @@ export function cliReleaseAssetUrl(
   fileName: string,
   baseUrl: string | undefined = CLI_RELEASE_DEFAULT_BASE_URL,
 ): string {
-  return releaseAssetUrl(baseUrl?.trim() || CLI_RELEASE_DEFAULT_BASE_URL, `v${version}`, fileName);
+  return releaseAssetUrl(forkReleaseBaseUrl(version, baseUrl), `v${version}`, fileName);
 }
 
 export function parseChecksums(text: string): ReadonlyMap<string, string> {

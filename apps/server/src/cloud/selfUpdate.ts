@@ -22,9 +22,11 @@ import { HttpClient } from "effect/http";
 
 import {
   CLI_RELEASE_BASE_URL_ENV,
+  cliArchivePlatformKey,
   cliReleaseChannelOf,
   crossesReleaseTrack,
 } from "@t3tools/shared/cliRelease";
+import { latestForkUpdateVersion } from "./forkRuntimeChannel.ts";
 
 import packageJson from "../../package.json" with { type: "json" };
 import * as ServerConfig from "../config.ts";
@@ -191,9 +193,21 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
 
     const unsafeCrossing = crossesTrackUnsafely(input);
     if (unsafeCrossing !== null) return yield* failWith(unsafeCrossing);
-    const targetVersion = input.targetVersion.trim();
+    let targetVersion = input.targetVersion.trim();
     if (!isExactServiceVersion(targetVersion)) {
       return yield* failWith(`'${targetVersion}' is not an exact t3 version.`);
+    }
+    if (yield* Ref.get(inFlight)) return yield* failWith("A server update is already in progress.");
+    if (mirror === undefined && packageJson.version.includes("-fork.")) {
+      const platformKey = cliArchivePlatformKey(platform, arch);
+      if (!platformKey) return yield* failWith("No fork runtime supports this platform.");
+      const forkVersion = yield* latestForkUpdateVersion(targetVersion, platformKey).pipe(
+        Effect.provideService(HttpClient.HttpClient, httpClient),
+        Effect.mapError((cause) => failWith("The fork runtime channel is unreachable.", cause)),
+      );
+      if (!forkVersion)
+        return yield* failWith(`The fork runtime channel has no build for ${targetVersion}.`);
+      targetVersion = forkVersion;
     }
     if (yield* Ref.getAndSet(inFlight, true)) {
       return yield* failWith("A server update is already in progress.");

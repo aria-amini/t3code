@@ -25,7 +25,9 @@ import {
   resolveLauncherPath,
   resolveMirrorVersion,
   resolveNewestVersion,
+  resolveUpdateVersion,
   runUpdate,
+  updateCommand,
 } from "./update.ts";
 
 // lsof listing one process, so prune sees a process list in which no runtime is running.
@@ -113,6 +115,46 @@ it.effect("reads the newest version from the update feed file a mirror publishes
       "Could not read latest.yml from Example Corp's update mirror.",
     );
     assert.include(yield* resolve("preview", "win32", "x64", ""), "has no preview builds");
+  }),
+);
+
+it.effect("keeps automatic CLI updates on the fork channel", () =>
+  Effect.gen(function* () {
+    const urls: string[] = [];
+    const client = HttpClient.make((request) =>
+      Effect.sync(() => {
+        urls.push(request.url);
+        return HttpClientResponse.fromWeb(
+          request,
+          Response.json([
+            {
+              tag_name: "v0.0.45-fork.2",
+              assets: [{ name: "t3-0.0.45-fork.2-linux-arm64.tar.gz" }],
+            },
+            { tag_name: "v0.0.46-fork.1", assets: [{ name: "t3-0.0.46-fork.1-linux-x64.tar.gz" }] },
+          ]),
+        );
+      }),
+    );
+    const version = yield* resolveUpdateVersion({
+      currentVersion: "0.0.45-fork.1",
+    }).pipe(
+      Effect.provideService(HttpClient.HttpClient, client),
+      Effect.provideService(HostProcess.Platform, "linux"),
+      Effect.provideService(HostProcess.Architecture, "arm64"),
+    );
+    assert.equal(version, "0.0.45-fork.2");
+    assert.deepEqual(urls, [
+      "https://api.github.com/repos/aria-amini/t3code/releases?per_page=100&page=1",
+    ]);
+    assert.equal(
+      yield* resolveUpdateVersion({
+        currentVersion: "0.0.45-fork.2",
+        requestedVersion: "0.0.45-fork.1",
+      }).pipe(Effect.provideService(HttpClient.HttpClient, client)),
+      "0.0.45-fork.1",
+    );
+    assert.equal(urls.length, 1);
   }),
 );
 

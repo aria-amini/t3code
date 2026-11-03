@@ -15,10 +15,17 @@ import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import { afterEach, vi } from "vite-plus/test";
 
 import * as BootService from "../cloud/bootService.ts";
-import { prunePinnedRuntimes } from "../cloud/pinnedRuntime.ts";
+import { pinnedRuntimePaths, prunePinnedRuntimes } from "../cloud/pinnedRuntime.ts";
 import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
 import * as ProcessRunner from "../processRunner.ts";
-import { repointLauncher, resolveLauncherPath, resolveNewestVersion, runUpdate } from "./update.ts";
+import {
+  repointLauncher,
+  resolveLauncherPath,
+  resolveNewestVersion,
+  resolveUpdateVersion,
+  runUpdate,
+  updateCommand,
+} from "./update.ts";
 
 // lsof listing one process, so prune sees a process list in which no runtime is running.
 const unrelatedLsof = ProcessRunner.ProcessRunner.of({
@@ -57,6 +64,46 @@ it.effect("authenticates each release page until the requested channel is found"
     );
     assert.equal(version, "1.2.3");
     assert.deepStrictEqual(pages, ["1", "2"]);
+  }),
+);
+
+it.effect("keeps automatic CLI updates on the fork channel", () =>
+  Effect.gen(function* () {
+    const urls: string[] = [];
+    const client = HttpClient.make((request) =>
+      Effect.sync(() => {
+        urls.push(request.url);
+        return HttpClientResponse.fromWeb(
+          request,
+          Response.json([
+            {
+              tag_name: "v0.0.45-fork.2",
+              assets: [{ name: "t3-0.0.45-fork.2-linux-arm64.tar.gz" }],
+            },
+            { tag_name: "v0.0.46-fork.1", assets: [{ name: "t3-0.0.46-fork.1-linux-x64.tar.gz" }] },
+          ]),
+        );
+      }),
+    );
+    const version = yield* resolveUpdateVersion({
+      currentVersion: "0.0.45-fork.1",
+    }).pipe(
+      Effect.provideService(HttpClient.HttpClient, client),
+      Effect.provideService(HostProcess.Platform, "linux"),
+      Effect.provideService(HostProcess.Architecture, "arm64"),
+    );
+    assert.equal(version, "0.0.45-fork.2");
+    assert.deepEqual(urls, [
+      "https://api.github.com/repos/aria-amini/t3code/releases?per_page=100&page=1",
+    ]);
+    assert.equal(
+      yield* resolveUpdateVersion({
+        currentVersion: "0.0.45-fork.2",
+        requestedVersion: "0.0.45-fork.1",
+      }).pipe(Effect.provideService(HttpClient.HttpClient, client)),
+      "0.0.45-fork.1",
+    );
+    assert.equal(urls.length, 1);
   }),
 );
 

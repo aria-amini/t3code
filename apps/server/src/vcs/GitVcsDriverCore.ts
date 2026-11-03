@@ -65,6 +65,7 @@ const branchBaseConfigKey = (branch: string) => `branch.${branch}.t3-merge-base`
 const legacyBranchBaseConfigKey = (branch: string) => `branch.${branch}.gh-merge-base`;
 const gitProcesses = Semaphore.makeUnsafe(8);
 const WORKTREE_REMOVE_TIMEOUT_MS = Duration.toMillis(Duration.minutes(5));
+const PUSH_TIMEOUT_MS = 15 * 60_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
 const OUTPUT_TRUNCATED_MARKER = "\n\n[truncated]";
 const PREPARED_COMMIT_PATCH_MAX_OUTPUT_BYTES = 49_000;
@@ -1650,6 +1651,17 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
           ),
   });
 
+  const refreshRemoteIfStale = Effect.fn("refreshRemoteIfStale")(function* (
+    cwd: string,
+    remoteName: string,
+  ) {
+    const gitCommonDir = yield* resolveGitCommonDir(cwd);
+    yield* Cache.get(
+      statusRemoteRefreshCache,
+      new StatusRemoteRefreshCacheKey({ gitCommonDir, remoteName }),
+    ).pipe(Effect.ignore);
+  });
+
   const refreshStatusUpstreamIfStale = Effect.fn("refreshStatusUpstreamIfStale")(function* (
     cwd: string,
   ) {
@@ -1668,11 +1680,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     ).pipe(Effect.map((stdout) => stdout.trim()));
     // Empty means no upstream; `.` means the upstream is a local branch.
     if (remoteName.length === 0 || remoteName === ".") return;
-    const gitCommonDir = yield* resolveGitCommonDir(cwd);
-    yield* Cache.get(
-      statusRemoteRefreshCache,
-      new StatusRemoteRefreshCacheKey({ gitCommonDir, remoteName }),
-    ).pipe(Effect.ignore);
+    yield* refreshRemoteIfStale(cwd, remoteName);
   });
 
   const resolveDefaultBranchName = (
@@ -1972,6 +1980,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     cwd: string,
     refName: string,
     options?: { readonly knownOriginDefaultBranch: string | null },
+    head = "HEAD",
   ) {
     const base = yield* resolveBaseBranchForNoUpstream(cwd, refName, options);
     if (!base) {
@@ -1981,7 +1990,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     const result = yield* executeGit(
       "GitVcsDriver.computeAheadCountAgainstBase",
       cwd,
-      ["rev-list", "--count", "--end-of-options", `${base.comparisonRef}..HEAD`],
+      ["rev-list", "--count", "--end-of-options", `${base.comparisonRef}..${head}`],
       { allowNonZeroExit: true },
     );
     if (result.exitCode !== 0) {
@@ -2672,7 +2681,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         "GitVcsDriver.pushCurrentBranch.pushWithRequestedRemote",
         cwd,
         ["push", "--", requestedRemoteName, `HEAD:refs/heads/${publishBranch}`],
-        { timeoutMs: null },
+        { timeoutMs: PUSH_TIMEOUT_MS },
       );
       return {
         status: "pushed" as const,
@@ -2748,7 +2757,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         "GitVcsDriver.pushCurrentBranch.pushWithUpstream",
         cwd,
         ["push", "--", publishRemoteName, `HEAD:refs/heads/${publishBranch}`],
-        { timeoutMs: null },
+        { timeoutMs: PUSH_TIMEOUT_MS },
       );
       return {
         status: "pushed" as const,
@@ -2792,7 +2801,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
           "GitVcsDriver.pushCurrentBranch.pushOwnBranch",
           cwd,
           ["push", "--", remoteName, `HEAD:refs/heads/${publishBranch}`],
-          { timeoutMs: null },
+          { timeoutMs: PUSH_TIMEOUT_MS },
         );
         return {
           status: "pushed" as const,
@@ -2806,7 +2815,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         "GitVcsDriver.pushCurrentBranch.pushUpstream",
         cwd,
         ["push", "--", currentUpstream.remoteName, `HEAD:refs/heads/${currentUpstream.branchName}`],
-        { timeoutMs: null },
+        { timeoutMs: PUSH_TIMEOUT_MS },
       );
       return {
         status: "pushed" as const,
@@ -2816,7 +2825,9 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       };
     }
 
-    yield* runGit("GitVcsDriver.pushCurrentBranch.push", cwd, ["push"], { timeoutMs: null });
+    yield* runGit("GitVcsDriver.pushCurrentBranch.push", cwd, ["push"], {
+      timeoutMs: PUSH_TIMEOUT_MS,
+    });
     return {
       status: "pushed" as const,
       branch,
@@ -3153,7 +3164,18 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     branch: string | null,
     explicitBaseRef?: string,
     knownOriginDefaultBranch: string | null = null,
+    // A jj workspace names its own commit, since Git HEAD is only its parent. Without a base,
+    // Changes equals the working-tree source, which `fallbackRef` names.
+    jj?: {
+      readonly workingCopy?: string | undefined;
+      readonly fallbackRef?: string;
+    },
   ) {
+    const resolveBase = (name: string) =>
+      resolveBaseBranchForNoUpstream(cwd, name, {
+        allowRemoteOfCurrent: true,
+        knownOriginDefaultBranch,
+      }).pipe(Effect.orElseSucceed(() => null));
     const base =
       explicitBaseRef !== undefined
         ? ((yield* resolveComparisonBaseRef(cwd, explicitBaseRef)) ?? {
@@ -3163,15 +3185,11 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
                 ? `refs/heads/${explicitBaseRef}`
                 : explicitBaseRef,
           })
-        : branch
-          ? yield* resolveBaseBranchForNoUpstream(cwd, branch, {
-              allowRemoteOfCurrent: true,
-              knownOriginDefaultBranch,
-            }).pipe(Effect.orElseSucceed(() => null))
-          : null;
-    if (base === null) return { baseRef: null, mergeBase: "HEAD" };
+        : ((branch ? yield* resolveBase(branch) : null) ??
+          (jj?.workingCopy ? yield* resolveBase("") : null));
+    if (base === null) return { baseRef: null, mergeBase: jj?.fallbackRef ?? "HEAD" };
     const { baseRef, comparisonRef } = base;
-    const args = ["merge-base", "--end-of-options", comparisonRef, "HEAD"];
+    const args = ["merge-base", "--end-of-options", comparisonRef, jj?.workingCopy ?? "HEAD"];
     const result = yield* executeGit("GitVcsDriver.resolveReviewMergeBase", cwd, args, {
       allowNonZeroExit: true,
     });
@@ -3400,6 +3418,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
 
   const getReviewDiffPreview = Effect.fn("getReviewDiffPreview")(function* (
     input: ReviewDiffPreviewInput,
+    options?: Parameters<GitVcsDriver.GitVcsDriver["Service"]["getReviewDiffPreview"]>[1],
   ) {
     const pathArgs = input.file
       ? [input.file.path, ...(input.file.previousPath ? [input.file.previousPath] : [])].map(
@@ -3490,11 +3509,20 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       };
     }
 
-    const dirtyRef = input.file?.sourceKind === "branch-range" ? null : "HEAD";
+    // A colocated jj workspace leaves Git HEAD detached, so its driver supplies the active bookmark.
+    // `workingCopy` is the jj commit that Changes compares with the base, since Git HEAD is its parent.
+    const branch = options?.branch ?? repository.currentBranch;
+    const workingTreeBase = options?.workingTreeBase ?? "HEAD";
+    // A per-file request only reads its own source.
+
+    const dirtyRef = input.file?.sourceKind === "branch-range" ? null : workingTreeBase;
     const review =
       input.file?.sourceKind === "working-tree"
         ? { baseRef: input.baseRef ?? null, mergeBase: null }
-        : yield* resolveReviewMergeBase(cwd, repository.currentBranch, input.baseRef);
+        : yield* resolveReviewMergeBase(cwd, branch, input.baseRef, null, {
+            workingCopy: options?.workingCopy,
+            fallbackRef: workingTreeBase,
+          });
 
     const diffArgs = [
       ...REVIEW_DIFF_ARGS,
@@ -3579,7 +3607,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         id: "working-tree",
         kind: "working-tree",
         title: "Uncommitted",
-        baseRef: "HEAD",
+        baseRef: workingTreeBase,
         headRef: null,
         diff: dirtyDiff,
         ...(dirtyFiles === undefined ? {} : { files: dirtyFiles }),
@@ -3591,7 +3619,8 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         kind: "branch-range",
         title: review.baseRef ? `Changes vs ${review.baseRef}` : "Changes",
         baseRef: review.baseRef,
-        headRef: repository.currentBranch ?? "HEAD",
+        // For display only. The new side is the working tree.
+        headRef: branch ?? "HEAD",
         diff: baseDiff,
         ...(baseFiles === undefined ? {} : { files: baseFiles }),
         diffHash: baseDiffHash,
@@ -4187,6 +4216,98 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     },
   );
 
+  const initializeWorktreeSubmodules = Effect.fn("GitVcsDriver.initializeWorktreeSubmodules")(
+    function* (worktreePath: string, options?: GitVcsDriver.CreateWorktreeOptions) {
+      const progress = options?.progress;
+      // worktree add leaves submodules empty, potentially omitting project skills, tools or source.
+      const hasSubmodules = yield* fileSystem
+        .exists(path.join(worktreePath, ".gitmodules"))
+        .pipe(Effect.orElseSucceed(() => false));
+      const submoduleMode = !hasSubmodules
+        ? { value: "none" as const, source: "environment" as const }
+        : resolveProjectFileBackedSetting(
+            "worktreeSubmodules",
+            options?.submodules ?? null,
+            options?.submodules != null
+              ? null
+              : yield* fileSystem
+                  .readFileString(path.join(worktreePath, T3_PROJECT_FILE_NAME))
+                  .pipe(
+                    Effect.flatMap((contents) => {
+                      const file = parseT3ProjectFile(contents);
+                      return file === null
+                        ? Effect.logWarning(
+                            "t3.json is invalid; initializing submodules recursively",
+                            {
+                              worktreePath,
+                            },
+                          ).pipe(Effect.as(null))
+                        : Effect.succeed(file);
+                    }),
+                    Effect.orElseSucceed(() => null),
+                  ),
+          );
+      if (hasSubmodules && submoduleMode.value === "none" && progress?.onSubmodulesDisabled) {
+        yield* progress.onSubmodulesDisabled({
+          source: submoduleMode.source === "t3.json" ? "t3.json" : "settings",
+        });
+      }
+      if (submoduleMode.value !== "none") {
+        if (progress?.onSubmodulesStarted) {
+          yield* progress.onSubmodulesStarted();
+        }
+        const onSubmoduleLine = progress?.onSubmoduleLine;
+        // Registering submodule URLs writes the shared config; the clones that follow do not.
+        yield* runGit(
+          "GitVcsDriver.createWorktree.initSubmodules",
+          worktreePath,
+          ["submodule", "init"],
+          { writesSharedConfig: true },
+        ).pipe(
+          Effect.andThen(
+            runGit(
+              "GitVcsDriver.createWorktree.updateSubmodules",
+              worktreePath,
+              submoduleMode.value === "recursive"
+                ? ["submodule", "update", "--init", "--recursive"]
+                : ["submodule", "update", "--init"],
+              {
+                // Cloning scales with remote size; let it finish or be cancelled, like worktree add.
+                timeoutMs: null,
+                ...(onSubmoduleLine
+                  ? {
+                      env: { LANGUAGE: "C" },
+                      progress: { onStdoutLine: onSubmoduleLine, onStderrLine: onSubmoduleLine },
+                    }
+                  : {}),
+              },
+            ),
+          ),
+          Effect.matchEffect({
+            onFailure: (cause) =>
+              Effect.logWarning(
+                "worktree submodule checkout failed; submodules may be incomplete",
+                {
+                  worktreePath,
+                  cause,
+                },
+              ).pipe(
+                Effect.andThen(
+                  progress?.onSubmodulesFinished
+                    ? progress.onSubmodulesFinished({ ok: false, detail: cause.message })
+                    : Effect.void,
+                ),
+              ),
+            onSuccess: () =>
+              progress?.onSubmodulesFinished
+                ? progress.onSubmodulesFinished({ ok: true, detail: null })
+                : Effect.void,
+          }),
+        );
+      }
+    },
+  );
+
   const createWorktree: GitVcsDriver.GitVcsDriver["Service"]["createWorktree"] = Effect.fn(
     "createWorktree",
   )(function* (input, options) {
@@ -4280,88 +4401,8 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       ),
     );
 
-    if (progress?.onWorktreeClaimed) {
-      yield* progress.onWorktreeClaimed(worktreePath);
-    }
-
-    // worktree add leaves submodules empty, potentially omitting project skills, tools or source.
-    const hasSubmodules = yield* fileSystem
-      .exists(path.join(worktreePath, ".gitmodules"))
-      .pipe(Effect.orElseSucceed(() => false));
-    const submoduleMode = !hasSubmodules
-      ? { value: "none" as const, source: "environment" as const }
-      : resolveProjectFileBackedSetting(
-          "worktreeSubmodules",
-          options?.submodules ?? null,
-          options?.submodules != null
-            ? null
-            : yield* fileSystem.readFileString(path.join(worktreePath, T3_PROJECT_FILE_NAME)).pipe(
-                Effect.flatMap((contents) => {
-                  const file = parseT3ProjectFile(contents);
-                  return file === null
-                    ? Effect.logWarning("t3.json is invalid; initializing submodules recursively", {
-                        worktreePath,
-                      }).pipe(Effect.as(null))
-                    : Effect.succeed(file);
-                }),
-                Effect.orElseSucceed(() => null),
-              ),
-        );
-    if (hasSubmodules && submoduleMode.value === "none" && progress?.onSubmodulesDisabled) {
-      yield* progress.onSubmodulesDisabled({
-        source: submoduleMode.source === "t3.json" ? "t3.json" : "settings",
-      });
-    }
-    if (submoduleMode.value !== "none") {
-      if (progress?.onSubmodulesStarted) {
-        yield* progress.onSubmodulesStarted();
-      }
-      const onSubmoduleLine = progress?.onSubmoduleLine;
-      // Registering submodule URLs writes the shared config; the clones that follow do not.
-      yield* runGit(
-        "GitVcsDriver.createWorktree.initSubmodules",
-        worktreePath,
-        ["submodule", "init"],
-        { writesSharedConfig: true },
-      ).pipe(
-        Effect.andThen(
-          runGit(
-            "GitVcsDriver.createWorktree.updateSubmodules",
-            worktreePath,
-            submoduleMode.value === "recursive"
-              ? ["submodule", "update", "--init", "--recursive"]
-              : ["submodule", "update", "--init"],
-            {
-              // Cloning scales with remote size; let it finish or be cancelled, like worktree add.
-              timeoutMs: null,
-              ...(onSubmoduleLine
-                ? {
-                    env: { LANGUAGE: "C" },
-                    progress: { onStdoutLine: onSubmoduleLine, onStderrLine: onSubmoduleLine },
-                  }
-                : {}),
-            },
-          ),
-        ),
-        Effect.matchEffect({
-          onFailure: (cause) =>
-            Effect.logWarning("worktree submodule checkout failed; submodules may be incomplete", {
-              worktreePath,
-              cause,
-            }).pipe(
-              Effect.andThen(
-                progress?.onSubmodulesFinished
-                  ? progress.onSubmodulesFinished({ ok: false, detail: cause.message })
-                  : Effect.void,
-              ),
-            ),
-          onSuccess: () =>
-            progress?.onSubmodulesFinished
-              ? progress.onSubmodulesFinished({ ok: true, detail: null })
-              : Effect.void,
-        }),
-      );
-    }
+    if (progress?.onWorktreeClaimed) yield* progress.onWorktreeClaimed(worktreePath);
+    yield* initializeWorktreeSubmodules(worktreePath, options);
 
     if (newRefName && base) {
       yield* Effect.gen(function* () {
@@ -5039,7 +5080,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     );
 
   // Forwarders retain the underlying Git operation spans.
-  return GitVcsDriver.GitVcsDriver.of({
+  const driver = GitVcsDriver.GitVcsDriver.of({
     execute,
     status,
     statusDetails,
@@ -5135,4 +5176,13 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     listLocalBranchNames,
     listWorktreePaths,
   });
+  return {
+    ...driver,
+    initializeWorktreeSubmodules,
+    resolveGitCommonDir,
+    withListRefsInvalidation,
+    resolvePushRemoteName,
+    computeAheadCountAgainstBase,
+    refreshRemoteIfStale,
+  };
 });

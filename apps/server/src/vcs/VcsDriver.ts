@@ -6,6 +6,10 @@ import type {
   VcsInitInput,
   VcsListRemotesResult,
   VcsListWorkspaceFilesResult,
+  VcsCreateWorkspaceInput,
+  VcsListWorkspacesResult,
+  VcsRemoveWorkspaceInput,
+  VcsWorkspace,
   VcsRepositoryIdentity,
 } from "@t3tools/contracts";
 import { CheckpointRef } from "@t3tools/contracts";
@@ -85,5 +89,10 @@ export class VcsDriver extends Context.Service<
       relativePaths: ReadonlyArray<string>,
     ) => Effect.Effect<ReadonlyArray<string>, VcsError>;
     readonly initRepository: (input: VcsInitInput) => Effect.Effect<void, VcsError>;
+    readonly createWorkspace?: (
+      input: VcsCreateWorkspaceInput,
+    ) => Effect.Effect<VcsWorkspace, VcsError>;
+    readonly listWorkspaces?: (cwd: string) => Effect.Effect<VcsListWorkspacesResult, VcsError>;
+    readonly removeWorkspace?: (input: VcsRemoveWorkspaceInput) => Effect.Effect<void, VcsError>;
   }
 >()("t3/vcs/VcsDriver") {}
